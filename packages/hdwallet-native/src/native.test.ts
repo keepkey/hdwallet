@@ -101,6 +101,10 @@ describe("NativeHDWalletInfo", () => {
         out: { coin: "Osmo", verbose: "Osmosis Account #0", isKnown: true },
       },
       {
+        msg: { coin: "Kuji", path: [44 + 0x80000000, 118 + 0x80000000, 0 + 0x80000000, 0, 0] },
+        out: { coin: "Kuji", verbose: "Kujira Account #0", isKnown: true },
+      },
+      {
         msg: { coin: "cacao", path: [44 + 0x80000000, 931 + 0x80000000, 0 + 0x80000000, 0, 0] },
         out: { coin: "Mayachain", verbose: "Mayachain Account #0", isKnown: true },
       },
