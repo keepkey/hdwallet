@@ -9,6 +9,7 @@ import * as Btc from "./bitcoin";
 import * as Cosmos from "./cosmos";
 import * as Eos from "./eos";
 import * as Eth from "./ethereum";
+import * as Kujira from "./kujira";
 import * as Mayachain from "./mayachain";
 import * as Osmosis from "./osmosis";
 import * as Ripple from "./ripple";
@@ -246,6 +247,45 @@ function describeOsmosisPath(path: core.BIP32Path): core.PathDescription {
   };
 }
 
+function describeKujiraPath(path: core.BIP32Path): core.PathDescription {
+  const pathStr = core.addressNListToBIP32(path);
+  const unknown: core.PathDescription = {
+    verbose: pathStr,
+    coin: "Kuji",
+    isKnown: false,
+  };
+
+  if (path.length != 5) {
+    return unknown;
+  }
+
+  if (path[0] != 0x80000000 + 44) {
+    return unknown;
+  }
+
+  if (path[1] != 0x80000000 + core.slip44ByCoin("Kuji")) {
+    return unknown;
+  }
+
+  if ((path[2] & 0x80000000) >>> 0 !== 0x80000000) {
+    return unknown;
+  }
+
+  if (path[3] !== 0 || path[4] !== 0) {
+    return unknown;
+  }
+
+  const index = path[2] & 0x7fffffff;
+  return {
+    verbose: `Kujira Account #${index}`,
+    accountIdx: index,
+    wholeAccount: true,
+    coin: "Kuji",
+    isKnown: true,
+    isPrefork: false,
+  };
+}
+
 function describeThorchainPath(path: core.BIP32Path): core.PathDescription {
   const pathStr = core.addressNListToBIP32(path);
   const unknown: core.PathDescription = {
@@ -408,6 +448,7 @@ export class KeepKeyHDWalletInfo
     core.BTCWalletInfo,
     core.ETHWalletInfo,
     core.CosmosWalletInfo,
+    core.KujiraWalletInfo,
     core.BinanceWalletInfo,
     core.RippleWalletInfo,
     core.EosWalletInfo,
@@ -418,6 +459,7 @@ export class KeepKeyHDWalletInfo
   readonly _supportsETHInfo = true;
   readonly _supportsCosmosInfo = true;
   readonly _supportsOsmosisInfo = true;
+  readonly _supportsKujiraInfo = true;
   readonly _supportsRippleInfo = true;
   readonly _supportsBinanceInfo = true;
   readonly _supportsEosInfo = true;
@@ -478,6 +520,10 @@ export class KeepKeyHDWalletInfo
 
   public osmosisGetAccountPaths(msg: core.OsmosisGetAccountPaths): Array<core.OsmosisAccountPath> {
     return Osmosis.osmosisGetAccountPaths(msg);
+  }
+
+  public kujiraGetAccountPaths(msg: core.KujieaGetAccountPaths): Array<core.KujiraAccountPath> {
+    return Kujira.kujiraGetAccountPaths(msg);
   }
 
   public thorchainGetAccountPaths(msg: core.ThorchainGetAccountPaths): Array<core.ThorchainAccountPath> {
@@ -541,6 +587,8 @@ export class KeepKeyHDWalletInfo
         return describeCosmosPath(msg.path);
       case "Osmo":
         return describeOsmosisPath(msg.path);
+      case "Kuji":
+        return describeKujiraPath(msg.path);
       case "Binance":
         return describeBinancePath(msg.path);
       case "Ripple":
@@ -625,6 +673,21 @@ export class KeepKeyHDWalletInfo
     };
   }
 
+  public kujiraNextAccountPath(msg: core.KujiraAccountPath): core.KujiraAccountPath | undefined {
+    const description = describeKujiraPath(msg.addressNList);
+    if (!description.isKnown) {
+      return undefined;
+    }
+
+    const addressNList = msg.addressNList;
+    addressNList[2] += 1;
+
+    return {
+      ...msg,
+      addressNList,
+    };
+  }
+  
   public thorchainNextAccountPath(msg: core.ThorchainAccountPath): core.ThorchainAccountPath | undefined {
     const description = describeThorchainPath(msg.addressNList);
     if (!description.isKnown) {
@@ -705,6 +768,7 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   readonly _supportsBTCInfo = true;
   readonly _supportsCosmosInfo = true;
   readonly _supportsOsmosisInfo = true;
+  readonly _supportsKujiraInfo = true;
   readonly _supportsRippleInfo = true;
   readonly _supportsBinanceInfo = true;
   readonly _supportsEosInfo = true;
@@ -1325,6 +1389,18 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Osmosis.osmosisSignTx(this.transport, msg);
   }
 
+  public kujiraGetAccountPaths(msg: core.KujiraGetAccountPaths): Array<core.KujiraAccountPath> {
+    return this.info.kujiraGetAccountPaths(msg);
+  }
+
+  public kujiraGetAddress(msg: core.KujiraGetAddress): Promise<string> {
+    return Kujira.kujiraGetAddress(this.transport, msg);
+  }
+
+  public kujiraSignTx(msg: core.KujiraSignTx): Promise<core.KujiraSignedTx> {
+    return Kujira.kujiraSignTx(this.transport, msg);
+  }
+
   public thorchainGetAccountPaths(msg: core.ThorchainGetAccountPaths): Array<core.ThorchainAccountPath> {
     return this.info.thorchainGetAccountPaths(msg);
   }
@@ -1399,6 +1475,10 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
 
   public osmosisNextAccountPath(msg: core.OsmosisAccountPath): core.OsmosisAccountPath | undefined {
     return this.info.osmosisNextAccountPath(msg);
+  }
+
+  public kujiraNextAccountPath(msg: core.KujiraAccountPath): core.KujiraAccountPath | undefined {
+    return this.info.kujiraNextAccountPath(msg);
   }
 
   public rippleNextAccountPath(msg: core.RippleAccountPath): core.RippleAccountPath | undefined {

@@ -9,6 +9,7 @@ import { EosWallet, EosWalletInfo } from "./eos";
 import { ETHWallet, ETHWalletInfo } from "./ethereum";
 import { FioWallet, FioWalletInfo } from "./fio";
 import { KavaWallet, KavaWalletInfo } from "./kava";
+import { KujiraWallet, KujiraWalletInfo } from "./kujira";
 import { MayachainWallet, MayachainWalletInfo } from "./mayachain";
 import { OsmosisWallet, OsmosisWalletInfo } from "./osmosis";
 import { RippleWallet, RippleWalletInfo } from "./ripple";
@@ -171,6 +172,14 @@ export function supportsOsmosis(wallet: HDWallet): wallet is OsmosisWallet {
 
 export function infoOsmosis(info: HDWalletInfo): info is OsmosisWalletInfo {
   return isObject(info) && (info as any)._supportsOsmosisInfo;
+}
+
+export function supportsKujira(wallet: HDWallet): wallet is KujiraWallet {
+  return isObject(wallet) && (wallet as any)._supportsKujira;
+}
+
+export function infoKujira(info: HDWalletInfo): info is KujiraWalletInfo {
+  return isObject(info) && (info as any)._supportsKujiraInfo;
 }
 
 export function supportsArkeo(wallet: HDWallet): wallet is ArkeoWallet {
