@@ -50,6 +50,14 @@ import {
   osmosisSwapTx,
   osmosisUndelegateTx,
 } from "./json/osmosis/osmosisAminoTx.json";
+import {
+  kujiraDelegateTx,
+  kujiraIBCTransferTx,
+  kujiraRedelegateTx,
+  kujiraRewardsTx,
+  kujiraSendTx,
+  kujiraUndelegateTx,
+} from "./json/kujira/kujiraAminoTx.json";
 import * as rippleTxJson from "./json/rippleTx.json";
 import {
   thorchainBinanceBaseTx,
@@ -1815,6 +1823,180 @@ $osmosisSwap.on("click", async (e) => {
   } else {
     const label = await wallet.getLabel();
     $osmosisResults.val(label + " does not support Osmosis");
+  }
+});
+
+/*
+ * Kujira
+ */
+const $kujiraAddress = $("#kujiraAddress");
+const $kujiraSend = $("#kujiraSend");
+const $kujiraDelegate = $("#kujiraDelegate");
+const $kujiraUndelegate = $("#kujiraUndelegate");
+const $kujiraRedelegate = $("#kujiraRedelegate");
+const $kujiraRewards = $("#kujiraRewards");
+const $kujiraIBCTransfer = $("#kujiraIBCTransfer");
+
+const $kujiraResults = $("#kujiraResults");
+
+$kujiraAddress.on("click", async (e) => {
+  e.preventDefault();
+  if (!wallet) {
+    $kujiraResults.val("No wallet?");
+    return;
+  }
+  if (core.supportsKujira(wallet)) {
+    const { addressNList } = wallet.kujiraGetAccountPaths({ accountIdx: 0 })[0];
+    const result = await wallet.kujiraGetAddress({
+      addressNList,
+      showDisplay: false,
+    });
+    await wallet.kujiraGetAddress({
+      addressNList,
+      showDisplay: true,
+    });
+    $kujiraResults.val(result);
+  } else {
+    const label = await wallet.getLabel();
+    $kujiraResults.val(label + " does not support Lujira");
+  }
+});
+
+$kujiraSend.on("click", async (e) => {
+  e.preventDefault();
+  if (!wallet) {
+    $kujiraResults.val("No wallet?");
+    return;
+  }
+  if (core.supportsKujira(wallet)) {
+    const unsigned: core.Kujira.StdTx = kujiraSendTx;
+
+    const res = await wallet.kujiraSignTx({
+      addressNList: core.bip32ToAddressNList(`m/44'/118'/0'/0/0`),
+      chain_id: unsigned.chain_id,
+      account_number: unsigned.account_number,
+      sequence: unsigned.sequence,
+      tx: unsigned,
+    });
+    $kujiraResults.val(JSON.stringify(res));
+  } else {
+    const label = await wallet.getLabel();
+    $kujiraResults.val(label + " does not support Kujira");
+  }
+});
+
+$kujiraDelegate.on("click", async (e) => {
+  e.preventDefault();
+  if (!wallet) {
+    $kujiraResults.val("No wallet?");
+    return;
+  }
+  if (core.supportsKujira(wallet)) {
+    const unsigned: core.Kujira.StdTx = kujiraDelegateTx;
+
+    const res = await wallet.kujiraSignTx({
+      addressNList: core.bip32ToAddressNList(`m/44'/118'/0'/0/0`),
+      chain_id: unsigned.chain_id,
+      account_number: unsigned.account_number,
+      sequence: unsigned.sequence,
+      tx: unsigned,
+    });
+    $kujiraResults.val(JSON.stringify(res));
+  } else {
+    const label = await wallet.getLabel();
+    $kujiraResults.val(label + " does not support Kujira");
+  }
+});
+
+$kujiraUndelegate.on("click", async (e) => {
+  e.preventDefault();
+  if (!wallet) {
+    $kujiraResults.val("No wallet?");
+    return;
+  }
+  if (core.supportsKujira(wallet)) {
+    const unsigned: core.Kujira.StdTx = kujiraUndelegateTx;
+
+    const res = await wallet.kujiraSignTx({
+      addressNList: core.bip32ToAddressNList(`m/44'/118'/0'/0/0`),
+      chain_id: unsigned.chain_id,
+      account_number: unsigned.account_number,
+      sequence: unsigned.sequence,
+      tx: unsigned,
+    });
+    $kujiraResults.val(JSON.stringify(res));
+  } else {
+    const label = await wallet.getLabel();
+    $kujiraResults.val(label + " does not support Kujira");
+  }
+});
+
+$kujiraRedelegate.on("click", async (e) => {
+  e.preventDefault();
+  if (!wallet) {
+    $kujiraResults.val("No wallet?");
+    return;
+  }
+  if (core.supportsKujira(wallet)) {
+    const unsigned: core.Kujira.StdTx = kujiraRedelegateTx;
+
+    const res = await wallet.kujiraSignTx({
+      addressNList: core.bip32ToAddressNList(`m/44'/118'/0'/0/0`),
+      chain_id: unsigned.chain_id,
+      account_number: unsigned.account_number,
+      sequence: unsigned.sequence,
+      tx: unsigned,
+    });
+    $kujiraResults.val(JSON.stringify(res));
+  } else {
+    const label = await wallet.getLabel();
+    $kujiraResults.val(label + " does not support Kujira");
+  }
+});
+
+$kujiraRewards.on("click", async (e) => {
+  e.preventDefault();
+  if (!wallet) {
+    $kujiraResults.val("No wallet?");
+    return;
+  }
+  if (core.supportsKujira(wallet)) {
+    const unsigned: core.Kujira.StdTx = kujiraRewardsTx;
+
+    const res = await wallet.kujiraSignTx({
+      addressNList: core.bip32ToAddressNList(`m/44'/118'/0'/0/0`),
+      chain_id: unsigned.chain_id,
+      account_number: unsigned.account_number,
+      sequence: unsigned.sequence,
+      tx: unsigned,
+    });
+    $kujiraResults.val(JSON.stringify(res));
+  } else {
+    const label = await wallet.getLabel();
+    $kujiraResults.val(label + " does not support Kujira");
+  }
+});
+
+$kujiraIBCTransfer.on("click", async (e) => {
+  e.preventDefault();
+  if (!wallet) {
+    $kujiraResults.val("No wallet?");
+    return;
+  }
+  if (core.supportsKujira(wallet)) {
+    const unsigned: core.Kujira.StdTx = kujiraIBCTransferTx;
+
+    const res = await wallet.kujiraSignTx({
+      addressNList: core.bip32ToAddressNList(`m/44'/118'/0'/0/0`),
+      chain_id: unsigned.chain_id,
+      account_number: unsigned.account_number,
+      sequence: unsigned.sequence,
+      tx: unsigned,
+    });
+    $kujiraResults.val(JSON.stringify(res));
+  } else {
+    const label = await wallet.getLabel();
+    $kujiraResults.val(label + " does not support Kujira");
   }
 });
 
