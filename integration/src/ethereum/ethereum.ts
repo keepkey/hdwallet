@@ -161,9 +161,6 @@ export function ethereumTests(get: () => { wallet: core.HDWallet; info: core.HDW
           return;
         }
 
-        // MetaMask *does* support EIP-1559, though not through offline signing
-        if (metamask.isMetaMask(wallet)) return;
-
         if (!(await wallet.ethSupportsEIP1559())) {
           return;
         }
