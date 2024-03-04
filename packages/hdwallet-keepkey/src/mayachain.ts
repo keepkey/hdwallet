@@ -75,15 +75,11 @@ export async function mayachainSignTx(transport: Transport, msg: core.MayachainS
           throw new Error("MAYAChain: Multiple amounts per MsgSend not supported");
         }
 
-        const denom = m.value.amount[0].denom;
-        if (denom !== "cacao") {
-          throw new Error("MAYAChain: Unsupported denomination: " + denom);
-        }
-
         const send = new MayachainMessages.MayachainMsgSend();
         send.setFromAddress(m.value.from_address);
         send.setToAddress(m.value.to_address);
         send.setAmount(m.value.amount[0].amount);
+        send.setDenom(m.value.amount[0].denom);
 
         ack = new MayachainMessages.MayachainMsgAck();
         ack.setSend(send);
