@@ -16,5 +16,6 @@
   "dependencies": {
     "@keepkey/hdwallet-core": "1.53.10",
     "@keepkey/hdwallet-keepkey": "1.53.10"
-  }
+  },
+  "gitHead": "56ddebbaf88004facedb7bb78e5f4bdb954931d0"
 }
