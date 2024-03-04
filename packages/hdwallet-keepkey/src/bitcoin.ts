@@ -11,7 +11,18 @@ import { toUTF8Array, translateInputScriptType, translateOutputScriptType } from
 // FIXME: load this from the device's coin table, or from some static features
 // table... instead of, you know, adding another God-forsaken coin table.
 // :facepalm:
-const supportedCoins = ["Bitcoin", "Testnet", "BitcoinCash", "BitcoinGold", "Litecoin", "Dash", "DigiByte", "Dogecoin"];
+const supportedCoins = [
+  "Bitcoin",
+  "Testnet",
+  "BitcoinCash",
+  "BitcoinGold",
+  "Litecoin",
+  "Dash",
+  "DigiByte",
+  "Dogecoin",
+  "Zcash",
+  "Komodo",
+];
 
 const segwitCoins = ["Bitcoin", "Testnet", "BitcoinGold", "Litecoin"];
 

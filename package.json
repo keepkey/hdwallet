@@ -53,6 +53,7 @@
     "jest-junit": "^12.0.0",
     "lerna": "^5.2.0",
     "prettier": "^2.0.5",
+    "punycode": "^1.4.1",
     "stream-browserify": "^3.0.0",
     "ts-jest": "^26.5.5",
     "typescript": "^5.2.2"
