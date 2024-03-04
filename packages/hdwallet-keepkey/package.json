@@ -17,7 +17,7 @@
   "dependencies": {
     "@ethereumjs/common": "^2.4.0",
     "@ethereumjs/tx": "^3.3.0",
-    "@keepkey/device-protocol": "^7.13.1",
+    "@keepkey/device-protocol": "^7.13.2",
     "@keepkey/hdwallet-core": "1.53.10",
     "@keepkey/proto-tx-builder": "^0.9.0",
     "@metamask/eth-sig-util": "^7.0.0",

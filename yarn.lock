@@ -1615,13 +1615,28 @@
     "@types/yargs" "^15.0.0"
     chalk "^4.0.0"
 
-"@keepkey/device-protocol@^7.13.1":
-  version "7.13.1"
-  resolved "https://registry.yarnpkg.com/@keepkey/device-protocol/-/device-protocol-7.13.1.tgz#e07c80c187a7e99109048038f28e296dfab79a68"
-  integrity sha512-psoeBzySYbck7kgWfwM3bLtng+sBC/MKLm2HSu3BRI4+GTVGyL0LVvxfy9oqQ8k2F0N2AB9J3z8VQyv3zXsllQ==
+"@keepkey/device-protocol@^7.13.2":
+  version "7.13.2"
+  resolved "https://registry.yarnpkg.com/@keepkey/device-protocol/-/device-protocol-7.13.2.tgz#09e2bff457403952559484d767a17584ceaebe28"
+  integrity sha512-x/FjztrWVTzBn9ptxV9Y1fVtYx8mOr9jIbPOB6hFuqi9UdRkrnaabluMiSKXM7/JTRMouSzwmZ/cnDAbmpD31A==
   dependencies:
     google-protobuf "^3.7.0-rc.2"
     pbjs "^0.0.5"
+
+"@keepkey/hdwallet-core@1.53.9":
+  version "1.53.9"
+  resolved "https://registry.yarnpkg.com/@keepkey/hdwallet-core/-/hdwallet-core-1.53.9.tgz#cd8bd5fa490f19dfa4daf10c5168717aad78389f"
+  integrity sha512-zPHxBjf7jrVxEzASO6Qoh/Hfg6akyh8LekTLMI/QnBibYwHO1xJTqqnWSbDs1VausmKZ8zoFkgY77Yw+J1uKiA==
+  dependencies:
+    "@ethersproject/bytes" "^5.7.0"
+    "@keepkey/proto-tx-builder" "^0.9.0"
+    "@types/node" "^20.11.13"
+    eip-712 "^1.0.0"
+    eventemitter2 "^5.0.1"
+    google-protobuf "^3.21.2"
+    lodash "^4.17.21"
+    rxjs "^6.4.0"
+    type-assertions "^1.1.0"
 
 "@keepkey/hdwallet-native@1.53.9":
   version "1.53.9"
@@ -4140,6 +4155,13 @@
   version "15.14.9"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-15.14.9.tgz#bc43c990c3c9be7281868bbc7b8fdd6e2b57adfa"
   integrity sha512-qjd88DrCxupx/kJD5yQgZdcYKZKSIGBVDIBE1/LTGcNm3d2Np/jxojkdePDdfnBHJc5W7vSMpbJ1aB7p/Py69A==
+
+"@types/node@^20.11.13":
+  version "20.11.24"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-20.11.24.tgz#cc207511104694e84e9fb17f9a0c4c42d4517792"
+  integrity sha512-Kza43ewS3xoLgCEpQrsT+xRo/EJej1y0kVYGiLFE1NEODXGzTfwiC6tXTLMQskn1X4/Rjlh0MQUvx9W+L9long==
+  dependencies:
+    undici-types "~5.26.4"
 
 "@types/node@^20.5.7":
   version "20.6.5"
@@ -8185,6 +8207,11 @@ google-protobuf@^3.17.0:
   version "3.19.4"
   resolved "https://registry.yarnpkg.com/google-protobuf/-/google-protobuf-3.19.4.tgz#8d32c3e34be9250956f28c0fb90955d13f311888"
   integrity sha512-OIPNCxsG2lkIvf+P5FNfJ/Km95CsXOBecS9ZcAU6m2Rq3svc0Apl9nB3GMDNKfQ9asNv4KjyAqGwPQFrVle3Yg==
+
+google-protobuf@^3.21.2:
+  version "3.21.2"
+  resolved "https://registry.yarnpkg.com/google-protobuf/-/google-protobuf-3.21.2.tgz#4580a2bea8bbb291ee579d1fefb14d6fa3070ea4"
+  integrity sha512-3MSOYFO5U9mPGikIYCzK0SaThypfGgS6bHqrUGXG3DPHCrb+txNqeEcns1W0lkGfk0rCyNXm7xB9rMxnCiZOoA==
 
 gopd@^1.0.1:
   version "1.0.1"
@@ -14064,6 +14091,11 @@ unbox-primitive@^1.0.1:
     has-bigints "^1.0.1"
     has-symbols "^1.0.2"
     which-boxed-primitive "^1.0.2"
+
+undici-types@~5.26.4:
+  version "5.26.5"
+  resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-5.26.5.tgz#bcd539893d00b56e964fd2657a4866b221a65617"
+  integrity sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==
 
 union-value@^1.0.0:
   version "1.0.1"
