@@ -1,6 +1,6 @@
 {
   "name": "@keepkey/hdwallet-keepkey-nodewebusb",
-  "version": "1.53.12",
+  "version": "1.53.13",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -14,14 +14,13 @@
     "prepublishOnly": "yarn clean && yarn build"
   },
   "dependencies": {
-    "@keepkey/hdwallet-core": "1.53.12",
-    "@keepkey/hdwallet-keepkey": "1.53.12"
+    "@keepkey/hdwallet-core": "1.53.13",
+    "@keepkey/hdwallet-keepkey": "1.53.13"
   },
   "peerDependencies": {
     "usb": "^2.3.1"
   },
   "devDependencies": {
     "usb": "^2.3.1"
-  },
-  "gitHead": "56ddebbaf88004facedb7bb78e5f4bdb954931d0"
+  }
 }

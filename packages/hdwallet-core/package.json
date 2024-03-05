@@ -1,6 +1,6 @@
 {
   "name": "@keepkey/hdwallet-core",
-  "version": "1.53.12",
+  "version": "1.53.13",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -24,6 +24,5 @@
   "devDependencies": {
     "@types/google-protobuf": "^3.15.1",
     "@types/lodash": "^4.14.168"
-  },
-  "gitHead": "56ddebbaf88004facedb7bb78e5f4bdb954931d0"
+  }
 }
