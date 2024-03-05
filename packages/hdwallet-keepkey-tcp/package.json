@@ -17,6 +17,5 @@
     "@keepkey/hdwallet-core": "1.53.12",
     "@keepkey/hdwallet-keepkey": "1.53.12",
     "axios": "^0.21.1"
-  },
-  "gitHead": "56ddebbaf88004facedb7bb78e5f4bdb954931d0"
+  }
 }

@@ -45,6 +45,5 @@
     "@types/semver": "^6.2.2",
     "@types/tiny-secp256k1": "^1.0.0",
     "typedoc": "^0.20.36"
-  },
-  "gitHead": "56ddebbaf88004facedb7bb78e5f4bdb954931d0"
+  }
 }
