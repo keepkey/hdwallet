@@ -4,7 +4,7 @@
     "@keepkey/hdwallet-core": "1.53.11",
     "@keepkey/hdwallet-keepkey-tcp": "1.53.11",
     "@keepkey/hdwallet-keepkey-webusb": "1.53.11",
-    "@keepkey/hdwallet-native": "1.53.9",
+    "@keepkey/hdwallet-native": "1.53.11",
     "@metamask/eth-sig-util": "^7.0.0",
     "bip32": "^2.0.4",
     "eip-712": "^1.0.0",
