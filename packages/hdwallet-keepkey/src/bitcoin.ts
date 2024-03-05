@@ -22,6 +22,7 @@ const supportedCoins = [
   "Dogecoin",
   "Zcash",
   "Komodo",
+  "Zcash",
 ];
 
 const segwitCoins = ["Bitcoin", "Testnet", "BitcoinGold", "Litecoin"];
