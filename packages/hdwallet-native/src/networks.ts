@@ -1,5 +1,5 @@
 import * as core from "@keepkey/hdwallet-core";
-import * as bitcoin from "bitcoinjs-lib";
+import * as bitcoin from "@shapeshiftoss/bitcoinjs-lib";
 
 import { BTCScriptType } from "./bitcoin";
 
