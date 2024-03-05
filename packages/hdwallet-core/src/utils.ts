@@ -161,7 +161,7 @@ const slip44Table = Object.freeze({
   Mayachain: 931,
   Cacao: 931,
 } as const);
-type Slip44ByCoin<T> = T extends keyof typeof slip44Table ? typeof slip44Table[T] : number | undefined;
+type Slip44ByCoin<T> = T extends keyof typeof slip44Table ? (typeof slip44Table)[T] : number | undefined;
 export function slip44ByCoin<T extends Coin>(coin: T): Slip44ByCoin<T> {
   return (slip44Table as any)[coin];
 }

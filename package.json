@@ -56,7 +56,8 @@
     "punycode": "^1.4.1",
     "stream-browserify": "^3.0.0",
     "ts-jest": "^26.5.5",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vm-browserify": "^1.1.2"
   },
   "resolutions": {
     "bip174": "2.1.0",
