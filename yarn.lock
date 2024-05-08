@@ -1384,7 +1384,7 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@keepkey/device-protocol@^7.13.2":
+"@keepkey/device-protocol@^7.13.1", "@keepkey/device-protocol@^7.13.2":
   version "7.13.2"
   resolved "https://registry.yarnpkg.com/@keepkey/device-protocol/-/device-protocol-7.13.2.tgz#09e2bff457403952559484d767a17584ceaebe28"
   integrity sha512-x/FjztrWVTzBn9ptxV9Y1fVtYx8mOr9jIbPOB6hFuqi9UdRkrnaabluMiSKXM7/JTRMouSzwmZ/cnDAbmpD31A==
@@ -1406,6 +1406,47 @@
     lodash "^4.17.21"
     rxjs "^6.4.0"
     type-assertions "^1.1.0"
+
+"@keepkey/hdwallet-keepkey-tcp@1.53.9":
+  version "1.53.9"
+  resolved "https://registry.yarnpkg.com/@keepkey/hdwallet-keepkey-tcp/-/hdwallet-keepkey-tcp-1.53.9.tgz#8c38c51cce7b9d1ef46ce301c360338ecec50881"
+  integrity sha512-KWTsJ8maUOYlZvaEeGF52ofQoFKpDaM/wMp4u7EOeUEr8MEruQechegcRjgRGyaRcOD/WGL//RYKNUbWJLHoHA==
+  dependencies:
+    "@keepkey/hdwallet-core" "1.53.9"
+    "@keepkey/hdwallet-keepkey" "1.53.9"
+    axios "^0.21.1"
+
+"@keepkey/hdwallet-keepkey-webusb@1.53.9":
+  version "1.53.9"
+  resolved "https://registry.yarnpkg.com/@keepkey/hdwallet-keepkey-webusb/-/hdwallet-keepkey-webusb-1.53.9.tgz#960a635151cd2de204eb27524bee7c16d1141efa"
+  integrity sha512-Vwv1go2BT6T69Z9FFBzenSeo8JSdJEtQ4IJV1zP5WNIG8Ol0+ynj9etDNLdRnP6BkE4qUrjBPDNtZa84lyIpxg==
+  dependencies:
+    "@keepkey/hdwallet-core" "1.53.9"
+    "@keepkey/hdwallet-keepkey" "1.53.9"
+
+"@keepkey/hdwallet-keepkey@1.53.9":
+  version "1.53.9"
+  resolved "https://registry.yarnpkg.com/@keepkey/hdwallet-keepkey/-/hdwallet-keepkey-1.53.9.tgz#4aee6e407c478a71f336b9ab69cd95af3f1f5ac1"
+  integrity sha512-Iow954f9DerVpQnJHbDYjiFQrVypSy8UwN3axcKs6yRAanCKIoGkJeMJ5zSrHleXCU+7eKmSMHLSHCO4CuffsA==
+  dependencies:
+    "@ethereumjs/common" "^2.4.0"
+    "@ethereumjs/tx" "^3.3.0"
+    "@keepkey/device-protocol" "^7.13.1"
+    "@keepkey/hdwallet-core" "1.53.9"
+    "@keepkey/proto-tx-builder" "^0.9.0"
+    "@metamask/eth-sig-util" "^7.0.1"
+    "@shapeshiftoss/bitcoinjs-lib" "5.2.0-shapeshift.2"
+    bignumber.js "^9.0.1"
+    bnb-javascript-sdk-nobroadcast "^2.16.14"
+    crypto-js "^4.0.0"
+    eip55 "^2.1.0"
+    google-protobuf "^3.15.8"
+    icepick "^2.4.0"
+    lodash "^4.17.21"
+    p-lazy "^3.1.0"
+    semver "^7.3.8"
+    superstruct "^1.0.3"
+    tiny-secp256k1 "^1.1.6"
 
 "@keepkey/hdwallet-native@1.53.9":
   version "1.53.9"
@@ -2196,6 +2237,18 @@
     ethereum-cryptography "^2.1.2"
     tweetnacl "^1.0.3"
     tweetnacl-util "^0.15.1"
+
+"@metamask/eth-sig-util@^7.0.1":
+  version "7.0.2"
+  resolved "https://registry.yarnpkg.com/@metamask/eth-sig-util/-/eth-sig-util-7.0.2.tgz#741de634b0d6ca96ce1ee3d064ac6a27756d8d21"
+  integrity sha512-DhTDMNEtED0ihIc4Tysm6qUJTvArCdgSTeeJWdo526W/cAk5mrSAvEYYgv8idAiBumDtcPWGimMTaB7MvY64bg==
+  dependencies:
+    "@ethereumjs/util" "^8.1.0"
+    "@metamask/abi-utils" "^2.0.2"
+    "@metamask/utils" "^8.1.0"
+    "@scure/base" "~1.1.3"
+    ethereum-cryptography "^2.1.2"
+    tweetnacl "^1.0.3"
 
 "@metamask/utils@^8.0.0", "@metamask/utils@^8.1.0":
   version "8.3.0"
@@ -3409,6 +3462,11 @@
   version "1.1.5"
   resolved "https://registry.yarnpkg.com/@scure/base/-/base-1.1.5.tgz#1d85d17269fe97694b9c592552dd9e5e33552157"
   integrity sha512-Brj9FiG2W1MRQSTB212YVPRrcbjkv48FoZi/u4l/zds/ieRrqsh7aUf6CLwkAq61oKXr/ZlTzlY66gLIj3TFTQ==
+
+"@scure/base@~1.1.3":
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/@scure/base/-/base-1.1.6.tgz#8ce5d304b436e4c84f896e0550c83e4d88cb917d"
+  integrity sha512-ok9AWwhcgYuGG3Zfhyqg+zwl+Wn5uE+dwC0NV/2qQkx4dABbb/bx96vWu8NSj+BNjjSjno+JRYRjle1jV08k3g==
 
 "@scure/bip32@1.3.3":
   version "1.3.3"
@@ -11543,6 +11601,11 @@ punycode@2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.1.0.tgz#5f863edc89b96db09074bad7947bf09056ca4e7d"
   integrity sha512-Yxz2kRwT90aPiWEMHVYnEf4+rhwF1tBmmZ4KepCP+Wkium9JxtWnUm1nqGwpiAHr/tnTSeHqr3wb++jgSkXjhA==
+
+punycode@^1.4.1:
+  version "1.4.1"
+  resolved "https://registry.yarnpkg.com/punycode/-/punycode-1.4.1.tgz#c0d5a63b2718800ad8e1eb0fa5269c84dd41845e"
+  integrity sha512-jmYNElW7yvO7TV33CjSmvSiE2yco3bV2czu/OzDKdMNVZQWfxCblURLhf+47syQRBntjfLdd/H0egrzIG+oaFQ==
 
 punycode@^2.1.0, punycode@^2.1.1:
   version "2.3.1"
