@@ -1,6 +1,6 @@
 {
   "name": "@keepkey/hdwallet-native",
-  "version": "1.53.14",
+  "version": "1.53.15",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
