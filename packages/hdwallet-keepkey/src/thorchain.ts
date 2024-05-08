@@ -92,7 +92,6 @@ export async function thorchainSignTx(transport: Transport, msg: core.ThorchainS
           throw new Error("THORChain: Multiple amounts per MsgDeposit not supported");
         }
 
-        const coinAsset = m.value.coins[0].asset;
         const deposit = new ThorchainMessages.ThorchainMsgDeposit();
         deposit.setAsset(m.value.coins[0].asset);
         deposit.setAmount(m.value.coins[0].amount);

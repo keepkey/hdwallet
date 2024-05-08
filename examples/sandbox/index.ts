@@ -2418,8 +2418,7 @@ function erc20SetSetSelected(selectedButton: any) {
     },
     {
       button: $erc20TotalSupply,
-      content:
-        "\
+      content: "\
       <input type='text' placeholder='Contract Address' id='erc20ContractAddress' />\
       ",
     },
