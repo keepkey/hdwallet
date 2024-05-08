@@ -89,9 +89,6 @@ export async function mayachainSignTx(transport: Transport, msg: core.MayachainS
         }
 
         const coinAsset = m.value.coins[0].asset;
-        if (coinAsset !== "MAYA.CACAO") {
-          throw new Error("MAYAChain: Unsupported coin asset: " + coinAsset);
-        }
 
         const deposit = new MayachainMessages.MayachainMsgDeposit();
         deposit.setAsset(m.value.coins[0].asset);

@@ -93,10 +93,6 @@ export async function thorchainSignTx(transport: Transport, msg: core.ThorchainS
         }
 
         const coinAsset = m.value.coins[0].asset;
-        if (coinAsset !== "THOR.RUNE") {
-          throw new Error("THORChain: Unsupported coin asset: " + coinAsset);
-        }
-
         const deposit = new ThorchainMessages.ThorchainMsgDeposit();
         deposit.setAsset(m.value.coins[0].asset);
         deposit.setAmount(m.value.coins[0].amount);
