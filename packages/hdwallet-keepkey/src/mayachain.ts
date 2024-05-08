@@ -87,12 +87,6 @@ export async function mayachainSignTx(transport: Transport, msg: core.MayachainS
         if (m.value.coins.length !== 1) {
           throw new Error("MAYAChain: Multiple amounts per MsgDeposit not supported");
         }
-
-        const coinAsset = m.value.coins[0].asset;
-        if (coinAsset !== "MAYA.CACAO") {
-          throw new Error("MAYAChain: Unsupported coin asset: " + coinAsset);
-        }
-
         const deposit = new MayachainMessages.MayachainMsgDeposit();
         deposit.setAsset(m.value.coins[0].asset);
         deposit.setAmount(m.value.coins[0].amount);
