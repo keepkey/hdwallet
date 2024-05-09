@@ -31,5 +31,5 @@
     "clean": "rm -rf dist node_modules public .parcel-cache",
     "dev": "yarn parcel index.html"
   },
-  "version": "1.53.15"
+  "version": "1.53.16"
 }

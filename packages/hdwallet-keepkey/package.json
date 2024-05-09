@@ -1,6 +1,6 @@
 {
   "name": "@keepkey/hdwallet-keepkey",
-  "version": "1.53.15",
+  "version": "1.53.16",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
@@ -18,8 +18,8 @@
     "@ethereumjs/common": "^2.4.0",
     "@ethereumjs/tx": "^3.3.0",
     "@keepkey/device-protocol": "^7.13.2",
-    "@keepkey/hdwallet-core": "^1.53.15",
-    "@keepkey/proto-tx-builder": "^0.9.0",
+    "@keepkey/hdwallet-core": "1.53.16",
+    "@keepkey/proto-tx-builder": "^0.9.1",
     "@metamask/eth-sig-util": "^7.0.0",
     "@shapeshiftoss/bitcoinjs-lib": "5.2.0-shapeshift.2",
     "bignumber.js": "^9.0.1",
