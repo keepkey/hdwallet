@@ -1,6 +1,8 @@
 import * as core from "@keepkey/hdwallet-core";
 import * as keepkey from "@keepkey/hdwallet-keepkey";
 
+import tx_unsigned_synth_deposit_amino from "./tx01.mainnet.thorchain.synth.deposit.amino.json";
+import tx_unsigned_synth_deposit from "./tx01.mainnet.thorchain.synth.deposit.json";
 import tx_unsigned_swap_amino from "./tx01.mainnet.thorchain.swap.amino.json";
 import tx_unsigned_swap from "./tx01.mainnet.thorchain.swap.json";
 import tx_signed_swap_amino from "./tx01.mainnet.thorchain.swap.signed.amino.json";
@@ -9,6 +11,8 @@ import tx_unsigned_transfer_amino from "./tx01.mainnet.thorchain.transfer.amino.
 import tx_unsigned_transfer from "./tx01.mainnet.thorchain.transfer.json";
 import tx_signed_transfer_amino from "./tx01.mainnet.thorchain.transfer.signed.amino.json";
 import tx_signed_transfer from "./tx01.mainnet.thorchain.transfer.signed.json";
+import tx_signed_synth_deposit_amino from "./tx01.mainnet.thorchain.synth.deposit.signed.amino.json";
+import tx_signed_synth_deposit from "./tx01.mainnet.thorchain.synth.deposit.signed.json";
 
 const MNEMONIC12_NOPIN_NOPASSPHRASE = "alcohol woman abuse must during monitor noble actual mixed trade anger aisle";
 
@@ -117,6 +121,13 @@ export function thorchainTests(get: () => { wallet: core.HDWallet; info: core.HD
           tx_unsigned_swap,
           tx_signed_swap_amino,
           tx_signed_swap,
+        ],
+        [
+          "should correctly sign a synth tx",
+          tx_unsigned_synth_deposit_amino,
+          tx_unsigned_synth_deposit,
+          tx_signed_synth_deposit_amino,
+          tx_signed_synth_deposit,
         ],
       ])(
         "%s",
