@@ -273,6 +273,70 @@ export function bitcoinTests(get: () => { wallet: core.HDWallet; info: core.HDWa
       TIMEOUT
     );
 
+      test(
+          "btcSignTx() - send 100,000 Bitcoin",
+          async () => {
+              const tx: any = {
+                  version: 1,
+                  locktime: 0,
+                  vin: [
+                      {
+                          vout: 0,
+                          sequence: 4294967295,
+                          scriptSig: {
+                              hex: "4830450221008c8f07d18d8ba414faaf4b6b4f3a6b31c8989cf874b2e82cb104e489a8dc32f702204dfda29d0e5545088b9035bd1b41c58b57d5d17cb68808d76570a437ad17e6d30141049c6e843a4645fc807c63b5f5f5a75ff690ac44d6d9077203421f5af8a73e97962bfbfd7c8724a5e1643022b8948d6a5dce0e8f6e5eac86b9e9876d9c83b10f00",
+                          },
+                          txid: "b2173f5c9f90c9e1c67c08454dfc20924897d1bce569a104e69acffcb5a612f2",
+                      },
+                  ],
+                  vout: [
+                      {
+                          value: "10000000000000", // 100,000 BTC in satoshis
+                          scriptPubKey: {
+                              hex: "76a91424a56db43cf6f2b02e838ea493f95d8d6047423188ac",
+                          },
+                      },
+                  ],
+              };
+    
+              const inputs: any = [
+                  {
+                      addressNList: core.bip32ToAddressNList("m/44'/0'/0'/0/0"),
+                      scriptType: core.BTCInputScriptType.SpendAddress,
+                      amount: String(10000000000000), // 100,000 BTC in satoshis
+                      vout: 0,
+                      txid: "b2173f5c9f90c9e1c67c08454dfc20924897d1bce569a104e69acffcb5a612f2",
+                      tx,
+                  },
+              ];
+    
+              const outputs: any = [
+                  {
+                      address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa", // Destination address
+                      addressType: core.BTCOutputAddressType.Spend,
+                      amount: String(10000000000000), // 100,000 BTC in satoshis
+                      isChange: false,
+                  },
+              ];
+    
+              const res = await wallet.btcSignTx(
+                  deepFreeze({
+                      coin: "Bitcoin",
+                      inputs,
+                      outputs,
+                      version: 1,
+                      locktime: 0,
+                  })
+              );
+    
+              // Add null checks to ensure res is defined
+              expect(res).not.toBeNull();
+              expect(res?.serializedTx).toBeTruthy(); // Serialized transaction should exist
+              expect(res?.signatures?.length).toBe(inputs.length); // Should sign all inputs
+          },
+          TIMEOUT
+      );
+    
     test(
       "btcSignTx() - thorchain swap",
       async () => {
