@@ -1,7 +1,7 @@
 {
   "name": "hdwallet-sandbox",
   "version": 2,
-  "buildCommand": "yarn lerna run build --scope @keepkey/hdwallet-core && yarn lerna run build --scope @keepkey/hdwallet-sandbox --ignore @keepkey/hdwallet-keepkey-nodehid --include-dependencies && ls -la && ls -la examples/ && ls -la examples/sandbox/ && mkdir -p public && cp -r examples/sandbox/public/* public/",
+  "buildCommand": "bash build-vercel.sh",
   "outputDirectory": "public",
   "installCommand": "yarn install --frozen-lockfile"
 }
