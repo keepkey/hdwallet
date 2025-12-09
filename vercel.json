@@ -1,7 +1,7 @@
 {
   "name": "hdwallet-sandbox",
   "version": 2,
-  "buildCommand": "bash ./build-vercel.sh",
+  "buildCommand": "npm run vercel-build",
   "outputDirectory": "public",
   "installCommand": "yarn install --frozen-lockfile"
 }
