@@ -3,5 +3,5 @@
   "version": 2,
   "buildCommand": "yarn vercel-build",
   "outputDirectory": "public",
-  "installCommand": "yarn vercel-install"
+  "installCommand": "yarn install --frozen-lockfile"
 }
