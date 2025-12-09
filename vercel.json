@@ -1,7 +1,7 @@
 {
   "name": "hdwallet-sandbox",
   "version": 2,
-  "buildCommand": "yarn lerna run build --scope @keepkey/hdwallet-core && yarn lerna run build --scope @keepkey/hdwallet-sandbox --ignore @keepkey/hdwallet-keepkey-nodehid --include-dependencies && mkdir -p ./public && cp -R examples/sandbox/public/* ./public/",
-  "outputDirectory": "public",
+  "buildCommand": "yarn lerna run build --scope @keepkey/hdwallet-core && yarn lerna run build --scope @keepkey/hdwallet-sandbox --ignore @keepkey/hdwallet-keepkey-nodehid --include-dependencies",
+  "outputDirectory": "examples/sandbox/public",
   "installCommand": "yarn install --frozen-lockfile"
 }
