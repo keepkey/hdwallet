@@ -1,10 +1,7 @@
 {
   "name": "hdwallet-sandbox",
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build"
-    }
-  ]
+  "buildCommand": "yarn vercel-build",
+  "outputDirectory": "public",
+  "installCommand": "yarn vercel-install"
 }
