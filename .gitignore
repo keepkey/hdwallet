@@ -24,8 +24,11 @@
 !/docs/**
 !/examples/
 !/examples/sandbox/
+!/examples/sandbox/chains.ts
+!/examples/sandbox/developerTools.ts
 !/examples/sandbox/index.html
 !/examples/sandbox/index.ts
+!/examples/sandbox/keepkey-logo.svg
 !/examples/sandbox/json/
 !/examples/sandbox/json/**
 !/examples/sandbox/package.json
