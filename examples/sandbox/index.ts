@@ -21,7 +21,6 @@ import {
   arkeoOpenContractTx,
   arkeoTransferClaimTx,
 } from "./json/arkeo/arkeoAminoTx.json";
-import * as bnbTxJson from "./json/bnbTx.json";
 import * as btcBech32TxJson from "./json/btcBech32Tx.json";
 import * as btcSegWitTxJson from "./json/btcSegWitTx.json";
 import * as btcTxJson from "./json/btcTx.json";
@@ -52,7 +51,6 @@ import {
 } from "./json/osmosis/osmosisAminoTx.json";
 import * as rippleTxJson from "./json/rippleTx.json";
 import {
-  thorchainBinanceBaseTx,
   thorchainBitcoinBaseTx,
   thorchainEthereumBaseTx,
   thorchainNativeRuneBaseTx,
@@ -503,57 +501,6 @@ $doClearSession.on("click", (e) => {
     return;
   }
   wallet.clearSession().then(() => $manageResults.val("Session Cleared"));
-});
-
-/*
- * Binance
- */
-const $binanceAddr = $("#binanceAddr");
-const $binanceTx = $("#binanceTx");
-const $binanceResults = $("#binanceResults");
-
-$binanceAddr.on("click", async (e) => {
-  e.preventDefault();
-  if (!wallet) {
-    $binanceResults.val("No wallet?");
-    return;
-  }
-  if (core.supportsBinance(wallet)) {
-    const { addressNList } = wallet.binanceGetAccountPaths({ accountIdx: 0 })[0];
-    let result = await wallet.binanceGetAddress({
-      addressNList,
-      showDisplay: false,
-    });
-    result = await wallet.binanceGetAddress({
-      addressNList,
-      showDisplay: true,
-      address: result,
-    });
-    $binanceResults.val(result);
-  } else {
-    const label = await wallet.getLabel();
-    $binanceResults.val(label + " does not support Binance");
-  }
-});
-
-$binanceTx.on("click", async (e) => {
-  e.preventDefault();
-  if (!wallet) {
-    $binanceResults.val("No wallet?");
-    return;
-  }
-  if (core.supportsBinance(wallet)) {
-    const res = await wallet.binanceSignTx({
-      addressNList: core.bip32ToAddressNList(`m/44'/714'/0'/0/0`),
-      account_number: "24250",
-      sequence: 31,
-      tx: bnbTxJson,
-    });
-    $binanceResults.val(JSON.stringify(res));
-  } else {
-    const label = await wallet.getLabel();
-    $binanceResults.val(label + " does not support Cosmos");
-  }
 });
 
 /*
@@ -1139,42 +1086,6 @@ $thorchainSignSwap.on("click", async (e) => {
         $thorchainSwapResults.val(label + " does not support ETH");
       }
       break;
-    case "BNB.BNB":
-      if (core.supportsBinance(wallet)) {
-        tx = thorchainBinanceBaseTx;
-        tx["memo"] = memo;
-        console.info(tx);
-        const res = await wallet.binanceSignTx({
-          addressNList: core.bip32ToAddressNList(`m/44'/714'/0'/0/0`),
-          chain_id: "Binance-Chain-Nile",
-          account_number: "24250",
-          sequence: 31,
-          tx: tx as any,
-        });
-        $thorchainSwapResults.val(JSON.stringify(res));
-      } else {
-        const label = await wallet.getLabel();
-        $thorchainSwapResults.val(label + " does not support Cosmos");
-      }
-      break;
-    case "BNB.RUNE-B1A":
-      if (core.supportsBinance(wallet)) {
-        tx = thorchainNativeRuneBaseTx;
-        tx["memo"] = memo;
-        console.info(tx);
-        const res = await wallet.binanceSignTx({
-          addressNList: core.bip32ToAddressNList(`m/44'/714'/0'/0/0`),
-          chain_id: "Binance-Chain-Nile",
-          account_number: "24250",
-          sequence: 31,
-          tx: tx as any,
-        });
-        $thorchainSwapResults.val(JSON.stringify(res));
-      } else {
-        const label = await wallet.getLabel();
-        $thorchainSwapResults.val(label + " does not support Cosmos");
-      }
-      break;
     case "THOR.RUNE":
       if (core.supportsThorchain(wallet)) {
         tx = thorchainUnsignedTx;
@@ -1295,48 +1206,6 @@ $thorchainSignAddLiquidity.on("click", async (e) => {
       } else {
         const label = await wallet.getLabel();
         $thorchainAddLiquidityResults.val(label + " does not support ETH");
-      }
-      break;
-    case "BNB.BNB":
-      if (core.supportsBinance(wallet)) {
-        tx = thorchainBinanceBaseTx;
-        tx["memo"] = memo;
-        tx["msgs"]["outputs"][0] = {
-          address: $thorchainLiquidityPoolAddress.val(),
-          coins: [{ amount: $thorchainLiquidityAmount.val(), denom: "BNB" }],
-        };
-        const res = await wallet.binanceSignTx({
-          addressNList: core.bip32ToAddressNList(`m/44'/714'/0'/0/0`),
-          chain_id: "Binance-Chain-Nile",
-          account_number: "24250",
-          sequence: 31,
-          tx: tx as any,
-        });
-        $thorchainAddLiquidityResults.val(JSON.stringify(res));
-      } else {
-        const label = await wallet.getLabel();
-        $thorchainAddLiquidityResults.val(label + " does not support Cosmos");
-      }
-      break;
-    case "BNB.RUNE-B1A":
-      if (core.supportsBinance(wallet)) {
-        tx = thorchainNativeRuneBaseTx;
-        tx["memo"] = memo;
-        tx["msgs"]["outputs"][0] = {
-          address: $thorchainLiquidityPoolAddress.val(),
-          coins: [{ amount: $thorchainLiquidityAmount.val(), denom: "BNB" }],
-        };
-        const res = await wallet.binanceSignTx({
-          addressNList: core.bip32ToAddressNList(`m/44'/714'/0'/0/0`),
-          chain_id: "Binance-Chain-Nile",
-          account_number: "24250",
-          sequence: 31,
-          tx: tx as any,
-        });
-        $thorchainAddLiquidityResults.val(JSON.stringify(res));
-      } else {
-        const label = await wallet.getLabel();
-        $thorchainAddLiquidityResults.val(label + " does not support Cosmos");
       }
       break;
     case "THOR.RUNE":
@@ -2277,11 +2146,20 @@ ethButtons.ethTx.on("click", (e) =>
 ethButtons.ethSign.on("click", (e) =>
   performEthOperation(e, {
     handler: async ({ hardenedPath, relPath }) => {
+      // Get custom message from input
+      const customMessage = $("#ethSignMessage").val() as string || "Hello World";
+      // Convert message to hex
+      const messageHex = "0x" + Buffer.from(customMessage, 'utf8').toString('hex');
+
+      // Get custom path index from input
+      const pathIndex = parseInt($("#ethSignPath").val() as string || "0");
+      const customRelPath = [0, pathIndex]; // m/44'/60'/0'/0/{pathIndex}
+
       const result = await wallet.ethSignMessage({
-        addressNList: hardenedPath.concat(relPath),
-        message: "0x48656c6c6f20576f726c64", // "Hello World",
+        addressNList: hardenedPath.concat(customRelPath),
+        message: messageHex,
       });
-      return `Address: ${result.address} Signature: ${result.signature}`;
+      return `Address: ${result.address}\nMessage: "${customMessage}"\nSignature: ${result.signature}`;
     },
   })
 );
