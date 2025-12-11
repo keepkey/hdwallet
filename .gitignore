@@ -13,6 +13,7 @@
 !/.prettierignore
 !/.prettierrc
 !/CONTRIBUTING.md
+!/vercel-build.sh
 !/LICENSE.md
 !/README.md
 !/SECURITY.md
@@ -59,3 +60,4 @@
 !/tsconfig.json
 !/vercel.json
 !/yarn.lock
+.vercel
