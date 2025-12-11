@@ -29,7 +29,7 @@
   "private": true,
   "scripts": {
     "build": "rm -rf public; yarn parcel build index.html --dist-dir public",
-    "postbuild": "mkdir -p ../../public && cp -r public/* ../../public/",
+    "postbuild": "mkdir -p ../../public && cp -r public/. ../../public/",
     "clean": "rm -rf dist node_modules public .parcel-cache",
     "dev": "yarn parcel index.html"
   },
