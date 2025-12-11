@@ -25,6 +25,7 @@
 !/docs/**
 !/examples/
 !/examples/sandbox/
+!/examples/sandbox/blockchainTools.ts
 !/examples/sandbox/chains.ts
 !/examples/sandbox/developerTools.ts
 !/examples/sandbox/index.html
