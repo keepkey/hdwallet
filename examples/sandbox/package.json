@@ -28,7 +28,7 @@
   "name": "@keepkey/hdwallet-sandbox",
   "private": true,
   "scripts": {
-    "build": "rm -rf public; yarn parcel build index.html --dist-dir public",
+    "build": "rm -rf public .parcel-cache; yarn parcel build index.html --dist-dir public",
     "postbuild": "rm -rf ../../public && mkdir -p ../../public && cp -r public/. ../../public/",
     "clean": "rm -rf dist node_modules public .parcel-cache",
     "dev": "yarn parcel index.html"
