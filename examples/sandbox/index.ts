@@ -9,6 +9,18 @@ import * as sigUtil from "@metamask/eth-sig-util";
 import { TypedData } from "eip-712";
 import $ from "jquery";
 import Web3 from "web3";
+import { CHAIN_CONFIGS, getAllChains, getChainsByArchitecture, getArchitectureInfo } from "./chains";
+import { initializeBlockchainHeaders } from "./blockchainTools";
+import {
+  initializeToolPanels,
+  BITCOIN_TOOLS,
+  ETHEREUM_TOOLS,
+  COSMOS_TOOLS,
+  LITECOIN_TOOLS,
+  DOGECOIN_TOOLS,
+  RIPPLE_TOOLS,
+  THORCHAIN_TOOLS
+} from "./developerTools";
 
 import {
   arkeoAddClaimTx,
@@ -60,6 +72,179 @@ import {
 const keyring = new core.Keyring();
 
 const mnemonic = "alcohol woman abuse must during monitor noble actual mixed trade anger aisle";
+
+/**
+ * Parse address path input - accepts either:
+ * - A simple index number (e.g., "0") that will be appended to the base path
+ * - A full BIP39 path (e.g., "m/44'/60'/0'/0/0")
+ *
+ * @param input - User input from path field
+ * @param basePath - Base BIP39 path (e.g., "m/44'/60'/0'/0") to use if input is just an index
+ * @returns Full addressNList array for the device
+ */
+function parseAddressPath(input: string, basePath: string): number[] {
+  const trimmed = input.trim();
+
+  // If input looks like a BIP39 path (starts with m/ or contains '), use it directly
+  if (trimmed.startsWith('m/') || trimmed.includes("'") || trimmed.includes('/')) {
+    return core.bip32ToAddressNList(trimmed);
+  }
+
+  // Otherwise treat as a simple index number
+  const pathIndex = parseInt(trimmed);
+  if (isNaN(pathIndex) || pathIndex < 0) {
+    throw new Error(`Invalid path: must be a BIP39 path (e.g., "m/44'/60'/0'/0/0") or a non-negative index (e.g., "0")`);
+  }
+
+  // Append index to base path
+  const fullPath = `${basePath}/${pathIndex}`;
+  return core.bip32ToAddressNList(fullPath);
+}
+
+/**
+ * BIP39 Path Editor - Creates an interactive path editor with +/- controls and help
+ */
+class BIP39PathEditor {
+  private container: JQuery<HTMLElement>;
+  private segments: { value: number; hardened: boolean; label: string }[];
+  private onChangeCallback?: (path: string) => void;
+
+  constructor(containerId: string, defaultPath: string = "m/44'/60'/0'/0/0") {
+    this.container = $(`#${containerId}`);
+    this.segments = this.parsePath(defaultPath);
+    this.render();
+  }
+
+  private parsePath(path: string): { value: number; hardened: boolean; label: string }[] {
+    const labels = ["Purpose", "Coin", "Account", "Change", "Index"];
+    const parts = path.replace(/^m\//, "").split("/");
+    return parts.map((part, i) => {
+      const hardened = part.endsWith("'");
+      const value = parseInt(part.replace("'", ""));
+      return {
+        value: hardened && value >= 0x80000000 ? value - 0x80000000 : value,
+        hardened,
+        label: labels[i] || `Level ${i}`,
+      };
+    });
+  }
+
+  private render(): void {
+    this.container.empty();
+
+    const editor = $('<div class="path-editor"></div>');
+    const segmentsRow = $('<div class="path-segments-row"></div>');
+
+    // Add "m/" prefix
+    segmentsRow.append('<span class="path-separator">m/</span>');
+
+    // Render each segment
+    this.segments.forEach((segment, index) => {
+      if (index > 0) {
+        segmentsRow.append('<span class="path-separator">/</span>');
+      }
+
+      const segmentDiv = $('<div class="path-segment"></div>');
+
+      // Label at top
+      segmentDiv.append(`<span class="path-segment-label">${segment.label}</span>`);
+
+      // Value row: controls + input + hardened
+      const valueRow = $('<div class="path-segment-value"></div>');
+
+      // +/- controls
+      const controls = $('<div class="path-controls"></div>');
+      const btnMinus = $('<button class="button button-outline">−</button>');
+      const btnPlus = $('<button class="button button-outline">+</button>');
+
+      btnPlus.on("click", (e) => {
+        e.preventDefault();
+        segment.value++;
+        input.val(segment.value);
+        this.updateDisplay();
+        this.triggerChange();
+      });
+
+      btnMinus.on("click", (e) => {
+        e.preventDefault();
+        if (segment.value > 0) {
+          segment.value--;
+          input.val(segment.value);
+          this.updateDisplay();
+          this.triggerChange();
+        }
+      });
+
+      controls.append(btnMinus, btnPlus);
+      valueRow.append(controls);
+
+      // Input field
+      const input = $(`<input type="number" min="0" value="${segment.value}" />`);
+      input.on("input", () => {
+        segment.value = Math.max(0, parseInt(input.val() as string) || 0);
+        this.updateDisplay();
+        this.triggerChange();
+      });
+      valueRow.append(input);
+
+      // Hardened toggle (for first 3 segments typically)
+      if (index < 3) {
+        const toggle = $('<div class="hardened-toggle"></div>');
+        const checkboxId = `hardened-${Date.now()}-${index}`;
+        const checkbox = $(`<input type="checkbox" id="${checkboxId}" ${segment.hardened ? "checked" : ""} />`);
+        checkbox.on("change", () => {
+          segment.hardened = checkbox.is(":checked");
+          this.updateDisplay();
+          this.triggerChange();
+        });
+        const label = $(`<label for="${checkboxId}">′</label>`);
+        toggle.append(checkbox, label);
+        valueRow.append(toggle);
+      }
+
+      segmentDiv.append(valueRow);
+      segmentsRow.append(segmentDiv);
+    });
+
+    editor.append(segmentsRow);
+
+    // Display current path at bottom
+    const display = $('<div class="path-display"></div>');
+    editor.append(display);
+
+    this.container.append(editor);
+    this.updateDisplay();
+  }
+
+  private updateDisplay(): void {
+    const path = this.getPath();
+    this.container.find(".path-display").text(`Current path: ${path}`);
+  }
+
+  private triggerChange(): void {
+    if (this.onChangeCallback) {
+      this.onChangeCallback(this.getPath());
+    }
+  }
+
+  public getPath(): string {
+    const parts = this.segments.map((seg) => `${seg.value}${seg.hardened ? "'" : ""}`);
+    return `m/${parts.join("/")}`;
+  }
+
+  public getAddressNList(): number[] {
+    return core.bip32ToAddressNList(this.getPath());
+  }
+
+  public onChange(callback: (path: string) => void): void {
+    this.onChangeCallback = callback;
+  }
+
+  public setPath(path: string): void {
+    this.segments = this.parsePath(path);
+    this.render();
+  }
+}
 
 const testPublicWalletXpubs = [
   "xpub661MyMwAqRbcFLgDU7wpcEVubSF7NkswwmXBUkDiGUW6uopeUMys4AqKXNgpfZKRTLnpKQgffd6a2c3J8JxLkF1AQN17Pm9QYHEqEfo1Rsx", // all seed root key
@@ -124,12 +309,32 @@ $native.on("click", async (e) => {
 
 async function deviceConnected(deviceId) {
   wallet = keyring.get(deviceId);
+  const deviceOption = $("<option></option>")
+    .attr("value", deviceId)
+    .text(deviceId + " - " + (await wallet.getVendor()));
+
+  // Add to main keyring dropdown
   if (!$keyring.find(`option[value="${deviceId}"]`).length) {
-    $keyring.append(
-      $("<option></option>")
-        .attr("value", deviceId)
-        .text(deviceId + " - " + (await wallet.getVendor()))
-    );
+    $keyring.append(deviceOption.clone());
+  }
+
+  // Add to settings keyring dropdown
+  if (!$("#settings-keyring").find(`option[value="${deviceId}"]`).length) {
+    $("#settings-keyring").append(deviceOption.clone());
+  }
+
+  // Update settings button visibility
+  updateSettingsButtonVisibility();
+}
+
+// Update settings button visibility based on wallet connection
+function updateSettingsButtonVisibility() {
+  if (wallet && wallet.transport) {
+    $("#settings-button").addClass("visible");
+    $("#dev-header-initial").hide();
+  } else {
+    $("#settings-button").removeClass("visible");
+    $("#dev-header-initial").show();
   }
 }
 
@@ -155,6 +360,8 @@ async function deviceConnected(deviceId) {
 
   keyring.on(["*", "*", core.Events.DISCONNECT], async (deviceId) => {
     $keyring.find(`option[value="${deviceId}"]`).remove();
+    $("#settings-keyring").find(`option[value="${deviceId}"]`).remove();
+    updateSettingsButtonVisibility();
   });
 
   keyring.on(["*", "*", core.Events.PIN_REQUEST], () => window["pinOpen"]());
@@ -250,6 +457,889 @@ window["useTestWallet"] = async function () {
   });
   document.getElementById("#mnemonicModal").className = "modal";
 };
+
+/**
+ * SETTINGS MODAL
+ */
+window["openSettingsModal"] = function () {
+  // Sync the device selection from main keyring to settings
+  const selectedDevice = $("#keyring").val();
+  $("#settings-keyring").val(selectedDevice);
+
+  document.getElementById("#settingsModal").className = "modal opened";
+};
+
+window["closeSettingsModal"] = function () {
+  document.getElementById("#settingsModal").className = "modal";
+};
+
+// Settings button click handler
+$("#settings-button").on("click", () => {
+  window["openSettingsModal"]();
+});
+
+// Settings modal device pairing buttons
+$("#settings-keepkey").on("click", async (e) => {
+  e.preventDefault();
+  wallet = await keepkeyAdapter.pairDevice(undefined, /*tryDebugLink=*/ true);
+  window["wallet"] = wallet;
+  const deviceID = await wallet.transport.getDeviceID();
+  $("#keyring").val(deviceID);
+  $("#settings-keyring").val(deviceID);
+  updateSettingsButtonVisibility();
+});
+
+$("#settings-keepkeybridge").on("click", async (e) => {
+  e.preventDefault();
+  wallet = await kkbridgeAdapter.pairDevice("http://localhost:1646");
+  window["wallet"] = wallet;
+  const deviceID = await wallet.transport.getDeviceID();
+  $("#keyring").val(deviceID);
+  $("#settings-keyring").val(deviceID);
+  updateSettingsButtonVisibility();
+});
+
+$("#settings-kkemu").on("click", async (e) => {
+  e.preventDefault();
+  wallet = await kkemuAdapter.pairDevice("http://localhost:5000");
+  window["wallet"] = wallet;
+  const deviceID = await wallet.transport.getDeviceID();
+  $("#keyring").val(deviceID);
+  $("#settings-keyring").val(deviceID);
+  updateSettingsButtonVisibility();
+});
+
+$("#settings-native").on("click", async (e) => {
+  e.preventDefault();
+  wallet = await nativeAdapter.pairDevice("testid");
+  window["wallet"] = wallet;
+  const deviceID = await wallet.getDeviceID();
+  $("#keyring").val(deviceID);
+  $("#settings-keyring").val(deviceID);
+  updateSettingsButtonVisibility();
+});
+
+// Settings modal device management buttons
+$("#settings-getLabel").on("click", async () => {
+  if (!wallet) {
+    $("#settings-manageResults").val("No wallet?");
+    return;
+  }
+  const label = await wallet.getLabel();
+  $("#settings-manageResults").val(label);
+  $("#manageResults").val(label);
+});
+
+$("#settings-getFirmware").on("click", async () => {
+  if (!wallet) {
+    $("#settings-manageResults").val("No wallet?");
+    return;
+  }
+  const firmware = JSON.stringify(await wallet.getFirmwareVersion());
+  $("#settings-manageResults").val(firmware);
+  $("#manageResults").val(firmware);
+});
+
+$("#settings-doPing").on("click", async () => {
+  if (!wallet) {
+    $("#settings-manageResults").val("No wallet?");
+    return;
+  }
+  const result = await wallet.ping({ msg: "Hello KeepKey!" });
+  $("#settings-manageResults").val(result.msg);
+  $("#manageResults").val(result.msg);
+});
+
+$("#settings-doDisconnect").on("click", async () => {
+  if (!wallet) {
+    $("#settings-manageResults").val("No wallet?");
+    return;
+  }
+  await wallet.disconnect();
+  $("#settings-manageResults").val("Disconnected");
+  $("#manageResults").val("Disconnected");
+  updateSettingsButtonVisibility();
+  window["closeSettingsModal"]();
+});
+
+// Sync device selection between main and settings dropdowns
+$("#settings-keyring").on("change", async () => {
+  const deviceID = $("#settings-keyring").val() as string;
+  $("#keyring").val(deviceID).trigger("change");
+});
+
+/**
+ * SCREEN NAVIGATION
+ */
+
+// Helper function to switch modes with smooth scroll
+function switchToMode(mode: 'kyc' | 'developer') {
+  // Smooth scroll to top first
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Small delay to let scroll start, then switch views
+  setTimeout(() => {
+    // Hide welcome screen
+    $("#welcome-screen").removeClass("active");
+
+    // Show mode switcher in header
+    $("#mode-switcher").addClass("active");
+
+    // Update active mode buttons
+    if (mode === 'kyc') {
+      $("#kyc-screen").addClass("active");
+      $("#developer-screen").removeClass("active");
+      $("#switch-to-kyc").addClass("active-mode");
+      $("#switch-to-dev").removeClass("active-mode");
+    } else {
+      $("#developer-screen").addClass("active");
+      $("#kyc-screen").removeClass("active");
+      $("#switch-to-dev").addClass("active-mode");
+      $("#switch-to-kyc").removeClass("active-mode");
+    }
+  }, 150);
+}
+
+// Welcome screen choices
+$("#choice-user").on("click", function() {
+  switchToMode('kyc');
+});
+
+$("#choice-developer").on("click", function() {
+  switchToMode('developer');
+});
+
+// Mode switcher buttons in header
+$("#switch-to-kyc").on("click", function() {
+  switchToMode('kyc');
+});
+
+$("#switch-to-dev").on("click", function() {
+  switchToMode('developer');
+});
+
+// Back buttons
+$("#kyc-back, #dev-back").on("click", function() {
+  $(".app-screen").removeClass("active");
+  $("#welcome-screen").addClass("active");
+  $("#mode-switcher").removeClass("active");
+  $(".mode-btn").removeClass("active-mode");
+  // Reset KYC result display
+  $("#kyc-result").hide();
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+
+/**
+ * INITIALIZE CHAIN INFO TABLE (Architecture Grouped)
+ */
+function initializeChainInfoTable() {
+  const tableBody = $("#chain-info-table-body");
+  tableBody.empty();
+
+  // Create table header
+  const thead = $("<thead>");
+  const headerRow = $("<tr>");
+  headerRow.append($("<th>").css({"font-size": "1.2em", "padding": "1.5em"}).text("Architecture"));
+  headerRow.append($("<th>").css({"font-size": "1.2em", "padding": "1.5em"}).text("Icon"));
+  headerRow.append($("<th>").css({"font-size": "1.2em", "padding": "1.5em"}).text("Chain"));
+  headerRow.append($("<th>").css({"font-size": "1.2em", "padding": "1.5em"}).text("CAIP-2 Identifier"));
+  thead.append(headerRow);
+  tableBody.append(thead);
+
+  // Create table body
+  const tbody = $("<tbody>");
+
+  // Group 1: UTXO Chains (individual rows)
+  const utxoChains = CHAIN_CONFIGS.filter(c => c.architecture === 'UTXO');
+  utxoChains.forEach((chain, index) => {
+    const row = $("<tr>").attr("data-chain-id", chain.id);
+
+    // Architecture cell (only for first UTXO row)
+    if (index === 0) {
+      const archCell = $("<td>")
+        .attr("rowspan", utxoChains.length)
+        .css({
+          "font-weight": "700",
+          "font-size": "1.5em",
+          "color": "#F7931A",
+          "border-right": "2px solid rgba(255, 255, 255, 0.1)",
+          "vertical-align": "middle",
+          "padding": "1.5em"
+        })
+        .text("UTXO");
+      row.append(archCell);
+    }
+
+    // Icon cell
+    const iconCell = $("<td>")
+      .css({
+        "text-align": "center",
+        "padding": "1.2em"
+      });
+    if (chain.icon) {
+      iconCell.append($("<img>")
+        .attr("src", chain.icon)
+        .css({
+          "width": "50px",
+          "height": "50px",
+          "object-fit": "contain",
+          "border-radius": "50%",
+          "background": "rgba(255, 255, 255, 0.05)",
+          "padding": "6px"
+        })
+      );
+    }
+    row.append(iconCell);
+
+    // Chain name cell
+    const nameCell = $("<td>")
+      .css({
+        "font-weight": "700",
+        "font-size": "1.4em",
+        "color": chain.color,
+        "padding": "1.2em"
+      })
+      .text(chain.name);
+    row.append(nameCell);
+
+    // CAIP cell
+    const caipCell = $("<td>")
+      .css({
+        "font-family": "'Courier New', monospace",
+        "font-size": "1.1em",
+        "opacity": "0.9",
+        "color": "var(--keepkey-light-gray)",
+        "padding": "1.2em",
+        "word-break": "break-all"
+      })
+      .text(chain.caip);
+    row.append(caipCell);
+
+    tbody.append(row);
+  });
+
+  // Group 2: EVM Chains (single grouped row)
+  const evmRow = $("<tr>")
+    .attr("data-chain-id", "ethereum")
+    .attr("data-architecture", "EVM");
+
+  const evmArchCell = $("<td>")
+    .css({
+      "font-weight": "700",
+      "font-size": "1.5em",
+      "color": "#627EEA",
+      "border-right": "2px solid rgba(255, 255, 255, 0.1)",
+      "padding": "1.5em"
+    })
+    .text("EVM");
+  evmRow.append(evmArchCell);
+
+  // EVM icon
+  const evmIconCell = $("<td>")
+    .css({
+      "text-align": "center",
+      "padding": "1.2em"
+    })
+    .append($("<img>")
+      .attr("src", "https://api.keepkey.info/coins/" + btoa("eip155:1/slip44:60") + ".png")
+      .css({
+        "width": "50px",
+        "height": "50px",
+        "object-fit": "contain",
+        "border-radius": "50%",
+        "background": "rgba(255, 255, 255, 0.05)",
+        "padding": "6px"
+      })
+    );
+  evmRow.append(evmIconCell);
+
+  const evmNameCell = $("<td>")
+    .css({
+      "font-weight": "700",
+      "font-size": "1.4em",
+      "color": "#627EEA",
+      "padding": "1.2em"
+    })
+    .html("All EVM Chains <span style='opacity: 0.6; font-size: 0.85em;'>(eip155:*)</span>");
+  evmRow.append(evmNameCell);
+
+  const evmDescCell = $("<td>")
+    .css({
+      "font-family": "'Courier New', monospace",
+      "font-size": "1.1em",
+      "opacity": "0.9",
+      "color": "var(--keepkey-light-gray)",
+      "padding": "1.2em"
+    })
+    .text("eip155:*/slip44:60 - Supports ALL EVM chains");
+  evmRow.append(evmDescCell);
+
+  tbody.append(evmRow);
+
+  // Group 3: Tendermint Chains (individual rows)
+  const tendermintChains = CHAIN_CONFIGS.filter(c => c.architecture === 'Tendermint');
+  tendermintChains.forEach((chain, index) => {
+    const row = $("<tr>").attr("data-chain-id", chain.id);
+
+    // Architecture cell (only for first Tendermint row)
+    if (index === 0) {
+      const archCell = $("<td>")
+        .attr("rowspan", tendermintChains.length)
+        .css({
+          "font-weight": "700",
+          "font-size": "1.5em",
+          "color": "#2E3148",
+          "border-right": "2px solid rgba(255, 255, 255, 0.1)",
+          "vertical-align": "middle",
+          "padding": "1.5em"
+        })
+        .text("Cosmos");
+      row.append(archCell);
+    }
+
+    // Icon cell
+    const iconCell = $("<td>")
+      .css({
+        "text-align": "center",
+        "padding": "1.2em"
+      });
+    if (chain.icon) {
+      iconCell.append($("<img>")
+        .attr("src", chain.icon)
+        .css({
+          "width": "50px",
+          "height": "50px",
+          "object-fit": "contain",
+          "border-radius": "50%",
+          "background": "rgba(255, 255, 255, 0.05)",
+          "padding": "6px"
+        })
+      );
+    }
+    row.append(iconCell);
+
+    // Chain name cell
+    const nameCell = $("<td>")
+      .css({
+        "font-weight": "700",
+        "font-size": "1.4em",
+        "color": chain.color,
+        "padding": "1.2em"
+      })
+      .text(chain.name);
+    row.append(nameCell);
+
+    // CAIP cell
+    const caipCell = $("<td>")
+      .css({
+        "font-family": "'Courier New', monospace",
+        "font-size": "1.1em",
+        "opacity": "0.9",
+        "color": "var(--keepkey-light-gray)",
+        "padding": "1.2em",
+        "word-break": "break-all"
+      })
+      .text(chain.caip);
+    row.append(caipCell);
+
+    tbody.append(row);
+  });
+
+  // Group 4: XRP Ledger (single row)
+  const xrpChain = CHAIN_CONFIGS.find(c => c.architecture === 'XRP');
+  if (xrpChain) {
+    const xrpRow = $("<tr>").attr("data-chain-id", xrpChain.id);
+
+    const xrpArchCell = $("<td>")
+      .css({
+        "font-weight": "700",
+        "font-size": "1.5em",
+        "color": "#23292F",
+        "border-right": "2px solid rgba(255, 255, 255, 0.1)",
+        "padding": "1.5em"
+      })
+      .text("XRP");
+    xrpRow.append(xrpArchCell);
+
+    // Icon cell
+    const iconCell = $("<td>")
+      .css({
+        "text-align": "center",
+        "padding": "1.2em"
+      });
+    if (xrpChain.icon) {
+      iconCell.append($("<img>")
+        .attr("src", xrpChain.icon)
+        .css({
+          "width": "50px",
+          "height": "50px",
+          "object-fit": "contain",
+          "border-radius": "50%",
+          "background": "rgba(255, 255, 255, 0.05)",
+          "padding": "6px"
+        })
+      );
+    }
+    xrpRow.append(iconCell);
+
+    const xrpNameCell = $("<td>")
+      .css({
+        "font-weight": "700",
+        "font-size": "1.4em",
+        "color": xrpChain.color,
+        "padding": "1.2em"
+      })
+      .text(xrpChain.name);
+    xrpRow.append(xrpNameCell);
+
+    const xrpCaipCell = $("<td>")
+      .css({
+        "font-family": "'Courier New', monospace",
+        "font-size": "1.1em",
+        "opacity": "0.9",
+        "color": "var(--keepkey-light-gray)",
+        "padding": "1.2em",
+        "word-break": "break-all"
+      })
+      .text(xrpChain.caip);
+    xrpRow.append(xrpCaipCell);
+
+    tbody.append(xrpRow);
+  }
+
+  tableBody.append(tbody);
+  console.log("✅ Initialized chain info table with architecture grouping");
+}
+
+// Initialize table on load
+initializeChainInfoTable();
+
+// Initialize blockchain tool headers
+initializeBlockchainHeaders(CHAIN_CONFIGS);
+
+// Initialize developer tool panels
+initializeToolPanels('bitcoin-tools-container', BITCOIN_TOOLS);
+initializeToolPanels('ethereum-tools-container', ETHEREUM_TOOLS);
+initializeToolPanels('cosmos-tools-container', COSMOS_TOOLS);
+initializeToolPanels('thorchain-tools-container', THORCHAIN_TOOLS);
+initializeToolPanels('litecoin-tools-container', LITECOIN_TOOLS);
+initializeToolPanels('dogecoin-tools-container', DOGECOIN_TOOLS);
+initializeToolPanels('ripple-tools-container', RIPPLE_TOOLS);
+
+/**
+ * TABLE ROW CLICK HANDLER - Show chain tools
+ */
+$(document).on("click", "#chain-info-table-body tbody tr", function() {
+  const chainId = $(this).data("chain-id");
+
+  // Find the corresponding content for this chain
+  const chain = CHAIN_CONFIGS.find(c => c.id === chainId);
+  if (!chain) return;
+
+  // Hide chain selector
+  $("#chain-selector-container").hide();
+
+  // Show back button
+  $("#back-to-selector").show();
+
+  // Hide all blockchain content
+  $(".blockchain-content").removeClass("active");
+
+  // Show the selected chain's content
+  $(`#${chain.contentId}`).addClass("active");
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+/**
+ * BACK BUTTON CLICK HANDLER - Return to chain selector
+ */
+$(document).on("click", "#back-to-selector", function() {
+  // Hide all blockchain content
+  $(".blockchain-content").removeClass("active");
+
+  // Hide back button
+  $("#back-to-selector").hide();
+
+  // Show chain selector
+  $("#chain-selector-container").show();
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+/**
+ * EVENT LOG TOGGLE
+ */
+$("#eventLogToggle").on("click", function() {
+  $("#eventLog").toggleClass("active");
+});
+
+$("#clearEventLog").on("click", function(e) {
+  e.stopPropagation(); // Prevent triggering the toggle
+  $("#eventLog").html("");
+});
+
+/**
+ * KYC MODE FUNCTIONALITY
+ */
+
+// KYC Device Status Tracking
+let kycWallet: any = null;
+let kycConnected = false;
+
+// Initialize KYC path editor
+const kycPathEditor = new BIP39PathEditor("kyc-path-editor", "m/44'/60'/0'/0/0");
+
+// Update device status UI
+function updateKycDeviceStatus(connected: boolean, deviceInfo?: string) {
+  kycConnected = connected;
+  const $indicator = $("#kyc-status-indicator");
+  const $statusText = $("#kyc-status-text");
+
+  if (connected) {
+    $indicator.addClass("connected");
+    $statusText.text(`Connected: ${deviceInfo || "Device ready"}`);
+  } else {
+    $indicator.removeClass("connected");
+    $statusText.text("Not connected");
+  }
+}
+
+// Fetch and display address preview
+async function updateKycAddressPreview() {
+  console.log("updateKycAddressPreview called", { kycConnected, hasWallet: !!kycWallet });
+
+  if (!kycConnected || !kycWallet) {
+    console.log("No wallet connected, hiding address preview");
+    $("#kyc-address-preview").hide();
+    return;
+  }
+
+  const selectedChain = $("input[name='kyc-chain']:checked").val() as string;
+  const addressNList = kycPathEditor.getAddressNList();
+  const path = kycPathEditor.getPath();
+
+  console.log("Fetching address for:", { selectedChain, path, addressNList });
+
+  // Show loading state
+  $("#kyc-address-preview").show();
+  $("#kyc-address-preview-loading").show();
+  $("#kyc-address-preview-value").hide();
+  $("#kyc-copy-preview-address").hide();
+
+  try {
+    let address: string;
+
+    switch(selectedChain) {
+      case "ethereum":
+        if (!core.supportsETH(kycWallet)) {
+          console.warn("Wallet does not support Ethereum");
+          $("#kyc-address-preview").hide();
+          return;
+        }
+        address = await kycWallet.ethGetAddress({
+          addressNList,
+          showDisplay: false,
+        });
+        break;
+
+      case "bitcoin":
+        if (!core.supportsBTC(kycWallet)) {
+          console.warn("Wallet does not support Bitcoin");
+          $("#kyc-address-preview").hide();
+          return;
+        }
+        address = await kycWallet.btcGetAddress({
+          addressNList,
+          coin: "Bitcoin",
+          scriptType: core.BTCInputScriptType.SpendAddress,
+          showDisplay: false,
+        });
+        break;
+
+      case "cosmos":
+        if (!core.supportsCosmos(kycWallet)) {
+          console.warn("Wallet does not support Cosmos");
+          $("#kyc-address-preview").hide();
+          return;
+        }
+        address = await kycWallet.cosmosGetAddress({
+          addressNList,
+          showDisplay: false,
+        });
+        break;
+
+      default:
+        console.warn("Unknown chain selected:", selectedChain);
+        $("#kyc-address-preview").hide();
+        return;
+    }
+
+    console.log("Address fetched successfully:", address);
+
+    // Hide loading, show address
+    $("#kyc-address-preview-loading").hide();
+    $("#kyc-address-preview-value").text(address).show();
+    $("#kyc-copy-preview-address").show();
+
+  } catch (error) {
+    console.error("Failed to fetch address preview:", error);
+    $("#kyc-address-preview-loading").hide();
+    $("#kyc-address-preview").hide();
+  }
+}
+
+// Set up path editor change handler
+kycPathEditor.onChange(async (path) => {
+  console.log("Path changed to:", path);
+  await updateKycAddressPreview();
+});
+
+// KYC Pair KeepKey
+$("#kyc-pair-keepkey").on("click", async function(e) {
+  e.preventDefault();
+  try {
+    kycWallet = await keepkeyAdapter.pairDevice(undefined, /*tryDebugLink=*/ true);
+    window["wallet"] = kycWallet;
+    wallet = kycWallet;
+    const deviceID = await kycWallet.transport.getDeviceID();
+    updateKycDeviceStatus(true, `KeepKey ${deviceID.substring(0, 8)}...`);
+    await updateKycAddressPreview();
+  } catch (error) {
+    console.error("Failed to pair KeepKey:", error);
+    alert("Failed to pair KeepKey. Please make sure it's connected.");
+  }
+});
+
+// KYC Pair Emulator
+$("#kyc-pair-emulator").on("click", async function(e) {
+  e.preventDefault();
+  try {
+    kycWallet = await kkemuAdapter.pairDevice("http://localhost:5000");
+    window["wallet"] = kycWallet;
+    wallet = kycWallet;
+    const deviceID = await kycWallet.transport.getDeviceID();
+    updateKycDeviceStatus(true, `Emulator ${deviceID.substring(0, 8)}...`);
+    await updateKycAddressPreview();
+  } catch (error) {
+    console.error("Failed to pair emulator:", error);
+    alert("Failed to pair emulator. Make sure it's running on localhost:5000");
+  }
+});
+
+// KYC Pair Native
+$("#kyc-pair-native").on("click", async function(e) {
+  e.preventDefault();
+  try {
+    kycWallet = await nativeAdapter.pairDevice("kyc-testid");
+    window["wallet"] = kycWallet;
+    wallet = kycWallet;
+    const deviceID = await kycWallet.getDeviceID();
+    updateKycDeviceStatus(true, `Native Wallet`);
+    await updateKycAddressPreview();
+  } catch (error) {
+    console.error("Failed to pair native wallet:", error);
+    alert("Failed to pair native wallet.");
+  }
+});
+
+// KYC Chain Selection
+$(".chain-option").on("click", async function() {
+  $(".chain-option").removeClass("selected");
+  $(this).addClass("selected");
+  $(this).find("input[type='radio']").prop("checked", true);
+
+  // Update path editor based on chain selection
+  const chain = $(this).find("input[type='radio']").val() as string;
+  switch(chain) {
+    case "ethereum":
+      kycPathEditor.setPath("m/44'/60'/0'/0/0");
+      break;
+    case "bitcoin":
+      kycPathEditor.setPath("m/44'/0'/0'/0/0");
+      break;
+    case "cosmos":
+      kycPathEditor.setPath("m/44'/118'/0'/0/0");
+      break;
+  }
+
+  // Update address preview for new chain
+  await updateKycAddressPreview();
+});
+
+// KYC Sign Message Button
+$("#kyc-sign-button").on("click", async function(e) {
+  e.preventDefault();
+
+  if (!kycConnected || !kycWallet) {
+    alert("Please connect a device first (Step 1)");
+    return;
+  }
+
+  const message = $("#kyc-message-input").val() as string;
+  if (!message || message.trim() === "") {
+    alert("Please enter a message to sign (Step 3)");
+    return;
+  }
+
+  const selectedChain = $("input[name='kyc-chain']:checked").val() as string;
+  const addressNList = kycPathEditor.getAddressNList();
+  const usedPath = kycPathEditor.getPath();
+
+  try {
+    let result: any;
+    let address: string;
+    let signature: string;
+
+    switch(selectedChain) {
+      case "ethereum":
+        if (!core.supportsETH(kycWallet)) {
+          alert("This wallet does not support Ethereum");
+          return;
+        }
+        // Convert message to hex for Ethereum
+        const messageHex = "0x" + Buffer.from(message, 'utf8').toString('hex');
+        result = await kycWallet.ethSignMessage({
+          addressNList,
+          message: messageHex,
+        });
+        address = result.address;
+        signature = result.signature;
+        break;
+
+      case "bitcoin":
+        if (!core.supportsBTC(kycWallet)) {
+          alert("This wallet does not support Bitcoin");
+          return;
+        }
+        result = await kycWallet.btcSignMessage({
+          addressNList,
+          coin: "Bitcoin",
+          scriptType: core.BTCInputScriptType.SpendAddress,
+          message: message,
+        });
+        address = result.address;
+        signature = result.signature;
+        break;
+
+      case "cosmos":
+        if (!core.supportsCosmos(kycWallet)) {
+          alert("This wallet does not support Cosmos");
+          return;
+        }
+        result = await kycWallet.cosmosSignAmino({
+          addressNList,
+          chain_id: "cosmoshub-4",
+          account_number: "0",
+          sequence: "0",
+          tx: {
+            msg: [{
+              type: "sign/MsgSignData",
+              value: {
+                signer: "",
+                data: Buffer.from(message, 'utf8').toString('base64')
+              }
+            }],
+            fee: { amount: [], gas: "0" },
+            signatures: null,
+            memo: ""
+          }
+        });
+        // For Cosmos, we need to get the address separately
+        const cosmosAddress = await kycWallet.cosmosGetAddress({
+          addressNList,
+          showDisplay: false
+        });
+        address = cosmosAddress;
+        signature = result.signature || result.serialized;
+        break;
+
+      default:
+        alert("Unknown chain selected");
+        return;
+    }
+
+    // Display results
+    $("#kyc-signature-value").text(signature);
+    $("#kyc-address-value").text(address);
+    $("#kyc-path-value").text(usedPath);
+    $("#kyc-result").show();
+
+  } catch (error) {
+    console.error("Sign message error:", error);
+    alert(`Failed to sign message: ${error.message || error}`);
+  }
+});
+
+// Copy Button Handlers
+$("#kyc-copy-signature").on("click", function(e) {
+  e.preventDefault();
+  const signature = $("#kyc-signature-value").text();
+  navigator.clipboard.writeText(signature).then(() => {
+    const originalText = $(this).text();
+    $(this).text("Copied!");
+    setTimeout(() => {
+      $(this).text(originalText);
+    }, 2000);
+  });
+});
+
+$("#kyc-copy-address").on("click", function(e) {
+  e.preventDefault();
+  const address = $("#kyc-address-value").text();
+  navigator.clipboard.writeText(address).then(() => {
+    const originalText = $(this).text();
+    $(this).text("Copied!");
+    setTimeout(() => {
+      $(this).text(originalText);
+    }, 2000);
+  });
+});
+
+$("#kyc-copy-preview-address").on("click", function(e) {
+  e.preventDefault();
+  const address = $("#kyc-address-preview-value").text();
+  navigator.clipboard.writeText(address).then(() => {
+    const originalText = $(this).text();
+    $(this).text("Copied!");
+    setTimeout(() => {
+      $(this).text(originalText);
+    }, 2000);
+  });
+});
+
+// Download Signature Button
+$("#kyc-download-signature").on("click", function(e) {
+  e.preventDefault();
+  const signature = $("#kyc-signature-value").text();
+  const address = $("#kyc-address-value").text();
+  const path = $("#kyc-path-value").text();
+  const message = $("#kyc-message-input").val() as string;
+  const chain = $("input[name='kyc-chain']:checked").val() as string;
+
+  const content = JSON.stringify({
+    chain,
+    message,
+    address,
+    path,
+    signature,
+    timestamp: new Date().toISOString()
+  }, null, 2);
+
+  const blob = new Blob([content], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `keepkey-signature-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
 
 const $yes = $("#yes");
 const $no = $("#no");
@@ -2079,6 +3169,9 @@ const ethButtons = [
   return acc;
 }, {} as Record<string, JQuery<HTMLElement>>);
 
+// Initialize ETH path editor
+const ethPathEditor = new BIP39PathEditor("ethPathEditor", "m/44'/60'/0'/0/0");
+
 const performEthOperation = async (e: any, config: EthOperationConfig) => {
   e.preventDefault();
   if (!wallet) {
@@ -2147,19 +3240,22 @@ ethButtons.ethSign.on("click", (e) =>
   performEthOperation(e, {
     handler: async ({ hardenedPath, relPath }) => {
       // Get custom message from input
-      const customMessage = $("#ethSignMessage").val() as string || "Hello World";
+      const customMessage = ($("#ethSignMessage").val() as string)?.trim();
+      if (!customMessage) {
+        return "Error: Please enter a message to sign";
+      }
       // Convert message to hex
       const messageHex = "0x" + Buffer.from(customMessage, 'utf8').toString('hex');
 
-      // Get custom path index from input
-      const pathIndex = parseInt($("#ethSignPath").val() as string || "0");
-      const customRelPath = [0, pathIndex]; // m/44'/60'/0'/0/{pathIndex}
+      // Get path from path editor
+      const addressNList = ethPathEditor.getAddressNList();
 
       const result = await wallet.ethSignMessage({
-        addressNList: hardenedPath.concat(customRelPath),
+        addressNList,
         message: messageHex,
       });
-      return `Address: ${result.address}\nMessage: "${customMessage}"\nSignature: ${result.signature}`;
+      const usedPath = ethPathEditor.getPath();
+      return `Path: ${usedPath}\nAddress: ${result.address}\nMessage: "${customMessage}"\nSignature: ${result.signature}`;
     },
   })
 );
@@ -2475,6 +3571,9 @@ const $btcSign = $("#btcSign");
 const $btcVerify = $("#btcVerify");
 const $btcResults = $("#btcResults");
 
+// Initialize BTC path editor
+const btcPathEditor = new BIP39PathEditor("btcPathEditor", "m/44'/0'/0'/0/0");
+
 $btcAddr.on("click", async (e) => {
   e.preventDefault();
   if (!wallet) {
@@ -2553,13 +3652,24 @@ $btcSign.on("click", async (e) => {
     return;
   }
   if (core.supportsBTC(wallet)) {
+    // Get custom message from input
+    const customMessage = ($("#btcSignMessage").val() as string)?.trim();
+    if (!customMessage) {
+      $btcResults.val("Error: Please enter a message to sign");
+      return;
+    }
+
+    // Get path from path editor
+    const addressNList = btcPathEditor.getAddressNList();
+
     const res = await wallet.btcSignMessage({
-      addressNList: core.bip32ToAddressNList("m/44'/0'/0'/0/0"),
+      addressNList,
       coin: "Bitcoin",
       scriptType: core.BTCInputScriptType.SpendAddress,
-      message: "Hello World",
+      message: customMessage,
     });
-    $btcResults.val(res.address + " " + res.signature);
+    const usedPath = btcPathEditor.getPath();
+    $btcResults.val(`Path: ${usedPath}\nAddress: ${res.address}\nMessage: "${customMessage}"\nSignature: ${res.signature}`);
   } else {
     const label = await wallet.getLabel();
     $btcResults.val(label + " does not support BTC");

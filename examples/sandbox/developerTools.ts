@@ -1078,3 +1078,4 @@ export const TOOL_PANEL_CSS = `
     color: var(--keepkey-error);
   }
 `;
+// Force rebuild

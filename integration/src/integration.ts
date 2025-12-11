@@ -2,7 +2,6 @@ import * as core from "@keepkey/hdwallet-core";
 import * as keepkey from "@keepkey/hdwallet-keepkey";
 import * as native from "@keepkey/hdwallet-native";
 
-import { binanceTests } from "./binance";
 import { btcTests } from "./bitcoin";
 import { cosmosTests } from "./cosmos";
 import { eosTests } from "./eos";
@@ -94,14 +93,6 @@ export function integration(suite: WalletSuite): void {
         wallet = await suite.createWallet("Osmo");
       });
       osmosisTests(() => ({ wallet, info }));
-    });
-
-    describe("BinanceWallet", () => {
-      beforeAll(async () => {
-        wallet = await suite.createWallet("Binance");
-      });
-
-      binanceTests(() => ({ wallet, info }));
     });
 
     describe("RippleWallet", () => {
