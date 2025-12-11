@@ -1,7 +1,7 @@
 {
   "name": "hdwallet-sandbox",
   "version": 2,
-  "buildCommand": "yarn lerna run build --scope @keepkey/hdwallet-core && cd examples/sandbox && yarn build && cd ../.. && mv examples/sandbox/public ./public",
+  "buildCommand": "yarn lerna run build --scope @keepkey/hdwallet-core && yarn lerna run build --scope @keepkey/hdwallet-sandbox --include-dependencies && mv examples/sandbox/public ./public",
   "outputDirectory": "public",
   "installCommand": "yarn install --frozen-lockfile"
 }
