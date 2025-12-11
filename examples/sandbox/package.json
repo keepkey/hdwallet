@@ -6,6 +6,7 @@
     "@keepkey/hdwallet-keepkey-webusb": "1.53.9",
     "@keepkey/hdwallet-native": "1.53.9",
     "@metamask/eth-sig-util": "^7.0.0",
+    "@pioneer-platform/pioneer-coins": "^9.11.11",
     "bip32": "^2.0.4",
     "eip-712": "^1.0.0",
     "jquery": "^3.7.1",
@@ -28,6 +29,7 @@
   "private": true,
   "scripts": {
     "build": "rm -rf public; yarn parcel build index.html --dist-dir public",
+    "postbuild": "mkdir -p ../../public && cp -r public/* ../../public/",
     "clean": "rm -rf dist node_modules public .parcel-cache",
     "dev": "yarn parcel index.html"
   },
