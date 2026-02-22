@@ -14,12 +14,10 @@
 !/.prettierrc
 !/CONTRIBUTING.md
 !/CODE_OF_CONDUCT.md
-!/vercel-build.sh
 !/LICENSE.md
 !/README.md
 !/SECURITY.md
 !/SUMMARY.md
-!/build-vercel.sh
 !/changelog.md
 !/code-of-conduct.md
 !/docs/
