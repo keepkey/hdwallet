@@ -3399,6 +3399,15 @@
     ts-node "^10.9.1"
     typescript "^5.0.2"
 
+"@pioneer-platform/loggerdog@^8.11.0":
+  version "8.11.0"
+  resolved "https://registry.yarnpkg.com/@pioneer-platform/loggerdog/-/loggerdog-8.11.0.tgz#3fbec5aff4dde8ca81b45b668886758111a47c2e"
+  integrity sha512-tX0g/Vmy5bbYqxz1vV1V+l6/jCR2xXWz3iA3JjxUdtErN7CwltJDssrPE4l7eDPEVnMWOPwjmic6jJZQ/7Xxtg==
+  dependencies:
+    os "^0.1.1"
+    ts-node "^10.9.1"
+    typescript "^5.0.4"
+
 "@pioneer-platform/pioneer-coins@^8.1.19":
   version "8.1.90"
   resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-coins/-/pioneer-coins-8.1.90.tgz#9ed9e93ce756d65a6428a23677420e088c83c46d"
@@ -3419,6 +3428,15 @@
     monero-regex "^1.0.8"
     neo-regex "^1.0.7"
     ripple-regex "^1.1.8"
+
+"@pioneer-platform/pioneer-coins@^9.11.11":
+  version "9.11.11"
+  resolved "https://registry.yarnpkg.com/@pioneer-platform/pioneer-coins/-/pioneer-coins-9.11.11.tgz#815210fb42c13e0ff55464954799e7ac6f599e38"
+  integrity sha512-ZSt5LCihGj3KY4O10WRwdRFjffa+GBVnma4E3Z5atUWrWkf4oiKfi3nvEk4WUsqq+J/LlOqdw5jew9zXcjID8Q==
+  dependencies:
+    "@pioneer-platform/loggerdog" "^8.11.0"
+    bignumber.js "^9.0.1"
+    bs58check "^3.0.1"
 
 "@protobufjs/aspromise@^1.1.1", "@protobufjs/aspromise@^1.1.2":
   version "1.1.2"
@@ -11612,20 +11630,10 @@ pumpify@^2.0.1:
     inherits "^2.0.3"
     pump "^3.0.0"
 
-punycode@2.1.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.1.0.tgz#5f863edc89b96db09074bad7947bf09056ca4e7d"
-  integrity sha512-Yxz2kRwT90aPiWEMHVYnEf4+rhwF1tBmmZ4KepCP+Wkium9JxtWnUm1nqGwpiAHr/tnTSeHqr3wb++jgSkXjhA==
-
-punycode@^1.4.1:
+punycode@2.1.0, punycode@^1.4.1, punycode@^2.1.0, punycode@^2.1.1:
   version "1.4.1"
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-1.4.1.tgz#c0d5a63b2718800ad8e1eb0fa5269c84dd41845e"
   integrity sha512-jmYNElW7yvO7TV33CjSmvSiE2yco3bV2czu/OzDKdMNVZQWfxCblURLhf+47syQRBntjfLdd/H0egrzIG+oaFQ==
-
-punycode@^2.1.0, punycode@^2.1.1:
-  version "2.3.1"
-  resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.3.1.tgz#027422e2faec0b25e1549c3e1bd8309b9133b6e5"
-  integrity sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==
 
 pushdata-bitcoin@^1.0.1:
   version "1.0.1"
@@ -13381,6 +13389,11 @@ typescript@^5.0.2, typescript@^5.2.2:
   version "5.3.3"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.3.3.tgz#b3ce6ba258e72e6305ba66f5c9b452aaee3ffe37"
   integrity sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==
+
+typescript@^5.0.4:
+  version "5.9.3"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.9.3.tgz#5b4f59e15310ab17a216f5d6cf53ee476ede670f"
+  integrity sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==
 
 typeson-registry@^1.0.0-alpha.20:
   version "1.0.0-alpha.39"

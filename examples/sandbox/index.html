@@ -2,28 +2,746 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="x-ua-compatible" content="ie=edge" />
-    <title>HDWallet | Sandbox</title>
+    <title>KeepKey HDWallet | Sandbox</title>
     <meta name="description" content="" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.3.0/milligram.min.css" />
     <style>
-      .container {
-        margin-top: 2em;
-        padding: 1em;
-        border: #ccc solid 1px;
+      :root {
+        --keepkey-gold: #F7931A;
+        --keepkey-black: #000000;
+        --keepkey-dark: #1a1a1a;
+        --keepkey-gray: #2d2d2d;
+        --keepkey-white: #ffffff;
+        --keepkey-light-gray: #cccccc;
+        --keepkey-success: #2ecc71;
+        --keepkey-error: #e74c3c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background-color: var(--keepkey-black);
+        color: var(--keepkey-white) !important;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+      }
+
+      h1, h2, h3, h4, h5, h6 {
+        color: var(--keepkey-gold) !important;
+      }
+
+      p, span, div, label, li, td, th, code, pre, blockquote {
+        color: var(--keepkey-white) !important;
+      }
+
+      a, a:link, a:visited, a:hover, a:active, a:focus {
+        color: var(--keepkey-gold) !important;
+      }
+
+      button, .button, input[type="button"], input[type="submit"], input[type="reset"] {
+        background-color: var(--keepkey-gold) !important;
+        color: var(--keepkey-black) !important;
+        border-color: var(--keepkey-gold) !important;
+        line-height: 1.5 !important;
+        height: auto !important;
+        min-height: 38px !important;
+        padding: 0.6em 1.2em !important;
+        font-weight: 600 !important;
+      }
+
+      button:hover, .button:hover {
+        background-color: #d97e15 !important;
+        border-color: #d97e15 !important;
+        color: var(--keepkey-black) !important;
+      }
+
+      .button-outline, button.button-outline {
+        background-color: transparent !important;
+        color: var(--keepkey-gold) !important;
+        border: 2px solid var(--keepkey-gold) !important;
+      }
+
+      .button-outline:hover, button.button-outline:hover {
+        background-color: var(--keepkey-gold) !important;
+        color: var(--keepkey-black) !important;
+      }
+
+      select, select:focus, select:active {
+        color: var(--keepkey-white) !important;
+        background-color: var(--keepkey-gray) !important;
+        min-height: 2.8em !important;
+        height: auto !important;
+        line-height: 1.4 !important;
+        padding: 0.8em !important;
+      }
+
+      option {
+        color: var(--keepkey-white) !important;
+        background-color: var(--keepkey-gray) !important;
+      }
+
+      input[type="text"], input[type="password"], textarea {
+        color: var(--keepkey-white) !important;
+        background-color: var(--keepkey-gray) !important;
+        border-color: var(--keepkey-gold) !important;
+      }
+
+      input[type="text"]:focus, input[type="password"]:focus, textarea:focus, select:focus {
+        border-color: var(--keepkey-gold) !important;
+        box-shadow: 0 0 0 2px rgba(247, 147, 26, 0.3) !important;
+        outline: none !important;
+      }
+
+      textarea {
+        min-height: 100px;
+        font-family: 'Courier New', Courier, monospace !important;
+        font-size: 0.9em;
+        line-height: 1.6;
+        padding: 10px;
+      }
+
+      /* Header */
+      .header {
+        background: linear-gradient(135deg, var(--keepkey-black) 0%, var(--keepkey-dark) 100%);
+        padding: 2em 1em;
+        text-align: center;
+        border-bottom: 3px solid var(--keepkey-gold);
+        position: relative;
+      }
+
+      .header img {
+        height: 60px;
+        margin-bottom: 1em;
+      }
+
+      .header h1 {
+        color: var(--keepkey-gold);
+        font-size: 2.5em;
+        margin: 0;
+      }
+
+      /* Mode Switcher in Header */
+      .mode-switcher {
+        display: none;
+        justify-content: center;
+        gap: 0.5em;
+        margin-top: 1em;
+        opacity: 0;
+      }
+
+      .mode-switcher.active {
+        display: flex;
+        animation: fadeIn 0.4s ease-in-out forwards;
+      }
+
+      .mode-btn {
+        padding: 0.6em 1.5em !important;
+        font-size: 0.95em !important;
+        min-height: 0 !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5em;
+      }
+
+      .mode-btn.active-mode {
+        background-color: var(--keepkey-gold) !important;
+        color: var(--keepkey-black) !important;
+      }
+
+      .mode-btn:not(.active-mode) {
+        background-color: transparent !important;
+        color: var(--keepkey-gold) !important;
+        border: 2px solid var(--keepkey-gold) !important;
+      }
+
+      /* Welcome Screen */
+      .welcome-screen {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh;
+        padding: 2em;
+      }
+
+      .welcome-screen.active {
+        display: flex;
+      }
+
+      .welcome-screen h2 {
+        font-size: 2em;
+        margin-bottom: 0.5em;
+      }
+
+      .welcome-screen p {
+        font-size: 1.2em;
+        margin-bottom: 3em;
+        opacity: 0.8;
+      }
+
+      .choice-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2em;
+        max-width: 900px;
+        width: 100%;
+      }
+
+      .choice-card {
+        background: linear-gradient(135deg, var(--keepkey-dark) 0%, var(--keepkey-gray) 100%);
+        border: 3px solid var(--keepkey-gray);
+        border-radius: 12px;
+        padding: 3em 2em;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .choice-card:hover {
+        border-color: var(--keepkey-gold);
+        transform: translateY(-5px);
+        box-shadow: 0 10px 30px rgba(247, 147, 26, 0.3);
+      }
+
+      .choice-card-icon {
+        font-size: 4em;
+        margin-bottom: 0.5em;
+      }
+
+      .choice-card h3 {
+        font-size: 1.5em;
+        margin-bottom: 0.5em;
+      }
+
+      .choice-card p {
+        opacity: 0.7;
+        font-size: 0.95em;
+      }
+
+      /* App Screens */
+      .app-screen {
+        display: none;
+        min-height: 80vh;
+        opacity: 0;
+        transition: opacity 0.3s ease-in-out;
+      }
+
+      .app-screen.active {
+        display: block;
+        animation: fadeIn 0.4s ease-in-out forwards;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pulse {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      /* Back Button */
+      .back-button {
+        position: fixed;
+        top: 20px;
+        left: 1em;
+        z-index: 1000;
+        padding: 0.5em 1em !important;
+        font-size: 0.9em !important;
+      }
+
+      /* Settings Button */
+      .settings-button {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        background-color: var(--keepkey-gold) !important;
+        color: var(--keepkey-black) !important;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5em;
+        cursor: pointer;
+        padding: 0 !important;
+        border: 3px solid var(--keepkey-gold) !important;
+        box-shadow: 0 4px 15px rgba(247, 147, 26, 0.4);
+      }
+
+      .settings-button:hover {
+        background-color: #d97e15 !important;
+        border-color: #d97e15 !important;
+        transform: rotate(90deg);
+        transition: transform 0.3s ease;
+      }
+
+      .settings-button.visible {
+        display: flex;
+      }
+
+      /* KYC Mode */
+      .kyc-container {
+        max-width: 700px;
+        margin: 2em auto;
+        padding: 0 2em;
+      }
+
+      .kyc-step {
+        background-color: var(--keepkey-dark);
+        border: 2px solid var(--keepkey-gold);
+        border-radius: 8px;
+        padding: 2em;
+        margin-bottom: 2em;
+      }
+
+      .kyc-step h3 {
+        font-size: 1.5em;
+        margin-bottom: 1em;
+      }
+
+      .device-buttons {
+        display: flex;
+        gap: 1em;
+        margin-top: 1em;
+        flex-wrap: wrap;
+      }
+
+      .device-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5em;
+        padding: 0.8em 1.5em;
+        background-color: var(--keepkey-gray);
         border-radius: 6px;
+        margin-top: 1.5em;
       }
 
-      .erc20DynamicContainer {
-        margin-top: 2em;
+      .status-indicator {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background-color: var(--keepkey-error);
+      }
+
+      .status-indicator.connected {
+        background-color: var(--keepkey-success);
+      }
+
+      .chain-selector {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1em;
+        margin-top: 1em;
+      }
+
+      .chain-option {
+        padding: 1.5em 1em;
+        background-color: var(--keepkey-gray);
+        border: 2px solid var(--keepkey-gray);
+        border-radius: 8px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+
+      .chain-option:hover {
+        border-color: var(--keepkey-gold);
+      }
+
+      .chain-option.selected {
+        background-color: var(--keepkey-black);
+        border-color: var(--keepkey-gold);
+        box-shadow: 0 0 15px rgba(247, 147, 26, 0.3);
+      }
+
+      .chain-option input[type="radio"] {
+        display: none;
+      }
+
+      .signature-output {
+        background-color: var(--keepkey-black);
+        border: 1px solid var(--keepkey-gold);
+        border-radius: 4px;
         padding: 1em;
+        margin-top: 1em;
+        word-break: break-all;
+        font-family: 'Courier New', monospace;
       }
 
+      .copy-btn {
+        margin-left: 0.5em;
+        padding: 0.4em 1em !important;
+        font-size: 0.9em !important;
+      }
+
+      .kyc-sign-button {
+        padding: 1em 3em !important;
+        font-size: 1.15em !important;
+        font-weight: 700 !important;
+        min-height: 55px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
+
+      /* Developer Mode */
+      .dev-container {
+        padding: 2em;
+        padding-top: 5em;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .dev-header {
+        background-color: var(--keepkey-dark);
+        border: 2px solid var(--keepkey-gold);
+        border-radius: 8px;
+        padding: 2em;
+        margin-bottom: 2em;
+      }
+
+      .dev-header h4 {
+        margin: 0 0 1.5em 0;
+        font-size: 1.3em;
+      }
+
+      .dev-header .device-select-row {
+        display: flex;
+        gap: 1em;
+        margin-bottom: 1.5em;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .dev-header .device-select-row select {
+        flex: 1;
+        min-width: 200px;
+        margin: 0;
+      }
+
+      .dev-header #manageResults {
+        margin-top: 0;
+        width: 100%;
+      }
+
+      /* Chain Selector Container */
+      .chain-selector-container {
+        background-color: rgba(20, 20, 20, 0.5);
+        padding: 2em;
+        margin-bottom: 0;
+      }
+
+      .chain-selector-header {
+        margin-bottom: 1.5em;
+        text-align: center;
+      }
+
+      .chain-selector-header h2 {
+        font-size: 2em;
+        font-weight: 700;
+        margin: 0 0 0.5em 0;
+        color: var(--keepkey-white);
+      }
+
+      .chain-selector-subtitle {
+        font-size: 1.1em;
+        opacity: 0.7;
+        margin: 0;
+      }
+
+      /* EVM Support Notice */
+      .evm-support-notice {
+        background: linear-gradient(135deg, rgba(98, 126, 234, 0.15), rgba(98, 126, 234, 0.05));
+        border: 2px solid rgba(98, 126, 234, 0.3);
+        border-radius: 12px;
+        padding: 1.5em;
+        margin-bottom: 2em;
+        display: flex;
+        gap: 1em;
+        align-items: flex-start;
+      }
+
+      .notice-icon {
+        font-size: 2em;
+        line-height: 1;
+        opacity: 0.9;
+      }
+
+      .notice-content {
+        flex: 1;
+        line-height: 1.6;
+      }
+
+      .notice-content strong {
+        color: #627EEA;
+        font-weight: 700;
+      }
+
+      /* Back Button */
+      .back-button {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--keepkey-white);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 1em 2em;
+        font-size: 1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        margin-bottom: 1.5em;
+      }
+
+      .back-button:hover {
+        background-color: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.4);
+        transform: translateX(-4px);
+      }
+
+      /* Chain Info Table */
+      .chain-info-table {
+        background-color: var(--keepkey-dark);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      .chain-info-table table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: var(--keepkey-black);
+      }
+
+      .chain-info-table th {
+        background-color: rgba(255, 255, 255, 0.05);
+        color: var(--keepkey-white) !important;
+        padding: 1.2em;
+        text-align: left;
+        font-weight: 700;
+        font-size: 0.95em;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .chain-info-table tbody tr {
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .chain-info-table tbody tr:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+        transform: scale(1.005);
+      }
+
+      .chain-info-table tbody tr:active {
+        background-color: rgba(255, 255, 255, 0.12);
+      }
+
+      .chain-info-table td {
+        padding: 1.2em;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        vertical-align: middle;
+      }
+
+      .chain-info-table tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      .chain-info-table .chain-icon-cell {
+        width: 60px;
+        text-align: center;
+      }
+
+      .chain-info-table .chain-icon-cell img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 4px;
+      }
+
+      .chain-info-table .chain-name-cell {
+        font-weight: 700;
+        font-size: 1.05em;
+      }
+
+      .chain-info-table .chain-caip-cell {
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: var(--keepkey-light-gray) !important;
+        word-break: break-all;
+      }
+
+      .blockchain-content {
+        display: none;
+        background-color: var(--keepkey-dark);
+        border: 2px solid var(--keepkey-gold);
+        border-radius: 12px;
+        padding: 2.5em;
+        margin-top: 2em;
+      }
+
+      .blockchain-content.active {
+        display: block;
+      }
+
+      /* Blockchain Header */
+      .blockchain-header {
+        background: linear-gradient(135deg, rgba(247, 147, 26, 0.1) 0%, rgba(247, 147, 26, 0.05) 100%);
+        border: 2px solid rgba(247, 147, 26, 0.3);
+        border-radius: 12px;
+        padding: 2em;
+        margin-bottom: 2.5em;
+      }
+
+      .blockchain-header-info {
+        display: flex;
+        align-items: center;
+        gap: 1.5em;
+      }
+
+      .blockchain-header-icon {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 10px;
+        border: 3px solid rgba(247, 147, 26, 0.5);
+      }
+
+      .blockchain-header-text {
+        flex: 1;
+      }
+
+      .blockchain-header-name {
+        font-size: 2.2em;
+        font-weight: 700;
+        margin: 0 0 0.3em 0;
+        line-height: 1.2;
+      }
+
+      .blockchain-header-caip {
+        font-family: 'Courier New', monospace;
+        font-size: 1.15em;
+        color: var(--keepkey-light-gray);
+        opacity: 0.9;
+        margin-bottom: 0.5em;
+        word-break: break-all;
+      }
+
+      .blockchain-header-arch {
+        font-size: 1em;
+        opacity: 0.7;
+        color: var(--keepkey-gold);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .blockchain-content h4 {
+        color: var(--keepkey-gold);
+        font-size: 1.6em;
+        margin: 2em 0 1em 0;
+        font-weight: 700;
+      }
+
+      .blockchain-content h5 {
+        color: var(--keepkey-gold);
+        font-size: 1.3em;
+        margin: 2em 0 1em 0;
+        font-weight: 600;
+        opacity: 0.9;
+      }
+
+      .blockchain-content input[type="text"],
+      .blockchain-content textarea {
+        width: 100%;
+        margin-bottom: 1em;
+      }
+
+      .blockchain-content .button-group {
+        margin-bottom: 1.5em;
+      }
+
+      .button-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8em;
+        margin-bottom: 1em;
+      }
+
+      .dev-header .button-group {
+        margin-bottom: 1.5em;
+      }
+
+      /* Event Log */
+      .event-log-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: var(--keepkey-dark);
+        border-top: 2px solid var(--keepkey-gold);
+        max-height: 200px;
+        z-index: 99;
+      }
+
+      .event-log-header {
+        padding: 0.8em 1.5em;
+        background-color: var(--keepkey-gray);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      #eventLog {
+        max-height: 150px;
+        overflow-y: auto;
+        background-color: var(--keepkey-gray);
+        padding: 1em;
+        display: none;
+      }
+
+      #eventLog.active {
+        display: block;
+      }
+
+      .eventEntry {
+        border: 1px solid var(--keepkey-gold);
+        border-radius: 6px;
+        padding: 10px;
+        background-color: var(--keepkey-dark);
+        margin-bottom: 8px;
+        font-size: 0.85em;
+      }
+
+      /* Modal styles */
       .modal:before {
         content: "";
         display: none;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.8);
         position: fixed;
         top: 0;
         left: 0;
@@ -36,32 +754,31 @@
         display: block;
       }
 
-      .opened .modal-dialog {
-        -webkit-transform: translate(0, 0);
-        -ms-transform: translate(0, 0);
-        transform: translate(0, 0);
-        top: 20%;
-      }
-
       .modal-dialog {
-        background: #fefefe;
-        border: #333333 solid 0px;
-        border-radius: 5px;
+        background: var(--keepkey-dark);
+        border: 2px solid var(--keepkey-gold);
+        border-radius: 8px;
         margin-left: -200px;
         text-align: center;
         position: fixed;
         left: 50%;
-        top: -100%;
+        top: 50%;
+        transform: translate(-50%, -50%);
         z-index: 11;
         width: 360px;
-        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.3);
-        -webkit-transform: translate(0, -500%);
-        -ms-transform: translate(0, -500%);
-        transform: translate(0, -500%);
-        -webkit-transition: -webkit-transform 0.3s ease-out;
-        -moz-transition: -moz-transform 0.3s ease-out;
-        -o-transition: -o-transform 0.3s ease-out;
-        transition: transform 0.3s ease-out;
+        box-shadow: 0 10px 30px rgba(247, 147, 26, 0.5);
+        display: none;
+      }
+
+      .modal-dialog.large {
+        width: 700px;
+        margin-left: -350px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+
+      .opened .modal-dialog {
+        display: block;
       }
 
       .modal-body {
@@ -71,8 +788,9 @@
       .modal-body input {
         width: 200px;
         padding: 8px;
-        border: 1px solid #ddd;
-        color: #888;
+        border: 2px solid var(--keepkey-gold);
+        background-color: var(--keepkey-gray);
+        color: var(--keepkey-white);
         outline: 0;
         font-size: 14px;
         font-weight: bold;
@@ -80,323 +798,688 @@
 
       .modal-header,
       .modal-footer {
-        padding: 10px 20px;
+        padding: 15px 20px;
       }
 
       .modal-header {
-        border-bottom: #eeeeee solid 1px;
+        border-bottom: 2px solid var(--keepkey-gold);
       }
 
-      .modal-header h2 {
-        font-size: 20px;
+      .modal-header h3 {
+        font-size: 1.3em;
+        margin: 0;
       }
 
-      .eventEntry {
-        border: #cccccc solid 1px;
+      /* Path Editor */
+      .path-editor {
+        background-color: var(--keepkey-gray);
+        padding: 1em;
+        border-radius: 6px;
+        border: 2px solid var(--keepkey-gold);
+      }
+
+      .path-segments-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .path-segment {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        background-color: var(--keepkey-dark);
+        padding: 8px 10px;
+        border-radius: 4px;
+        border: 1px solid var(--keepkey-gold);
+        min-width: 80px;
+      }
+
+      .path-segment-label {
+        color: var(--keepkey-light-gray);
+        font-size: 0.7em;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .path-segment-value {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .path-segment input {
+        width: 50px;
+        padding: 4px 6px;
+        background-color: var(--keepkey-black);
+        color: var(--keepkey-white);
+        border: 1px solid var(--keepkey-gold);
+        border-radius: 3px;
+        text-align: center;
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        font-size: 0.95em;
+      }
+
+      .path-controls {
+        display: flex;
+        gap: 2px;
+      }
+
+      .path-controls button {
+        padding: 2px 6px;
+        font-size: 0.75em;
+        min-height: 0;
+        height: 20px;
+        line-height: 1;
+        width: 20px;
+      }
+
+      .path-separator {
+        color: var(--keepkey-gold);
+        font-weight: bold;
+        font-size: 1.5em;
+        opacity: 0.5;
+      }
+
+      .hardened-toggle {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+      }
+
+      .hardened-toggle input[type="checkbox"] {
+        cursor: pointer;
+        width: 14px;
+        height: 14px;
+        margin: 0;
+      }
+
+      .hardened-toggle label {
+        color: var(--keepkey-gold);
+        font-size: 0.75em;
+        cursor: pointer;
+        margin: 0;
+      }
+
+      .path-display {
+        color: var(--keepkey-light-gray);
+        font-family: 'Courier New', monospace;
+        font-size: 0.85em;
+        margin-top: 0.8em;
+        padding: 8px;
+        background-color: var(--keepkey-black);
+        border-radius: 4px;
+        text-align: center;
+      }
+
+      /* Tool Panels */
+      .tool-category {
+        margin-bottom: 2em;
+      }
+
+      .tool-category-name {
+        color: var(--keepkey-gold);
+        font-size: 1.3em;
+        font-weight: 600;
+        margin: 0 0 1em 0;
+        padding-bottom: 0.5em;
+        border-bottom: 2px solid rgba(247, 147, 26, 0.3);
+      }
+
+      .tool-panel {
+        background: rgba(0, 0, 0, 0.3);
+        border: 2px solid rgba(247, 147, 26, 0.2);
         border-radius: 8px;
-        padding: 12px;
+        margin-bottom: 1em;
+        overflow: hidden;
+        transition: all 0.3s ease;
       }
 
-      #eventLog {
-        max-height: 20em;
-        overflow: scroll;
+      .tool-panel:hover {
+        border-color: rgba(247, 147, 26, 0.4);
+      }
+
+      .tool-panel.expanded {
+        border-color: var(--keepkey-gold);
+      }
+
+      .tool-panel-header {
+        padding: 1.2em;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.2s;
+      }
+
+      .tool-panel-header:hover {
+        background: rgba(247, 147, 26, 0.1);
+      }
+
+      .tool-panel-title {
+        display: flex;
+        align-items: center;
+        gap: 0.8em;
+        margin-bottom: 0.5em;
+      }
+
+      .tool-panel-icon {
+        color: var(--keepkey-gold);
+        font-size: 0.9em;
+        transition: transform 0.3s;
+      }
+
+      .tool-panel-name {
+        font-size: 1.2em;
+        font-weight: 600;
+        color: var(--keepkey-white);
+      }
+
+      .tool-panel-description {
+        font-size: 0.95em;
+        opacity: 0.7;
+        margin-left: 1.7em;
+      }
+
+      .tool-panel-content {
+        display: none;
+        padding: 0 1.2em 1.2em 1.2em;
+      }
+
+      .tool-panel.expanded .tool-panel-content {
+        display: block;
+      }
+
+      .tool-input-group {
+        margin-bottom: 1em;
+      }
+
+      .tool-input-group label {
+        display: block;
+        margin-bottom: 0.5em;
+        font-weight: 600;
+        color: var(--keepkey-gold);
+        font-size: 0.95em;
+      }
+
+      .tool-input {
+        width: 100%;
+        padding: 0.8em;
+        background: var(--keepkey-gray);
+        border: 2px solid rgba(247, 147, 26, 0.3);
+        border-radius: 6px;
+        color: var(--keepkey-white);
+        font-family: 'Courier New', monospace;
+        font-size: 0.95em;
+      }
+
+      .tool-input:focus {
+        border-color: var(--keepkey-gold);
+        outline: none;
+      }
+
+      /* Select elements in tool panels should use regular font for better readability */
+      .tool-input select,
+      select.tool-input {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 1em;
+        min-width: 100%;
+        width: 100%;
+        max-width: 100%;
+        cursor: pointer;
+        padding: 0.8em;
+        min-height: 2.8em;
+        height: auto;
+        line-height: 1.4;
+      }
+
+      /* Make sure select options are readable */
+      .tool-input select option,
+      select.tool-input option {
+        padding: 0.5em;
+        font-size: 0.9em;
+        white-space: normal;
+      }
+
+      .tool-input textarea,
+      textarea.tool-input {
+        min-height: 100px;
+        resize: vertical;
+      }
+
+      .tool-execute-btn {
+        width: 100%;
+        margin-top: 1em;
+        padding: 1em !important;
+        font-size: 1.1em !important;
+        font-weight: 700 !important;
+      }
+
+      .tool-result {
+        margin-top: 1.5em;
+        padding: 1em;
+        background: var(--keepkey-black);
+        border: 2px solid rgba(247, 147, 26, 0.3);
+        border-radius: 6px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        min-height: 60px;
+        word-break: break-all;
+        display: none;
+      }
+
+      .tool-result:not(:empty) {
+        display: block;
+      }
+
+      .tool-result.success {
+        border-color: var(--keepkey-success);
+        color: var(--keepkey-success);
+      }
+
+      .tool-result.error {
+        border-color: var(--keepkey-error);
+        color: var(--keepkey-error);
+      }
+
+      /* Responsive */
+      @media (max-width: 768px) {
+        .choice-cards {
+          grid-template-columns: 1fr;
+        }
+
+        .chain-selector {
+          grid-template-columns: 1fr;
+        }
+
+        .blockchain-tabs {
+          flex-wrap: wrap;
+        }
       }
     </style>
   </head>
 
   <body>
-    <div class="container">
-      <h4>Select</h4>
-      <button id="keepkey">Pair KeepKey</button>
-      <button id="keepkeybridge">Pair KKBridge</button>
-      <button id="kkemu">Pair Emulator</button>
-      <button id="native">Pair Native</button>
+    <!-- GitHub Fork Me Ribbon -->
+    <a href="https://github.com/keepkey/hdwallet" target="_blank" rel="noopener noreferrer" class="github-corner" aria-label="Fork me on GitHub">
+      <svg width="80" height="80" viewBox="0 0 250 250" style="fill:var(--keepkey-gold); color:var(--keepkey-black); position: absolute; top: 0; border: 0; right: 0; z-index: 9999;" aria-hidden="true">
+        <path d="M0,0 L115,115 L130,115 L142,142 L250,250 L250,0 Z"></path>
+        <path d="M128.3,109.0 C113.8,99.7 119.0,89.6 119.0,89.6 C122.0,82.7 120.5,78.6 120.5,78.6 C119.2,72.0 123.4,76.3 123.4,76.3 C127.3,80.9 125.5,87.3 125.5,87.3 C122.9,97.6 130.6,101.9 134.4,103.2" fill="currentColor" style="transform-origin: 130px 106px;" class="octo-arm"></path>
+        <path d="M115.0,115.0 C114.9,115.1 118.7,116.5 119.8,115.4 L133.7,101.6 C136.9,99.2 139.9,98.4 142.2,98.6 C133.8,88.0 127.5,74.4 143.8,58.0 C148.5,53.4 154.0,51.2 159.7,51.0 C160.3,49.4 163.2,43.6 171.4,40.1 C171.4,40.1 176.1,42.5 178.8,56.2 C183.1,58.6 187.2,61.8 190.9,65.4 C194.5,69.0 197.7,73.2 200.1,77.6 C213.8,80.2 216.3,84.9 216.3,84.9 C212.7,93.1 206.9,96.0 205.4,96.6 C205.1,102.4 203.0,107.8 198.3,112.5 C181.9,128.9 168.3,122.5 157.7,114.1 C157.9,116.9 156.7,120.9 152.7,124.9 L141.0,136.5 C139.8,137.7 141.6,141.9 141.8,141.8 Z" fill="currentColor" class="octo-body"></path>
+      </svg>
+    </a>
+    <style>
+      .github-corner:hover .octo-arm {
+        animation: octocat-wave 560ms ease-in-out;
+      }
+      @keyframes octocat-wave {
+        0%, 100% { transform: rotate(0); }
+        20%, 60% { transform: rotate(-25deg); }
+        40%, 80% { transform: rotate(10deg); }
+      }
+      @media (max-width: 500px) {
+        .github-corner:hover .octo-arm {
+          animation: none;
+        }
+        .github-corner .octo-arm {
+          animation: octocat-wave 560ms ease-in-out;
+        }
+      }
+    </style>
 
-      <select id="keyring" style="height: 100px" size="4"></select>
-    </div>
-    <div class="container">
-      <h4>Event Log</h4>
-      <div id="eventLog"></div>
-    </div>
-    <div class="container">
-      <h4>DebugLink</h4>
-      <button class="button-outline" id="yes">Yes</button>
-      <button class="button-outline" id="no">No</button>
-      <button class="button-outline" id="cancel">Cancel</button>
-    </div>
-    <div class="container">
-      <h4>Manage</h4>
-      <button class="button button-outline" id="getVendor">Vendor</button>
-      <button class="button button-outline" id="getModel">Model</button>
-      <button class="button button-outline" id="getDeviceID">DeviceID</button>
-      <button class="button button-outline" id="getFirmware">Firmware</button>
-      <button class="button button-outline" id="getLabel">Label</button>
-      <button class="button button-outline getXpubs coin-all">All xpubs</button>
-      <button class="button button-outline" id="doPing">Ping</button>
-      <button class="button button-outline" id="doWipe">Wipe</button>
-      <button class="button button-outline" id="doLoadDevice">Load</button>
-      <button class="button button-outline" id="doClearSession">Clear Session</button>
-      <button class="button button-outline" id="doDisconnect">Disconnect</button>
-      <input type="text" id="manageResults" />
-    </div>
-    <div class="container">
-      <h4>Xpubs</h4>
-      <button class="button button-outline getXpubs coin-Bitcoin">Bitcoin</button>
-      <button class="button button-outline getXpubs coin-Dogecoin">Dogecoin</button>
-      <button class="button button-outline getXpubs coin-Litecoin">Litecoin</button>
-      <button class="button button-outline getXpubs coin-BitcoinCash">Bitcoin Cash</button>
-      <button class="button button-outline getXpubs coin-Ethereum">Ethereum</button>
-      <input type="text" class="xpubResults" />
-    </div>
-    <div class="container">
-      <h4>Eos</h4>
-      <button class="button button-outline" id="eosAddr">Address</button>
-      <button class="button button-outline" id="eosTx">Tx</button>
-      <input type="text" id="eosResults" />
-    </div>
-    <div class="container">
-      <h4>Binance</h4>
-      <button class="button button-outline" id="binanceAddr">Address</button>
-      <button class="button button-outline" id="binanceTx">Tx</button>
-      <input type="text" id="binanceResults" />
-    </div>
-    <div class="container">
-      <h4>Ripple</h4>
-      <button class="button button-outline" id="rippleAddr">Address</button>
-      <button class="button button-outline" id="rippleTx">Tx</button>
-      <input type="text" id="rippleResults" />
-    </div>
-    <div class="container">
-      <h4>Cosmos</h4>
-      <button class="button button-outline" id="cosmosAddr">Address</button>
-      <button class="button button-outline" id="cosmosTx">Tx</button>
-      <button class="button button-outline" id="cosmosDelegate">Delegate</button>
-      <button class="button button-outline" id="cosmosUndelegate">Undelegate</button>
-      <button class="button button-outline" id="cosmosRedelegate">Redelegate</button>
-      <button class="button button-outline" id="cosmosRewards">Rewards</button>
-      <button class="button button-outline" id="cosmosIBCTransfer">IBC Transfer</button>
-      <input type="text" id="cosmosResults" />
+    <!-- Settings Button (hidden until connected) -->
+    <button class="settings-button" id="settings-button" title="Device Settings">⚙️</button>
+
+    <!-- Header -->
+    <div class="header">
+      <img src="./keepkey-logo.svg" alt="KeepKey Logo" />
+      <h1>KeepKey HDWallet Sandbox</h1>
+
+      <!-- Mode Switcher (hidden until a mode is selected) -->
+      <div class="mode-switcher" id="mode-switcher">
+        <button class="mode-btn" id="switch-to-kyc">
+          <span>✍️</span> Sign Message
+        </button>
+        <button class="mode-btn" id="switch-to-dev">
+          <span>🛠️</span> Developer Mode
+        </button>
+        <button class="mode-btn" id="back-to-selector" style="display: none;">
+          <span>←</span> Back to Chain Selection
+        </button>
+      </div>
     </div>
 
-    <div class="container">
-      <h4>Osmosis</h4>
-      <button class="button button-outline" id="osmosisAddress">Get Address</button>
-      <button class="button button-outline" id="osmosisSend">Send</button>
-      <button class="button button-outline" id="osmosisDelegate">Delegate</button>
-      <button class="button button-outline" id="osmosisUndelegate">Undelegate</button>
-      <button class="button button-outline" id="osmosisRedelegate">Redelegate</button>
-      <button class="button button-outline" id="osmosisRewards">Rewards</button>
-      <button class="button button-outline" id="osmosisLPAdd">LP Add</button>
-      <button class="button button-outline" id="osmosisLPRemove">LP Remove</button>
-      <button class="button button-outline" id="osmosisIBCTransfer">IBC Transfer</button>
-      <button class="button button-outline" id="osmosisSwap">Swap</button>
-      <input type="text" id="osmosisResults" />
-    </div>
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="welcome-screen active">
+      <h2>What would you like to do?</h2>
+      <p>Choose your path to get started</p>
 
-    <div class="container">
-      <h4>Arkeo</h4>
-      <button class="button button-outline" id="arkeoGetAddress">Get Address</button>
-      <button class="button button-outline" id="arkeoBondProvider">Bond Provider</button>
-      <button class="button button-outline" id="arkeoModProvider">Mod Provider</button>
-      <button class="button button-outline" id="arkeoOpenContract">Open Contract</button>
-      <button class="button button-outline" id="arkeoCloseContract">Close Contract</button>
-      <button class="button button-outline" id="arkeoClaimContractIncome">Claim Contract Income</button>
-      <button class="button button-outline" id="arkeoClaimETH">Claim ETH</button>
-      <button class="button button-outline" id="arkeoClaimArkeo">Claim Arkeo</button>
-      <button class="button button-outline" id="arkeoTransferClaim">Transfer Claim</button>
-      <button class="button button-outline" id="arkeoAddClaim">Add Claim</button>
-      <input type="text" id="arkeoResults" />
-    </div>
-    <div class="container">
-      <h4>MAYAChain</h4>
-      <h5>Native MAYA</h5>
-      <button class="button button-outline" id="mayachainAddr">Address</button>
-      <button class="button button-outline" id="mayachainTx">Tx</button>
-      <input type="text" id="mayachainNativeResults" />
-    </div>
-    <div class="container">
-      <h4>THORChain</h4>
-      <h5>Native RUNE</h5>
-      <button class="button button-outline" id="thorchainAddr">Address</button>
-      <button class="button button-outline" id="thorchainTx">Tx</button>
-      <input type="text" id="thorchainNativeResults" />
-      <hr />
-      <h5>Swaps</h5>
-      <div class="row">
-        <div class="column">
-          <label for="thorchainSourceChain">Source Chain</label>
-          <select id="thorchainSourceChain">
-            <option value="BTC.BTC">Bitcoin</option>
-            <option value="ETH.ETH">Ethereum</option>
-            <option value="BNB.BNB">Binance Chain</option>
-            <option value="BNB.RUNE-B1A">RUNE (BEP2)</option>
-            <option value="THOR.RUNE">RUNE (Native)</option>
-            <option value="ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7">USDT</option>
-          </select>
+      <div class="choice-cards">
+        <div class="choice-card" id="choice-user">
+          <div class="choice-card-icon">✍️</div>
+          <h3>Sign a Message</h3>
+          <p>I need to sign a message for KYC or verification</p>
         </div>
-        <div class="column">
-          <label for="thorchainDestChain">Destination Chain</label>
-          <select id="thorchainDestChain">
-            <option value="BTC.BTC">Bitcoin</option>
-            <option value="ETH.ETH">Ethereum</option>
-            <option value="BNB.BNB">Binance Chain</option>
-            <option value="BNB.RUNE-B1A">RUNE (BEP2)</option>
-            <option value="THOR.RUNE">RUNE (Native)</option>
-            <option value="ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7">USDT</option>
-          </select>
+
+        <div class="choice-card" id="choice-developer">
+          <div class="choice-card-icon">🛠️</div>
+          <h3>Developer Testing</h3>
+          <p>I want to test wallet endpoints and functionality</p>
         </div>
       </div>
-      <label for="thorchainDestAddress">Destination Address</label>
-      <input type="text" placeholder="Destination Address" id="thorchainDestAddress" />
-      <label for="thorchainAmount">Amount</label>
-      <input type="text" placeholder="Ex: 10000000 = 1 full asset" id="thorchainAmount" />
-      <button class="button button-outline" id="thorchainSignSwap">Sign Swap</button>
-      <input type="text" id="thorchainSwapResults" />
-      <hr />
-      <h5>Add Liquidity</h5>
-      <label for="thorchainLiquidityAsset">Asset</label>
-      <select id="thorchainLiquidityAsset">
-        <option value="BTC.BTC">Bitcoin</option>
-        <option value="ETH.ETH">Ethereum</option>
-        <option value="BNB.BNB">Binance Chain</option>
-        <option value="BNB.RUNE-B1A">RUNE (BEP2)</option>
-        <option value="THOR.RUNE">RUNE (Native)</option>
-        <option value="ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7">USDT</option>
-      </select>
-      <label for="thorchainLiquidityPoolAddress">Pool Address</label>
-      <input type="text" placeholder="Pool Address" id="thorchainLiquidityPoolAddress" />
-      <label for="thorchainLiquidityAmount">Amount</label>
-      <input type="text" placeholder="Ex: 10000000 = 1 full asset" id="thorchainLiquidityAmount" />
-      <button class="button button-outline" id="thorchainSignAddLiquidity">Sign Add Liquidity</button>
-      <input type="text" id="thorchainAddLiquidityResults" />
-      <h5>Arkeo</h5>
-      <button class="button button-outline" id="thorchainArkeoBondProvider">Bond Provider</button>
-      <button class="button button-outline" id="thorchainArkeoModProvider">Mod Provider</button>
-      <button class="button button-outline" id="thorchainArkeoOpenContract">Open Contract</button>
-      <button class="button button-outline" id="thorchainArkeoCloseContract">Close Contract</button>
-      <button class="button button-outline" id="thorchainArkeoClaimContractIncome">Claim Contract Income</button>
-      <button class="button button-outline" id="thorchainArkeoClaimETH">Claim ETH</button>
-      <button class="button button-outline" id="thorchainArkeoClaimArkeo">Claim Arkeo</button>
-      <button class="button button-outline" id="thorchainArkeoTransferClaim">Transfer Claim</button>
-      <button class="button button-outline" id="thorchainArkeoAddClaim">Add Claim</button>
-      <input type="text" id="thorchainArkeoResults" />
     </div>
 
-    <div class="container">
-      <h4>Ethereum</h4>
-      <button class="button button-outline" id="ethAddr">Address</button>
-      <button class="button button-outline" id="ethTx">Tx</button>
-      <button class="button button-outline" id="ethEIP1559">EIP-1559?</button>
-      <button class="button button-outline" id="ethSend">Send</button>
-      <button class="button button-outline" id="ethSign">Sign Message</button>
-      <button class="button button-outline" id="ethVerify">Verify</button>
-      <button class="button button-outline" id="ethSignTypedData">Sign Typed Data (OpenSea Listing)</button>
-      <button class="button button-outline" id="ethSignTypedDataAlternate1">
-        Sign Typed Data (primaryType is 80+ chars)
-      </button>
-      <button class="button button-outline" id="ethSignTypedDataAlternate2">
-        Sign Typed Data (primaryType is "EIP712Domain")
-      </button>
-      <input type="text" id="ethResults" />
-    </div>
-    <div class="container">
-      <h4>ERC-20</h4>
-      <button class="button button-outline" name="erc20Button" id="erc20Addr">Address</button>
-      <button class="button button-outline" name="erc20Button" id="erc20Allowance">Allowance</button>
-      <button class="button button-outline" name="erc20Button" id="erc20Approve">Approve</button>
-      <button class="button button-outline" name="erc20Button" id="erc20BalanceOf">Balance Of</button>
-      <button class="button button-outline" name="erc20Button" id="erc20TotalSupply">Total Supply</button>
-      <button class="button button-outline" name="erc20Button" id="erc20Transfer">Transfer</button>
-      <button class="button button-outline" name="erc20Button" id="erc20TransferFrom">Transfer From</button>
-      <center><p id="erc20Tooltip">Select an option from the above row. Click "submit" below to process.</p></center>
-      <div class="erc20DynamicContainer" id="erc20DynamicContainer"></div>
-      <textarea disabled placeholder="Result" id="erc20Results" />
-      <button class="button" name="erc20Button" id="erc20Submit">Submit</button>
+    <!-- KYC Mode Screen -->
+    <div id="kyc-screen" class="app-screen">
+      <button class="back-button button-outline" id="kyc-back">← Back</button>
+
+      <div class="kyc-container">
+        <!-- Step 1: Connect -->
+        <div class="kyc-step">
+          <h3>1. Connect Your Device</h3>
+          <div class="device-buttons">
+            <button id="kyc-pair-keepkey" class="button">Pair KeepKey</button>
+            <button id="kyc-pair-emulator" class="button-outline">Pair Emulator</button>
+            <button id="kyc-pair-native" class="button-outline">Use Software Wallet</button>
+          </div>
+          <div class="device-status">
+            <span class="status-indicator" id="kyc-status-indicator"></span>
+            <span id="kyc-status-text">Not connected</span>
+          </div>
+        </div>
+
+        <!-- Step 2: Select Chain -->
+        <div class="kyc-step">
+          <h3>2. Select Blockchain</h3>
+          <div class="chain-selector">
+            <label class="chain-option selected">
+              <input type="radio" name="kyc-chain" value="ethereum" checked>
+              <div><strong>Ethereum</strong></div>
+              <div style="font-size: 0.9em; opacity: 0.7;">ETH</div>
+            </label>
+            <label class="chain-option">
+              <input type="radio" name="kyc-chain" value="bitcoin">
+              <div><strong>Bitcoin</strong></div>
+              <div style="font-size: 0.9em; opacity: 0.7;">BTC</div>
+            </label>
+            <label class="chain-option">
+              <input type="radio" name="kyc-chain" value="cosmos">
+              <div><strong>Cosmos</strong></div>
+              <div style="font-size: 0.9em; opacity: 0.7;">ATOM</div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Step 3: Message -->
+        <div class="kyc-step">
+          <h3>3. Enter Message to Sign</h3>
+          <textarea
+            id="kyc-message-input"
+            placeholder="Enter the message you want to sign..."
+            style="width: 100%; min-height: 120px; margin-top: 1em;"
+          ></textarea>
+
+          <div style="margin-top: 1.5em;">
+            <label><strong>Address Path (Optional)</strong></label>
+            <div id="kyc-path-editor" style="margin-top: 0.5em;"></div>
+            <div id="kyc-address-preview" style="margin-top: 1em; display: none;">
+              <label><strong>Address:</strong></label>
+              <div class="signature-output" style="margin-top: 0.5em;">
+                <span id="kyc-address-preview-loading" style="display: none; opacity: 0.7;">
+                  <span style="animation: pulse 1.5s ease-in-out infinite;">⏳</span> Fetching address...
+                </span>
+                <span id="kyc-address-preview-value" style="word-break: break-all;"></span>
+                <button class="copy-btn button-outline" id="kyc-copy-preview-address">Copy</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Sign -->
+        <div class="kyc-step">
+          <h3>4. Sign Message</h3>
+          <button id="kyc-sign-button" class="button kyc-sign-button">
+            Sign Message on Device
+          </button>
+
+          <div id="kyc-result" style="display: none; margin-top: 2em;">
+            <h4 style="color: var(--keepkey-success); margin-bottom: 1em;">✓ Successfully Signed</h4>
+
+            <div style="margin-bottom: 1em;">
+              <label><strong>Signature:</strong></label>
+              <div class="signature-output">
+                <span id="kyc-signature-value"></span>
+                <button class="copy-btn button-outline" id="kyc-copy-signature">Copy</button>
+                <button class="copy-btn button-outline" id="kyc-download-signature">Download</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 1em;">
+              <label><strong>Address:</strong></label>
+              <div class="signature-output">
+                <span id="kyc-address-value"></span>
+                <button class="copy-btn button-outline" id="kyc-copy-address">Copy</button>
+              </div>
+            </div>
+
+            <div>
+              <label><strong>Path:</strong></label>
+              <div class="signature-output">
+                <span id="kyc-path-value"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Padding for event log -->
+      <div style="height: 250px;"></div>
     </div>
 
-    <div class="container">
-      <h4>Bitcoin</h4>
-      <button class="button button-outline" id="btcAddr">Address</button>
-      <button class="button button-outline" id="btcTx">Tx</button>
-      <button class="button button-outline" id="btcSign">Sign</button>
-      <button class="button button-outline" id="btcVerify">Verify</button>
-      <input type="text" id="btcResults" />
+    <!-- Developer Mode Screen -->
+    <div id="developer-screen" class="app-screen">
+      <button class="back-button button-outline" id="dev-back">← Back</button>
+
+      <div class="dev-container">
+        <!-- Device Management (Hidden when connected - access via settings button) -->
+        <div class="dev-header" id="dev-header-initial">
+          <h4>Device Management</h4>
+          <p style="margin: 0.5em 0 1.5em 0; opacity: 0.8;">Connect a device to get started. Once connected, use the settings button (⚙️) in the top-right to manage your device.</p>
+          <div class="device-select-row">
+            <select id="keyring">
+              <option value="">Select device...</option>
+            </select>
+            <button id="keepkey" class="button">Pair KeepKey</button>
+            <button id="keepkeybridge" class="button-outline">Bridge</button>
+            <button id="kkemu" class="button-outline">Emulator</button>
+            <button id="native" class="button-outline">Native</button>
+          </div>
+          <div class="button-group">
+            <button class="button-outline" id="getLabel">Label</button>
+            <button class="button-outline" id="getFirmware">Firmware</button>
+            <button class="button-outline" id="doPing">Ping</button>
+            <button class="button-outline" id="doDisconnect">Disconnect</button>
+          </div>
+          <input type="text" id="manageResults" placeholder="Device info..." />
+        </div>
+
+        <!-- Chain Selector Table -->
+        <div class="chain-selector-container" id="chain-selector-container">
+          <div class="chain-selector-header">
+            <h2>Select Blockchain Network</h2>
+            <p class="chain-selector-subtitle">Click any chain to access its tools and features</p>
+          </div>
+
+          <!-- EVM Support Notice -->
+          <div class="evm-support-notice">
+            <div class="notice-icon">⚡</div>
+            <div class="notice-content">
+              <strong>Full EVM Support:</strong> KeepKey supports ALL EVM-compatible chains (eip155).
+              The chains listed below have dedicated test tools, but any EVM chain is supported.
+            </div>
+          </div>
+
+          <!-- Chain Table -->
+          <div class="chain-info-table">
+            <table id="chain-info-table-body">
+              <!-- Table will be dynamically generated from chains.ts -->
+            </table>
+          </div>
+        </div>
+
+        <!-- Ethereum Tab -->
+        <div id="blockchain-ethereum" class="blockchain-content active">
+          <!-- Tool panels will be dynamically inserted here -->
+          <div id="ethereum-tools-container"></div>
+        </div>
+
+        <!-- Bitcoin Tab -->
+        <div id="blockchain-bitcoin" class="blockchain-content">
+          <!-- Tool panels will be dynamically inserted here -->
+          <div id="bitcoin-tools-container"></div>
+        </div>
+
+        <!-- Cosmos Tab -->
+        <div id="blockchain-cosmos" class="blockchain-content">
+          <!-- Tool panels will be dynamically inserted here -->
+          <div id="cosmos-tools-container"></div>
+        </div>
+
+        <!-- THORChain Tab -->
+        <div id="blockchain-thorchain" class="blockchain-content">
+          <!-- Tool panels will be dynamically inserted here -->
+          <div id="thorchain-tools-container"></div>
+        </div>
+
+        <!-- Litecoin Tab -->
+        <div id="blockchain-litecoin" class="blockchain-content">
+          <!-- Tool panels will be dynamically inserted here -->
+          <div id="litecoin-tools-container"></div>
+        </div>
+
+        <!-- Dogecoin Tab -->
+        <div id="blockchain-dogecoin" class="blockchain-content">
+          <!-- Tool panels will be dynamically inserted here -->
+          <div id="dogecoin-tools-container"></div>
+        </div>
+
+        <!-- Ripple Tab -->
+        <div id="blockchain-ripple" class="blockchain-content">
+          <!-- Tool panels will be dynamically inserted here -->
+          <div id="ripple-tools-container"></div>
+        </div>
+
+        <!-- Other Chains Tab (legacy) -->
+        <div id="blockchain-other" class="blockchain-content">
+          <p style="opacity: 0.7;">Select a specific chain from the table above to access tools.</p>
+        </div>
+
+        <!-- Debug Tab -->
+        <div id="blockchain-debug" class="blockchain-content">
+          <h5>DebugLink Controls</h5>
+          <div class="button-group">
+            <button class="button-outline" id="yes">Yes</button>
+            <button class="button-outline" id="no">No</button>
+            <button class="button-outline" id="cancel">Cancel</button>
+          </div>
+
+          <h5 style="margin-top: 1.5em;">Advanced</h5>
+          <div class="button-group">
+            <button class="button-outline" id="getVendor">Vendor</button>
+            <button class="button-outline" id="getModel">Model</button>
+            <button class="button-outline" id="getDeviceID">Device ID</button>
+            <button class="button-outline getXpubs coin-all">All Xpubs</button>
+            <button class="button-outline" id="doWipe">Wipe Device</button>
+            <button class="button-outline" id="doLoadDevice">Load Test Device</button>
+            <button class="button-outline" id="doClearSession">Clear Session</button>
+          </div>
+          <input type="text" class="xpubResults" placeholder="Results..." />
+        </div>
+
+        <!-- Padding for event log -->
+        <div style="height: 250px;"></div>
+      </div>
     </div>
 
-    <div class="container">
-      <h4>Bitcoin (segwit)</h4>
-      <button class="button button-outline" id="btcAddrSegWit">Address (p2wsh)</button>
-      <button class="button button-outline" id="btcAddrSegWitNative">Address (bech32)</button>
-      <button class="button button-outline" id="btcTxSegWit">Tx Segwit</button>
-      <button class="button button-outline" id="btcTxSegWitNative">Tx Segwit (Native)</button>
-      <input type="text" id="btcResultsSegWit" />
+    <!-- Event Log -->
+    <div class="event-log-container">
+      <div class="event-log-header" id="eventLogToggle">
+        <strong>Event Log</strong>
+        <button class="button-outline" style="padding: 0.3em 1em; font-size: 0.9em;" id="clearEventLog">Clear</button>
+      </div>
+      <div id="eventLog"></div>
     </div>
 
-    <div class="container">
-      <h4>Litecoin</h4>
-      <button class="button button-outline" id="ltcAddr">Address</button>
-      <button class="button button-outline" id="ltcTx">Tx</button>
-      <button class="button button-outline" id="ltcSign">Sign</button>
-      <input type="text" id="ltcResults" />
-    </div>
-    <div class="container">
-      <h4>Dogecoin</h4>
-      <button class="button button-outline" id="dogeAddr">Address</button>
-      <button class="button button-outline" id="dogeTx">Tx</button>
-      <input type="text" id="dogeResults" />
-    </div>
-    <div class="container">
-      <h4>Bitcoin Cash</h4>
-      <button class="button button-outline" id="bchAddr">Address</button>
-      <button class="button button-outline" id="bchTx">Tx</button>
-      <input type="text" id="bchResults" />
-    </div>
-    <div class="container">
-      <h4>Dash</h4>
-      <button class="button button-outline" id="dashAddr">Address</button>
-      <button class="button button-outline" id="dashTx">Tx</button>
-      <input type="text" id="dashResults" />
-    </div>
-    <div class="container">
-      <h4>DigiByte</h4>
-      <button class="button button-outline" id="dgbAddr">Address</button>
-      <button class="button button-outline" id="dgbTx">Tx</button>
-      <input type="text" id="dgbResults" />
+    <!-- Modals -->
+    <div id="#settingsModal" class="modal">
+      <div class="modal-dialog large">
+        <div class="modal-header">
+          <h3>Device Settings</h3>
+        </div>
+        <div class="modal-body" style="text-align: left;">
+          <div style="margin-bottom: 2em;">
+            <h4 style="margin: 0 0 1em 0; color: var(--keepkey-gold) !important;">Device Management</h4>
+            <div style="margin-bottom: 1em;">
+              <select id="settings-keyring" style="width: 100%; margin-bottom: 1em;">
+                <option value="">Select device...</option>
+              </select>
+            </div>
+            <div style="display: flex; gap: 0.5em; margin-bottom: 1em; flex-wrap: wrap;">
+              <button id="settings-keepkey" class="button">Pair KeepKey</button>
+              <button id="settings-keepkeybridge" class="button-outline">Bridge</button>
+              <button id="settings-kkemu" class="button-outline">Emulator</button>
+              <button id="settings-native" class="button-outline">Native</button>
+            </div>
+            <div style="display: flex; gap: 0.5em; margin-bottom: 1em; flex-wrap: wrap;">
+              <button class="button-outline" id="settings-getLabel">Label</button>
+              <button class="button-outline" id="settings-getFirmware">Firmware</button>
+              <button class="button-outline" id="settings-doPing">Ping</button>
+              <button class="button-outline" id="settings-doDisconnect">Disconnect</button>
+            </div>
+            <input type="text" id="settings-manageResults" placeholder="Device info..." style="width: 100%;" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="button" onclick="closeSettingsModal()">Close</button>
+        </div>
+      </div>
     </div>
 
-    <div id="#pinModal" class="modal" aria-hidden="true">
+    <div id="#pinModal" class="modal">
       <div class="modal-dialog">
         <div class="modal-header">
           <h3>Enter PIN</h3>
-          <p>Use the PIN layout shown on your device to find the location to press on this PIN pad.</p>
+          <p>Use the layout shown on your device</p>
         </div>
         <div class="modal-body">
-          <button onclick="handlePinDigit(7)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(8)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(9)" class="button button-outline">&#x25CF;</button>
+          <button onclick="handlePinDigit(7)" class="button button-outline">●</button>
+          <button onclick="handlePinDigit(8)" class="button button-outline">●</button>
+          <button onclick="handlePinDigit(9)" class="button button-outline">●</button>
           <br />
-          <button onclick="handlePinDigit(4)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(5)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(6)" class="button button-outline">&#x25CF;</button>
+          <button onclick="handlePinDigit(4)" class="button button-outline">●</button>
+          <button onclick="handlePinDigit(5)" class="button button-outline">●</button>
+          <button onclick="handlePinDigit(6)" class="button button-outline">●</button>
           <br />
-          <button onclick="handlePinDigit(1)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(2)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(3)" class="button button-outline">&#x25CF;</button>
+          <button onclick="handlePinDigit(1)" class="button button-outline">●</button>
+          <button onclick="handlePinDigit(2)" class="button button-outline">●</button>
+          <button onclick="handlePinDigit(3)" class="button button-outline">●</button>
           <br />
           <input id="#pinInput" type="text" style="-webkit-text-security: disc" />
-          <button onclick="handlePinDigit('')" class="button button-outline">x</button>
+          <button onclick="handlePinDigit('')" class="button button-outline">×</button>
         </div>
         <div class="modal-footer">
-          <button class="button button-outline" onclick="pinEntered()">Unlock</button>
+          <button class="button" onclick="pinEntered()">Unlock</button>
         </div>
       </div>
     </div>
 
-    <div id="#passphraseModal" class="modal" aria-hidden="true">
+    <div id="#passphraseModal" class="modal">
       <div class="modal-dialog">
         <div class="modal-header">
           <h3>Enter Passphrase</h3>
-          <p>Enter your BIP39 Passphrase.</p>
+          <p>Enter your BIP39 passphrase</p>
         </div>
         <div class="modal-body">
           <form>
@@ -404,25 +1487,42 @@
           </form>
         </div>
         <div class="modal-footer">
-          <button class="button button-outline" onclick="passphraseEntered()">Unlock</button>
+          <button class="button" onclick="passphraseEntered()">Unlock</button>
         </div>
       </div>
     </div>
 
-    <div id="#mnemonicModal" class="modal" aria-hidden="true">
-      <div class="modal-dialog">
-        <div class="modal-header">
-          <h3>Mnemoic Required</h3>
-          <p>Enter your mnemonic phrase</p>
+    <div id="#mnemonicModal" class="modal">
+      <div class="modal-dialog" style="width: 600px; margin-left: -300px;">
+        <div class="modal-header" style="background-color: var(--keepkey-error); border-bottom: none;">
+          <h2 style="color: var(--keepkey-white) !important; margin: 0;">⚠️ SECURITY WARNING ⚠️</h2>
         </div>
         <div class="modal-body">
-          <form>
-            <input id="#mnemonicInput" type="text" />
-          </form>
+          <div style="background-color: var(--keepkey-dark); border: 3px solid var(--keepkey-error); border-radius: 8px; padding: 1.5em; margin-bottom: 1.5em;">
+            <h3 style="color: var(--keepkey-error) !important; margin-top: 0;">NEVER ENTER YOUR KEEPKEY SEED PHRASE HERE</h3>
+            <ul style="text-align: left; margin: 1em 0; line-height: 1.8;">
+              <li><strong>NO legitimate app will EVER ask for your seed phrase</strong></li>
+              <li><strong>Any website asking for seeds is a SCAM</strong></li>
+              <li><strong>Managing seeds in a browser is INSECURE</strong></li>
+              <li><strong>Hardware wallets like KeepKey keep your keys safe</strong></li>
+            </ul>
+            <div style="margin: 1em 0; padding: 1em; background-color: var(--keepkey-black); border: 2px solid var(--keepkey-gold); border-radius: 4px; text-align: center;">
+              <p style="margin: 0;"><strong>Get a KeepKey hardware wallet for real security:</strong></p>
+              <p style="margin: 0.5em 0 0 0; font-size: 1.2em;"><a href="https://keepkey.com" target="_blank" style="color: var(--keepkey-gold) !important; text-decoration: underline; font-weight: bold;">keepkey.com</a></p>
+            </div>
+          </div>
+
+          <div style="padding: 1em; background-color: var(--keepkey-gray); border-radius: 8px;">
+            <p style="margin: 0 0 1em 0; font-weight: bold;">This feature is for <strong>testing only</strong> with disposable test wallets:</p>
+            <form>
+              <label for="#mnemonicInput" style="display: block; margin-bottom: 0.5em; font-weight: bold;">Enter Test Mnemonic (12 or 24 words):</label>
+              <textarea id="#mnemonicInput" rows="3" style="width: 100%; font-family: 'Courier New', monospace; font-size: 0.9em; background-color: var(--keepkey-black); color: var(--keepkey-white); border: 2px solid var(--keepkey-gold);" placeholder="word1 word2 word3 ..."></textarea>
+            </form>
+          </div>
         </div>
-        <div class="modal-footer">
-          <button class="button button-outline" onclick="mnemonicEntered()">Load mnemonic</button>
-          <button class="button button-outline" onclick="useTestWallet()">Use test wallet</button>
+        <div class="modal-footer" style="display: flex; gap: 0.5em; justify-content: center;">
+          <button class="button" onclick="useTestWallet()" style="background-color: var(--keepkey-success) !important; border-color: var(--keepkey-success) !important;">Use Safe Test Wallet (Recommended)</button>
+          <button class="button-outline" onclick="mnemonicEntered()" style="border-color: var(--keepkey-error) !important; color: var(--keepkey-error) !important;">Load Custom Mnemonic</button>
         </div>
       </div>
     </div>

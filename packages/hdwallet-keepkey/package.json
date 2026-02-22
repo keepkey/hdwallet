@@ -23,7 +23,6 @@
     "@metamask/eth-sig-util": "^7.0.0",
     "@shapeshiftoss/bitcoinjs-lib": "5.2.0-shapeshift.2",
     "bignumber.js": "^9.0.1",
-    "bnb-javascript-sdk-nobroadcast": "^2.16.14",
     "crypto-js": "^4.0.0",
     "eip55": "^2.1.0",
     "google-protobuf": "^3.15.8",
