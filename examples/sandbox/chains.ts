@@ -65,8 +65,8 @@ export const CHAIN_CONFIGS: ChainConfig[] = [
   {
     id: 'dogecoin',
     name: 'Dogecoin',
-    caip: 'bip122:00000000001a91e3dace36e2be3bf030/slip44:3',
-    icon: getIconUrl('bip122:00000000001a91e3dace36e2be3bf030/slip44:3'),
+    caip: 'bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3',
+    icon: getIconUrl('bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3'),
     color: '#C2A633',
     sortOrder: 2,
     contentId: 'blockchain-dogecoin',
