@@ -291,4 +291,3 @@ export function getArchitectureInfo(arch: string): { name: string, description: 
 
   return info[arch] || { name: arch, description: '', color: '#888888' };
 }
-// Force rebuild
