@@ -104,16 +104,6 @@ export const CHAIN_CONFIGS: ChainConfig[] = [
     architecture: 'EVM'
   },
   {
-    id: 'binance',
-    name: 'BNB Chain',
-    caip: 'eip155:56/slip44:60',
-    icon: getIconUrl('eip155:56/slip44:60'),
-    color: '#F3BA2F',
-    sortOrder: 6,
-    contentId: 'blockchain-other',
-    architecture: 'EVM'
-  },
-  {
     id: 'avalanche',
     name: 'Avalanche',
     caip: 'eip155:43114/slip44:60',
@@ -222,13 +212,6 @@ export const OTHER_CHAINS: Omit<ChainConfig, 'sortOrder' | 'contentId'>[] = [
     caip: 'ripple:1/slip44:144',
     icon: getIconUrl('ripple:1/slip44:144'),
     color: '#23292F',
-  },
-  {
-    id: 'binance',
-    name: 'BNB Chain',
-    caip: 'eip155:56/slip44:60',
-    icon: getIconUrl('eip155:56/slip44:60'),
-    color: '#F3BA2F',
   },
   {
     id: 'avalanche',
