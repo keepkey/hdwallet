@@ -7,11 +7,11 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "examples/*",
+      "example-apps/sandbox",
       "integration"
     ],
     "nohoist": [
-      "**/examples/test/**"
+      "**/example-apps/test/**"
     ]
   },
   "scripts": {
@@ -22,11 +22,12 @@
     "format": "prettier .",
     "build": "yarn tsc --build && lerna run build --scope @keepkey/hdwallet-native-vault",
     "dev:all": "yarn tsc --build --watch",
-    "dev:sandbox": "cd examples/sandbox && yarn dev",
+    "dev:sandbox": "cd example-apps/sandbox && yarn dev",
+    "dev:sandbox-react": "cd example-apps/sandbox-react && npm run dev",
     "docker:run:emulator": "docker run -p 5000:5000 kktech/kkemu:latest",
     "docker:stop:run:emulator": "docker stop $(docker ps -a -q --filter ancestor=kktech/kkemu:latest --format=\"{{.ID}}\") && docker run -p 5000:5000 kktech/kkemu:latest",
     "vercel-install": "yarn install --frozen-lockfile",
-    "vercel-build": "lerna run build --scope @keepkey/hdwallet-core && lerna run build --scope @keepkey/hdwallet-sandbox --ignore @keepkey/hdwallet-keepkey-nodehid --include-filtered-dependencies && mkdir -p ./public && cp -R ./examples/sandbox/public/. ./public/",
+    "vercel-build": "lerna run build --scope @keepkey/hdwallet-core && lerna run build --scope @keepkey/hdwallet-sandbox --ignore @keepkey/hdwallet-keepkey-nodehid --include-filtered-dependencies && mkdir -p ./public && cp -R ./example-apps/sandbox/public/. ./public/",
     "test": "yarn jest --verbose --config jest.config.js",
     "test:integration": "yarn jest -c integration/jest.config.js",
     "lerna:version-alpha": "lerna version prerelease --force-publish --no-push --exact --yes",
@@ -53,6 +54,7 @@
     "jest-junit": "^12.0.0",
     "lerna": "^5.2.0",
     "prettier": "^2.0.5",
+    "punycode": "^1.4.1",
     "stream-browserify": "^3.0.0",
     "ts-jest": "^26.5.5",
     "typescript": "^5.2.2",

@@ -208,49 +208,50 @@ async function deviceConnected(deviceId) {
 })();
 
 window["handlePinDigit"] = function (digit) {
-  const input = document.getElementById("#pinInput") as HTMLInputElement;
+  const input = document.getElementById("pinInput") as HTMLInputElement;
   if (digit === "") {
     input.value = input.value.slice(0, -1);
   } else {
     input.value += digit.toString();
+    console.log('PIN input: ', input.value);
   }
 };
 
 window["pinOpen"] = function () {
-  document.getElementById("#pinModal").className = "modal opened";
+  document.getElementById("pinModal").className = "modal opened";
 };
 
 window["pinEntered"] = function () {
-  const input = document.getElementById("#pinInput") as HTMLInputElement;
+  const input = document.getElementById("pinInput") as HTMLInputElement;
   wallet.sendPin(input.value);
-  document.getElementById("#pinModal").className = "modal";
+  document.getElementById("pinModal").className = "modal";
 };
 
 window["passphraseOpen"] = function () {
-  document.getElementById("#passphraseModal").className = "modal opened";
+  document.getElementById("passphraseModal").className = "modal opened";
 };
 
 window["passphraseEntered"] = function () {
-  const input = document.getElementById("#passphraseInput") as HTMLInputElement;
+  const input = document.getElementById("passphraseInput") as HTMLInputElement;
   wallet.sendPassphrase(input.value);
-  document.getElementById("#passphraseModal").className = "modal";
+  document.getElementById("passphraseModal").className = "modal";
 };
 
 window["mnemonicOpen"] = function () {
-  document.getElementById("#mnemonicModal").className = "modal opened";
+  document.getElementById("mnemonicModal").className = "modal opened";
 };
 
 window["mnemonicEntered"] = async function () {
-  const input = document.getElementById("#mnemonicInput") as HTMLInputElement;
+  const input = document.getElementById("mnemonicInput") as HTMLInputElement;
   wallet.loadDevice({ mnemonic: input.value });
-  document.getElementById("#mnemonicModal").className = "modal";
+  document.getElementById("mnemonicModal").className = "modal";
 };
 
 window["useTestWallet"] = async function () {
   wallet.loadDevice({
     mnemonic: await native.crypto.Isolation.Engines.Dummy.BIP39.Mnemonic.create(testPublicWalletXpubs),
   });
-  document.getElementById("#mnemonicModal").className = "modal";
+  document.getElementById("mnemonicModal").className = "modal";
 };
 
 const $yes = $("#yes");

@@ -1,6 +1,6 @@
 exclude_patterns:
   - "config/"
-  - "examples/"
+  - "example-apps/"
   - "db/"
   - "dist/*"
   - "lib/*"

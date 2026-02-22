@@ -1,0 +1,45 @@
+{
+  "name": "@keepkey/hdwallet-sandbox-react",
+  "private": true,
+  "version": "1.53.16",
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "clean": "rm -rf .next node_modules"
+  },
+  "dependencies": {
+    "@keepkey/hdwallet-core": "1.53.9",
+    "@keepkey/hdwallet-keepkey-tcp": "1.53.9",
+    "@keepkey/hdwallet-keepkey-webusb": "1.53.9",
+    "@keepkey/hdwallet-native": "1.53.9",
+    "@metamask/eth-sig-util": "^7.0.0",
+    "assert": "^2.1.0",
+    "bip32": "^2.0.4",
+    "browserify-zlib": "^0.2.0",
+    "buffer": "^6.0.3",
+    "crypto-browserify": "^3.12.1",
+    "eip-712": "^1.0.0",
+    "https-browserify": "^1.0.0",
+    "next": "^16.0.0",
+    "os-browserify": "^0.3.0",
+    "p-queue": "^7.4.1",
+    "path-browserify": "^1.0.1",
+    "process": "^0.11.10",
+    "querystring-es3": "^0.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "url": "^0.11.4",
+    "util": "^0.12.5",
+    "web3": "^1.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.2.2"
+  },
+  "license": "MIT"
+}

@@ -364,26 +364,27 @@
       <input type="text" id="dgbResults" />
     </div>
 
-    <div id="#pinModal" class="modal" aria-hidden="true">
+    <div id="pinModal" class="modal" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-header">
           <h3>Enter PIN</h3>
           <p>Use the PIN layout shown on your device to find the location to press on this PIN pad.</p>
         </div>
         <div class="modal-body">
-          <button onclick="handlePinDigit(7)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(8)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(9)" class="button button-outline">&#x25CF;</button>
+          <button onclick="handlePinDigit(1)" class="button button-outline">&#x25CF;</button>&nbsp;
+          <button onclick="handlePinDigit(2)" class="button button-outline">&#x25CF;</button>&nbsp;
+          <button onclick="handlePinDigit(3)" class="button button-outline">&#x25CF;</button>
           <br />
           <button onclick="handlePinDigit(4)" class="button button-outline">&#x25CF;</button>&nbsp;
           <button onclick="handlePinDigit(5)" class="button button-outline">&#x25CF;</button>&nbsp;
           <button onclick="handlePinDigit(6)" class="button button-outline">&#x25CF;</button>
           <br />
-          <button onclick="handlePinDigit(1)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(2)" class="button button-outline">&#x25CF;</button>&nbsp;
-          <button onclick="handlePinDigit(3)" class="button button-outline">&#x25CF;</button>
+          <button onclick="handlePinDigit(7)" class="button button-outline">&#x25CF;</button>&nbsp;
+          <button onclick="handlePinDigit(8)" class="button button-outline">&#x25CF;</button>&nbsp;
+          <button onclick="handlePinDigit(9)" class="button button-outline">&#x25CF;</button>
+        
           <br />
-          <input id="#pinInput" type="text" style="-webkit-text-security: disc" />
+          <input id="pinInput" type="text" style="-webkit-text-security: disc" />
           <button onclick="handlePinDigit('')" class="button button-outline">x</button>
         </div>
         <div class="modal-footer">
@@ -392,7 +393,7 @@
       </div>
     </div>
 
-    <div id="#passphraseModal" class="modal" aria-hidden="true">
+    <div id="passphraseModal" class="modal" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-header">
           <h3>Enter Passphrase</h3>
@@ -400,7 +401,7 @@
         </div>
         <div class="modal-body">
           <form>
-            <input id="#passphraseInput" type="password" autocomplete="bip39-passphrase" />
+            <input id="passphraseInput" type="password" autocomplete="bip39-passphrase" />
           </form>
         </div>
         <div class="modal-footer">
@@ -409,7 +410,7 @@
       </div>
     </div>
 
-    <div id="#mnemonicModal" class="modal" aria-hidden="true">
+    <div id="mnemonicModal" class="modal" aria-hidden="true">
       <div class="modal-dialog">
         <div class="modal-header">
           <h3>Mnemoic Required</h3>
@@ -417,7 +418,7 @@
         </div>
         <div class="modal-body">
           <form>
-            <input id="#mnemonicInput" type="text" />
+            <input id="mnemonicInput" type="text" />
           </form>
         </div>
         <div class="modal-footer">

@@ -29,7 +29,7 @@
     "emitDecoratorMetadata": true
   },
   "files": [],
-  "exclude": ["node_modules", "dist", "integration", "examples"],
+  "exclude": ["node_modules", "dist", "integration", "example-apps"],
   "references": [
     { "path": "./integration" },
     { "path": "./packages/hdwallet-core" },
