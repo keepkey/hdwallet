@@ -174,27 +174,6 @@ export const CHAIN_CONFIGS: ChainConfig[] = [
     contentId: 'blockchain-thorchain',
     architecture: 'Tendermint'
   },
-  // UTXO Altcoins
-  {
-    id: 'litecoin',
-    name: 'Litecoin',
-    caip: 'bip122:12a765e31ffd4059bada1e25190f6e98/slip44:2',
-    icon: getIconUrl('bip122:12a765e31ffd4059bada1e25190f6e98/slip44:2'),
-    color: '#345D9D',
-    sortOrder: 11,
-    contentId: 'blockchain-litecoin',
-    architecture: 'UTXO'
-  },
-  {
-    id: 'dogecoin',
-    name: 'Dogecoin',
-    caip: 'bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3',
-    icon: getIconUrl('bip122:1a91e3dace36e2be3bf030a65679fe82/slip44:3'),
-    color: '#C2A633',
-    sortOrder: 12,
-    contentId: 'blockchain-dogecoin',
-    architecture: 'UTXO'
-  },
   // XRP Ledger
   {
     id: 'ripple',
