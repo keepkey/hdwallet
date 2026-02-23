@@ -1,7 +1,6 @@
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
-import _ from "lodash";
 import semver from "semver";
 
 import * as Binance from "./binance";
@@ -18,7 +17,7 @@ import { messageTypeRegistry } from "./typeRegistry";
 import { protoFieldToSetMethod, translateInputScriptType } from "./utils";
 
 export function isKeepKey(wallet: core.HDWallet): wallet is KeepKeyHDWallet {
-  return _.isObject(wallet) && (wallet as any)._isKeepKey;
+  return typeof wallet === "object" && wallet !== null && (wallet as any)._isKeepKey;
 }
 
 function describeETHPath(path: core.BIP32Path): core.PathDescription {

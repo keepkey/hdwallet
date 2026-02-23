@@ -1,4 +1,6 @@
-import isObject from "lodash/isObject";
+function isObject(value: unknown): value is object {
+  return typeof value === "object" && value !== null;
+}
 
 import { ArkeoWallet, ArkeoWalletInfo } from "./arkeo";
 import { BinanceWallet, BinanceWalletInfo } from "./binance";
