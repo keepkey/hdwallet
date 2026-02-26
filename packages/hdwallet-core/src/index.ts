@@ -13,6 +13,7 @@ export * from "./kava";
 export * from "./keyring";
 export * from "./ripple";
 export * from "./secret";
+export * from "./solana";
 export * from "./terra";
 export * from "./thorchain";
 export * from "./mayachain";
