@@ -5,6 +5,7 @@
  */
 
 import $ from "jquery";
+
 import { ChainConfig } from "./chains";
 
 /**
@@ -14,10 +15,10 @@ export function renderBlockchainHeader(chain: ChainConfig): string {
   return `
     <div class="blockchain-header">
       <div class="blockchain-header-info">
-        ${chain.icon ? `<img src="${chain.icon}" alt="${chain.name}" class="blockchain-header-icon" />` : ''}
+        ${chain.icon ? `<img src="${chain.icon}" alt="${chain.name}" class="blockchain-header-icon" />` : ""}
         <div class="blockchain-header-text">
           <h3 class="blockchain-header-name" style="color: ${chain.color};">${chain.name}</h3>
-          <div class="blockchain-header-caip">${chain.caip || 'No CAIP identifier'}</div>
+          <div class="blockchain-header-caip">${chain.caip || "No CAIP identifier"}</div>
           <div class="blockchain-header-arch">${chain.architecture} Architecture</div>
         </div>
       </div>
@@ -29,18 +30,16 @@ export function renderBlockchainHeader(chain: ChainConfig): string {
  * Inject blockchain headers into existing content sections
  */
 export function initializeBlockchainHeaders(chains: ChainConfig[]): void {
-  chains.forEach(chain => {
+  chains.forEach((chain) => {
     const contentElement = $(`#blockchain-${chain.id}`);
     if (contentElement.length > 0) {
       // Check if header already exists
-      if (contentElement.find('.blockchain-header').length === 0) {
+      if (contentElement.find(".blockchain-header").length === 0) {
         const header = renderBlockchainHeader(chain);
         contentElement.prepend(header);
       }
     }
   });
-
-  console.log('✅ Initialized blockchain tool headers');
 }
 
 /**
