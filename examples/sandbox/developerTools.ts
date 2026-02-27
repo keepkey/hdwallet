@@ -4,8 +4,8 @@
  * Provides expandable, interactive tool panels for blockchain operations
  */
 
-import $ from "jquery";
 import * as core from "@keepkey/hdwallet-core";
+import $ from "jquery";
 
 export interface ToolOperation {
   id: string;
@@ -15,7 +15,7 @@ export interface ToolOperation {
   inputs?: {
     id: string;
     label: string;
-    type: 'text' | 'number' | 'select' | 'textarea';
+    type: "text" | "number" | "select" | "textarea";
     placeholder?: string;
     defaultValue?: string;
     options?: { value: string; label: string }[];
@@ -27,38 +27,43 @@ export interface ToolOperation {
  * Render an interactive tool panel
  */
 export function renderToolPanel(operation: ToolOperation): string {
-  const inputsHtml = operation.inputs?.map(input => {
-    if (input.type === 'select') {
-      return `
+  const inputsHtml =
+    operation.inputs
+      ?.map((input) => {
+        if (input.type === "select") {
+          return `
         <div class="tool-input-group">
           <label for="${input.id}">${input.label}</label>
           <select id="${input.id}" class="tool-input">
-            ${input.options?.map(opt => `<option value="${opt.value}">${opt.label}</option>`).join('')}
+            ${input.options?.map((opt) => `<option value="${opt.value}">${opt.label}</option>`).join("")}
           </select>
         </div>
       `;
-    } else if (input.type === 'textarea') {
-      return `
+        } else if (input.type === "textarea") {
+          return `
         <div class="tool-input-group">
           <label for="${input.id}">${input.label}</label>
-          <textarea id="${input.id}" class="tool-input" placeholder="${input.placeholder || ''}">${input.defaultValue || ''}</textarea>
+          <textarea id="${input.id}" class="tool-input" placeholder="${input.placeholder || ""}">${
+            input.defaultValue || ""
+          }</textarea>
         </div>
       `;
-    } else {
-      return `
+        } else {
+          return `
         <div class="tool-input-group">
           <label for="${input.id}">${input.label}</label>
           <input
             type="${input.type}"
             id="${input.id}"
             class="tool-input"
-            placeholder="${input.placeholder || ''}"
-            value="${input.defaultValue || ''}"
+            placeholder="${input.placeholder || ""}"
+            value="${input.defaultValue || ""}"
           />
         </div>
       `;
-    }
-  }).join('') || '';
+        }
+      })
+      .join("") || "";
 
   return `
     <div class="tool-panel" id="tool-${operation.id}">
@@ -95,10 +100,10 @@ function getWallet(): any {
  * Helper to parse BIP32 path
  */
 function parsePath(pathStr: string): number[] {
-  const parts = pathStr.replace(/^m\//, '').split('/');
-  return parts.map(part => {
+  const parts = pathStr.replace(/^m\//, "").split("/");
+  return parts.map((part) => {
     const isHardened = part.endsWith("'") || part.endsWith("h");
-    const num = parseInt(part.replace(/['h]$/, ''), 10);
+    const num = parseInt(part.replace(/['h]$/, ""), 10);
     return isHardened ? num + 0x80000000 : num;
   });
 }
@@ -108,165 +113,167 @@ function parsePath(pathStr: string): number[] {
  */
 export const BITCOIN_TOOLS: ToolOperation[] = [
   {
-    id: 'btc-address',
-    label: 'Get Address',
-    description: 'Generate Bitcoin address for a given derivation path',
-    category: 'Addresses',
+    id: "btc-address",
+    label: "Get Address",
+    description: "Generate Bitcoin address for a given derivation path",
+    category: "Addresses",
     inputs: [
       {
-        id: 'btc-addr-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "btc-addr-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/0'/0'/0/0",
-        defaultValue: "m/44'/0'/0'/0/0"
+        defaultValue: "m/44'/0'/0'/0/0",
       },
       {
-        id: 'btc-addr-type',
-        label: 'Address Type',
-        type: 'select',
+        id: "btc-addr-type",
+        label: "Address Type",
+        type: "select",
         options: [
-          { value: 'legacy', label: 'Legacy (P2PKH)' },
-          { value: 'segwit', label: 'SegWit (P2SH-P2WPKH)' },
-          { value: 'native', label: 'Native SegWit (Bech32)' },
-          { value: 'taproot', label: 'Taproot (P2TR)' }
-        ]
-      }
+          { value: "legacy", label: "Legacy (P2PKH)" },
+          { value: "segwit", label: "SegWit (P2SH-P2WPKH)" },
+          { value: "native", label: "Native SegWit (Bech32)" },
+          { value: "taproot", label: "Taproot (P2TR)" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#btc-addr-path') as any).val();
-      const addrType = ($('#btc-addr-type') as any).val();
+      const pathStr = ($("#btc-addr-path") as any).val();
+      const addrType = ($("#btc-addr-type") as any).val();
 
       const scriptTypeMap: any = {
-        'legacy': core.BTCInputScriptType.SpendAddress,
-        'segwit': core.BTCInputScriptType.SpendP2SHWitness,
-        'native': core.BTCInputScriptType.SpendWitness,
-        'taproot': core.BTCInputScriptType.SpendTaproot
+        legacy: core.BTCInputScriptType.SpendAddress,
+        segwit: core.BTCInputScriptType.SpendP2SHWitness,
+        native: core.BTCInputScriptType.SpendWitness,
+        taproot: core.BTCInputScriptType.SpendTaproot,
       };
 
       const result = await wallet.btcGetAddress({
         addressNList: parsePath(pathStr),
-        coin: 'Bitcoin',
+        coin: "Bitcoin",
         scriptType: scriptTypeMap[addrType] || core.BTCInputScriptType.SpendAddress,
-        showDisplay: false
+        showDisplay: false,
       });
 
       return `Address: ${result}\nPath: ${pathStr}\nType: ${addrType}`;
-    }
+    },
   },
   {
-    id: 'btc-xpub',
-    label: 'Get Extended Public Key',
-    description: 'Retrieve xpub/ypub/zpub for account-level derivation',
-    category: 'Keys',
+    id: "btc-xpub",
+    label: "Get Extended Public Key",
+    description: "Retrieve xpub/ypub/zpub for account-level derivation",
+    category: "Keys",
     inputs: [
       {
-        id: 'btc-xpub-path',
-        label: 'Account Path',
-        type: 'text',
+        id: "btc-xpub-path",
+        label: "Account Path",
+        type: "text",
         placeholder: "m/44'/0'/0'",
-        defaultValue: "m/44'/0'/0'"
+        defaultValue: "m/44'/0'/0'",
       },
       {
-        id: 'btc-xpub-format',
-        label: 'Format',
-        type: 'select',
+        id: "btc-xpub-format",
+        label: "Format",
+        type: "select",
         options: [
-          { value: 'xpub', label: 'xpub (Legacy)' },
-          { value: 'ypub', label: 'ypub (SegWit)' },
-          { value: 'zpub', label: 'zpub (Native SegWit)' }
-        ]
-      }
+          { value: "xpub", label: "xpub (Legacy)" },
+          { value: "ypub", label: "ypub (SegWit)" },
+          { value: "zpub", label: "zpub (Native SegWit)" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#btc-xpub-path') as any).val();
-      const format = ($('#btc-xpub-format') as any).val();
+      const pathStr = ($("#btc-xpub-path") as any).val();
+      const format = ($("#btc-xpub-format") as any).val();
 
       const scriptTypeMap: any = {
-        'xpub': core.BTCInputScriptType.SpendAddress,
-        'ypub': core.BTCInputScriptType.SpendP2SHWitness,
-        'zpub': core.BTCInputScriptType.SpendWitness
+        xpub: core.BTCInputScriptType.SpendAddress,
+        ypub: core.BTCInputScriptType.SpendP2SHWitness,
+        zpub: core.BTCInputScriptType.SpendWitness,
       };
 
-      const result = await wallet.getPublicKeys([{
-        addressNList: parsePath(pathStr),
-        coin: 'Bitcoin',
-        scriptType: scriptTypeMap[format] || core.BTCInputScriptType.SpendAddress,
-        curve: 'secp256k1'
-      }]);
+      const result = await wallet.getPublicKeys([
+        {
+          addressNList: parsePath(pathStr),
+          coin: "Bitcoin",
+          scriptType: scriptTypeMap[format] || core.BTCInputScriptType.SpendAddress,
+          curve: "secp256k1",
+        },
+      ]);
 
       if (result && result.length > 0) {
         return `Extended Public Key (${format}):\n${result[0].xpub}\n\nPath: ${pathStr}`;
       }
 
       return "No result returned from wallet";
-    }
+    },
   },
   {
-    id: 'btc-sign-message',
-    label: 'Sign Message',
-    description: 'Sign an arbitrary message with Bitcoin key',
-    category: 'Signing',
+    id: "btc-sign-message",
+    label: "Sign Message",
+    description: "Sign an arbitrary message with Bitcoin key",
+    category: "Signing",
     inputs: [
       {
-        id: 'btc-sign-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "btc-sign-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/0'/0'/0/0",
-        defaultValue: "m/44'/0'/0'/0/0"
+        defaultValue: "m/44'/0'/0'/0/0",
       },
       {
-        id: 'btc-sign-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Enter message to sign...'
-      }
+        id: "btc-sign-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Enter message to sign...",
+      },
     ],
-    action: async () => "Message signing not yet connected"
+    action: async () => "Message signing not yet connected",
   },
   {
-    id: 'btc-verify-message',
-    label: 'Verify Message',
-    description: 'Verify a signed Bitcoin message',
-    category: 'Signing',
+    id: "btc-verify-message",
+    label: "Verify Message",
+    description: "Verify a signed Bitcoin message",
+    category: "Signing",
     inputs: [
       {
-        id: 'btc-verify-address',
-        label: 'Address',
-        type: 'text',
-        placeholder: '1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa'
+        id: "btc-verify-address",
+        label: "Address",
+        type: "text",
+        placeholder: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
       },
       {
-        id: 'btc-verify-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Original message...'
+        id: "btc-verify-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Original message...",
       },
       {
-        id: 'btc-verify-signature',
-        label: 'Signature',
-        type: 'text',
-        placeholder: 'Signature to verify...'
-      }
+        id: "btc-verify-signature",
+        label: "Signature",
+        type: "text",
+        placeholder: "Signature to verify...",
+      },
     ],
-    action: async () => "Message verification not yet connected"
+    action: async () => "Message verification not yet connected",
   },
   {
-    id: 'btc-sign-transaction',
-    label: 'Sign Transaction',
-    description: 'Sign a Bitcoin transaction',
-    category: 'Transactions',
+    id: "btc-sign-transaction",
+    label: "Sign Transaction",
+    description: "Sign a Bitcoin transaction",
+    category: "Transactions",
     inputs: [
       {
-        id: 'btc-tx-json',
-        label: 'Transaction JSON',
-        type: 'textarea',
-        placeholder: 'Paste transaction JSON...'
-      }
+        id: "btc-tx-json",
+        label: "Transaction JSON",
+        type: "textarea",
+        placeholder: "Paste transaction JSON...",
+      },
     ],
-    action: async () => "Transaction signing not yet connected"
-  }
+    action: async () => "Transaction signing not yet connected",
+  },
 ];
 
 /**
@@ -274,100 +281,100 @@ export const BITCOIN_TOOLS: ToolOperation[] = [
  */
 export const ETHEREUM_TOOLS: ToolOperation[] = [
   {
-    id: 'eth-address',
-    label: 'Get Address',
-    description: 'Generate Ethereum address for a given derivation path',
-    category: 'Addresses',
+    id: "eth-address",
+    label: "Get Address",
+    description: "Generate Ethereum address for a given derivation path",
+    category: "Addresses",
     inputs: [
       {
-        id: 'eth-addr-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "eth-addr-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/60'/0'/0/0",
-        defaultValue: "m/44'/60'/0'/0/0"
+        defaultValue: "m/44'/60'/0'/0/0",
       },
       {
-        id: 'eth-addr-display',
-        label: 'Show on Device',
-        type: 'select',
+        id: "eth-addr-display",
+        label: "Show on Device",
+        type: "select",
         options: [
-          { value: 'false', label: 'No' },
-          { value: 'true', label: 'Yes' }
-        ]
-      }
+          { value: "false", label: "No" },
+          { value: "true", label: "Yes" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#eth-addr-path') as any).val();
-      const showDisplay = ($('#eth-addr-display') as any).val() === 'true';
+      const pathStr = ($("#eth-addr-path") as any).val();
+      const showDisplay = ($("#eth-addr-display") as any).val() === "true";
 
       const result = await wallet.ethGetAddress({
         addressNList: parsePath(pathStr),
-        showDisplay: showDisplay
+        showDisplay: showDisplay,
       });
 
-      return `Address: ${result}\nPath: ${pathStr}\nShown on device: ${showDisplay ? 'Yes' : 'No'}`;
-    }
+      return `Address: ${result}\nPath: ${pathStr}\nShown on device: ${showDisplay ? "Yes" : "No"}`;
+    },
   },
   {
-    id: 'eth-sign-message',
-    label: 'Sign Message',
-    description: 'Sign an arbitrary message with Ethereum key',
-    category: 'Signing',
+    id: "eth-sign-message",
+    label: "Sign Message",
+    description: "Sign an arbitrary message with Ethereum key",
+    category: "Signing",
     inputs: [
       {
-        id: 'eth-sign-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "eth-sign-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/60'/0'/0/0",
-        defaultValue: "m/44'/60'/0'/0/0"
+        defaultValue: "m/44'/60'/0'/0/0",
       },
       {
-        id: 'eth-sign-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Enter message to sign...'
-      }
+        id: "eth-sign-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Enter message to sign...",
+      },
     ],
-    action: async () => "Message signing not yet connected"
+    action: async () => "Message signing not yet connected",
   },
   {
-    id: 'eth-sign-typed-data',
-    label: 'Sign Typed Data (EIP-712)',
-    description: 'Sign structured data following EIP-712',
-    category: 'Signing',
+    id: "eth-sign-typed-data",
+    label: "Sign Typed Data (EIP-712)",
+    description: "Sign structured data following EIP-712",
+    category: "Signing",
     inputs: [
       {
-        id: 'eth-typed-data-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "eth-typed-data-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/60'/0'/0/0",
-        defaultValue: "m/44'/60'/0'/0/0"
+        defaultValue: "m/44'/60'/0'/0/0",
       },
       {
-        id: 'eth-typed-data-json',
-        label: 'Typed Data JSON',
-        type: 'textarea',
-        placeholder: 'Paste EIP-712 typed data...'
-      }
+        id: "eth-typed-data-json",
+        label: "Typed Data JSON",
+        type: "textarea",
+        placeholder: "Paste EIP-712 typed data...",
+      },
     ],
-    action: async () => "Typed data signing not yet connected"
+    action: async () => "Typed data signing not yet connected",
   },
   {
-    id: 'eth-sign-transaction',
-    label: 'Sign Transaction',
-    description: 'Sign an Ethereum transaction',
-    category: 'Transactions',
+    id: "eth-sign-transaction",
+    label: "Sign Transaction",
+    description: "Sign an Ethereum transaction",
+    category: "Transactions",
     inputs: [
       {
-        id: 'eth-tx-json',
-        label: 'Transaction JSON',
-        type: 'textarea',
-        placeholder: 'Paste transaction JSON...'
-      }
+        id: "eth-tx-json",
+        label: "Transaction JSON",
+        type: "textarea",
+        placeholder: "Paste transaction JSON...",
+      },
     ],
-    action: async () => "Transaction signing not yet connected"
-  }
+    action: async () => "Transaction signing not yet connected",
+  },
 ];
 
 /**
@@ -375,53 +382,53 @@ export const ETHEREUM_TOOLS: ToolOperation[] = [
  */
 export const COSMOS_TOOLS: ToolOperation[] = [
   {
-    id: 'cosmos-address',
-    label: 'Get Address',
-    description: 'Generate Cosmos (ATOM) address',
-    category: 'Addresses',
+    id: "cosmos-address",
+    label: "Get Address",
+    description: "Generate Cosmos (ATOM) address",
+    category: "Addresses",
     inputs: [
       {
-        id: 'cosmos-addr-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "cosmos-addr-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/118'/0'/0/0",
-        defaultValue: "m/44'/118'/0'/0/0"
-      }
+        defaultValue: "m/44'/118'/0'/0/0",
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#cosmos-addr-path') as any).val();
+      const pathStr = ($("#cosmos-addr-path") as any).val();
 
       const result = await wallet.cosmosGetAddress({
         addressNList: parsePath(pathStr),
-        showDisplay: false
+        showDisplay: false,
       });
 
       return `Address: ${result}\nPath: ${pathStr}`;
-    }
+    },
   },
   {
-    id: 'cosmos-sign-message',
-    label: 'Sign Message',
-    description: 'Sign an arbitrary message with Cosmos key',
-    category: 'Signing',
+    id: "cosmos-sign-message",
+    label: "Sign Message",
+    description: "Sign an arbitrary message with Cosmos key",
+    category: "Signing",
     inputs: [
       {
-        id: 'cosmos-sign-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "cosmos-sign-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/118'/0'/0/0",
-        defaultValue: "m/44'/118'/0'/0/0"
+        defaultValue: "m/44'/118'/0'/0/0",
       },
       {
-        id: 'cosmos-sign-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Enter message to sign...'
-      }
+        id: "cosmos-sign-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Enter message to sign...",
+      },
     ],
-    action: async () => "Cosmos message signing not yet connected"
-  }
+    action: async () => "Cosmos message signing not yet connected",
+  },
 ];
 
 /**
@@ -429,174 +436,176 @@ export const COSMOS_TOOLS: ToolOperation[] = [
  */
 export const LITECOIN_TOOLS: ToolOperation[] = [
   {
-    id: 'ltc-address',
-    label: 'Get Address',
-    description: 'Generate Litecoin address for a given derivation path',
-    category: 'Addresses',
+    id: "ltc-address",
+    label: "Get Address",
+    description: "Generate Litecoin address for a given derivation path",
+    category: "Addresses",
     inputs: [
       {
-        id: 'ltc-addr-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "ltc-addr-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/2'/0'/0/0",
-        defaultValue: "m/44'/2'/0'/0/0"
+        defaultValue: "m/44'/2'/0'/0/0",
       },
       {
-        id: 'ltc-addr-type',
-        label: 'Address Type',
-        type: 'select',
+        id: "ltc-addr-type",
+        label: "Address Type",
+        type: "select",
         options: [
-          { value: 'legacy', label: 'Legacy (P2PKH)' },
-          { value: 'segwit', label: 'SegWit (P2SH-P2WPKH)' },
-          { value: 'native', label: 'Native SegWit (Bech32)' }
-        ]
-      }
+          { value: "legacy", label: "Legacy (P2PKH)" },
+          { value: "segwit", label: "SegWit (P2SH-P2WPKH)" },
+          { value: "native", label: "Native SegWit (Bech32)" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#ltc-addr-path') as any).val();
-      const addrType = ($('#ltc-addr-type') as any).val();
+      const pathStr = ($("#ltc-addr-path") as any).val();
+      const addrType = ($("#ltc-addr-type") as any).val();
 
       const scriptTypeMap: any = {
-        'legacy': core.BTCInputScriptType.SpendAddress,
-        'segwit': core.BTCInputScriptType.SpendP2SHWitness,
-        'native': core.BTCInputScriptType.SpendWitness
+        legacy: core.BTCInputScriptType.SpendAddress,
+        segwit: core.BTCInputScriptType.SpendP2SHWitness,
+        native: core.BTCInputScriptType.SpendWitness,
       };
 
       const result = await wallet.btcGetAddress({
         addressNList: parsePath(pathStr),
-        coin: 'Litecoin',
+        coin: "Litecoin",
         scriptType: scriptTypeMap[addrType] || core.BTCInputScriptType.SpendAddress,
-        showDisplay: false
+        showDisplay: false,
       });
 
       return `Address: ${result}\nPath: ${pathStr}\nType: ${addrType}`;
-    }
+    },
   },
   {
-    id: 'ltc-xpub',
-    label: 'Get Extended Public Key',
-    description: 'Retrieve xpub for account-level derivation',
-    category: 'Keys',
+    id: "ltc-xpub",
+    label: "Get Extended Public Key",
+    description: "Retrieve xpub for account-level derivation",
+    category: "Keys",
     inputs: [
       {
-        id: 'ltc-xpub-path',
-        label: 'Account Path',
-        type: 'text',
+        id: "ltc-xpub-path",
+        label: "Account Path",
+        type: "text",
         placeholder: "m/44'/2'/0'",
-        defaultValue: "m/44'/2'/0'"
+        defaultValue: "m/44'/2'/0'",
       },
       {
-        id: 'ltc-xpub-format',
-        label: 'Format',
-        type: 'select',
+        id: "ltc-xpub-format",
+        label: "Format",
+        type: "select",
         options: [
-          { value: 'xpub', label: 'Ltub (Legacy)' },
-          { value: 'ypub', label: 'Mtub (SegWit)' }
-        ]
-      }
+          { value: "xpub", label: "Ltub (Legacy)" },
+          { value: "ypub", label: "Mtub (SegWit)" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#ltc-xpub-path') as any).val();
-      const format = ($('#ltc-xpub-format') as any).val();
+      const pathStr = ($("#ltc-xpub-path") as any).val();
+      const format = ($("#ltc-xpub-format") as any).val();
 
       const scriptTypeMap: any = {
-        'xpub': core.BTCInputScriptType.SpendAddress,
-        'ypub': core.BTCInputScriptType.SpendP2SHWitness
+        xpub: core.BTCInputScriptType.SpendAddress,
+        ypub: core.BTCInputScriptType.SpendP2SHWitness,
       };
 
-      const result = await wallet.getPublicKeys([{
-        addressNList: parsePath(pathStr),
-        coin: 'Litecoin',
-        scriptType: scriptTypeMap[format] || core.BTCInputScriptType.SpendAddress,
-        curve: 'secp256k1'
-      }]);
+      const result = await wallet.getPublicKeys([
+        {
+          addressNList: parsePath(pathStr),
+          coin: "Litecoin",
+          scriptType: scriptTypeMap[format] || core.BTCInputScriptType.SpendAddress,
+          curve: "secp256k1",
+        },
+      ]);
 
       if (result && result.length > 0) {
         return `Extended Public Key (${format}):\n${result[0].xpub}\n\nPath: ${pathStr}`;
       }
 
       return "No result returned from wallet";
-    }
+    },
   },
   {
-    id: 'ltc-sign-message',
-    label: 'Sign Message',
-    description: 'Sign an arbitrary message with Litecoin key',
-    category: 'Signing',
+    id: "ltc-sign-message",
+    label: "Sign Message",
+    description: "Sign an arbitrary message with Litecoin key",
+    category: "Signing",
     inputs: [
       {
-        id: 'ltc-sign-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "ltc-sign-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/2'/0'/0/0",
-        defaultValue: "m/44'/2'/0'/0/0"
+        defaultValue: "m/44'/2'/0'/0/0",
       },
       {
-        id: 'ltc-sign-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Enter message to sign...'
-      }
+        id: "ltc-sign-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Enter message to sign...",
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#ltc-sign-path') as any).val();
-      const message = ($('#ltc-sign-message') as any).val();
+      const pathStr = ($("#ltc-sign-path") as any).val();
+      const message = ($("#ltc-sign-message") as any).val();
 
       const result = await wallet.btcSignMessage({
         addressNList: parsePath(pathStr),
-        coin: 'Litecoin',
+        coin: "Litecoin",
         scriptType: core.BTCInputScriptType.SpendAddress,
-        message: message
+        message: message,
       });
 
       return `Signature: ${result.signature}\nAddress: ${result.address}\nPath: ${pathStr}`;
-    }
+    },
   },
   {
-    id: 'ltc-verify-message',
-    label: 'Verify Message',
-    description: 'Verify a signed Litecoin message',
-    category: 'Signing',
+    id: "ltc-verify-message",
+    label: "Verify Message",
+    description: "Verify a signed Litecoin message",
+    category: "Signing",
     inputs: [
       {
-        id: 'ltc-verify-address',
-        label: 'Address',
-        type: 'text',
-        placeholder: 'LTC address...'
+        id: "ltc-verify-address",
+        label: "Address",
+        type: "text",
+        placeholder: "LTC address...",
       },
       {
-        id: 'ltc-verify-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Original message...'
+        id: "ltc-verify-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Original message...",
       },
       {
-        id: 'ltc-verify-signature',
-        label: 'Signature',
-        type: 'text',
-        placeholder: 'Signature to verify...'
-      }
+        id: "ltc-verify-signature",
+        label: "Signature",
+        type: "text",
+        placeholder: "Signature to verify...",
+      },
     ],
-    action: async () => "Message verification not yet connected"
+    action: async () => "Message verification not yet connected",
   },
   {
-    id: 'ltc-sign-transaction',
-    label: 'Sign Transaction',
-    description: 'Sign a Litecoin transaction',
-    category: 'Transactions',
+    id: "ltc-sign-transaction",
+    label: "Sign Transaction",
+    description: "Sign a Litecoin transaction",
+    category: "Transactions",
     inputs: [
       {
-        id: 'ltc-tx-json',
-        label: 'Transaction JSON',
-        type: 'textarea',
-        placeholder: 'Paste transaction JSON...'
-      }
+        id: "ltc-tx-json",
+        label: "Transaction JSON",
+        type: "textarea",
+        placeholder: "Paste transaction JSON...",
+      },
     ],
-    action: async () => "Transaction signing not yet connected"
-  }
+    action: async () => "Transaction signing not yet connected",
+  },
 ];
 
 /**
@@ -604,151 +613,151 @@ export const LITECOIN_TOOLS: ToolOperation[] = [
  */
 export const DOGECOIN_TOOLS: ToolOperation[] = [
   {
-    id: 'doge-address',
-    label: 'Get Address',
-    description: 'Generate Dogecoin address for a given derivation path',
-    category: 'Addresses',
+    id: "doge-address",
+    label: "Get Address",
+    description: "Generate Dogecoin address for a given derivation path",
+    category: "Addresses",
     inputs: [
       {
-        id: 'doge-addr-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "doge-addr-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/3'/0'/0/0",
-        defaultValue: "m/44'/3'/0'/0/0"
+        defaultValue: "m/44'/3'/0'/0/0",
       },
       {
-        id: 'doge-addr-type',
-        label: 'Address Type',
-        type: 'select',
-        options: [
-          { value: 'legacy', label: 'Legacy (P2PKH)' }
-        ]
-      }
+        id: "doge-addr-type",
+        label: "Address Type",
+        type: "select",
+        options: [{ value: "legacy", label: "Legacy (P2PKH)" }],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#doge-addr-path') as any).val();
-      const addrType = ($('#doge-addr-type') as any).val();
+      const pathStr = ($("#doge-addr-path") as any).val();
+      const addrType = ($("#doge-addr-type") as any).val();
 
       const result = await wallet.btcGetAddress({
         addressNList: parsePath(pathStr),
-        coin: 'Dogecoin',
+        coin: "Dogecoin",
         scriptType: core.BTCInputScriptType.SpendAddress,
-        showDisplay: false
+        showDisplay: false,
       });
 
       return `Address: ${result}\nPath: ${pathStr}\nType: ${addrType}`;
-    }
+    },
   },
   {
-    id: 'doge-xpub',
-    label: 'Get Extended Public Key',
-    description: 'Retrieve xpub for account-level derivation',
-    category: 'Keys',
+    id: "doge-xpub",
+    label: "Get Extended Public Key",
+    description: "Retrieve xpub for account-level derivation",
+    category: "Keys",
     inputs: [
       {
-        id: 'doge-xpub-path',
-        label: 'Account Path',
-        type: 'text',
+        id: "doge-xpub-path",
+        label: "Account Path",
+        type: "text",
         placeholder: "m/44'/3'/0'",
-        defaultValue: "m/44'/3'/0'"
-      }
+        defaultValue: "m/44'/3'/0'",
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#doge-xpub-path') as any).val();
+      const pathStr = ($("#doge-xpub-path") as any).val();
 
-      const result = await wallet.getPublicKeys([{
-        addressNList: parsePath(pathStr),
-        coin: 'Dogecoin',
-        scriptType: core.BTCInputScriptType.SpendAddress,
-        curve: 'secp256k1'
-      }]);
+      const result = await wallet.getPublicKeys([
+        {
+          addressNList: parsePath(pathStr),
+          coin: "Dogecoin",
+          scriptType: core.BTCInputScriptType.SpendAddress,
+          curve: "secp256k1",
+        },
+      ]);
 
       if (result && result.length > 0) {
         return `Extended Public Key:\n${result[0].xpub}\n\nPath: ${pathStr}`;
       }
 
       return "No result returned from wallet";
-    }
+    },
   },
   {
-    id: 'doge-sign-message',
-    label: 'Sign Message',
-    description: 'Sign an arbitrary message with Dogecoin key',
-    category: 'Signing',
+    id: "doge-sign-message",
+    label: "Sign Message",
+    description: "Sign an arbitrary message with Dogecoin key",
+    category: "Signing",
     inputs: [
       {
-        id: 'doge-sign-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "doge-sign-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/3'/0'/0/0",
-        defaultValue: "m/44'/3'/0'/0/0"
+        defaultValue: "m/44'/3'/0'/0/0",
       },
       {
-        id: 'doge-sign-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Enter message to sign...'
-      }
+        id: "doge-sign-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Enter message to sign...",
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#doge-sign-path') as any).val();
-      const message = ($('#doge-sign-message') as any).val();
+      const pathStr = ($("#doge-sign-path") as any).val();
+      const message = ($("#doge-sign-message") as any).val();
 
       const result = await wallet.btcSignMessage({
         addressNList: parsePath(pathStr),
-        coin: 'Dogecoin',
+        coin: "Dogecoin",
         scriptType: core.BTCInputScriptType.SpendAddress,
-        message: message
+        message: message,
       });
 
       return `Signature: ${result.signature}\nAddress: ${result.address}\nPath: ${pathStr}`;
-    }
+    },
   },
   {
-    id: 'doge-verify-message',
-    label: 'Verify Message',
-    description: 'Verify a signed Dogecoin message',
-    category: 'Signing',
+    id: "doge-verify-message",
+    label: "Verify Message",
+    description: "Verify a signed Dogecoin message",
+    category: "Signing",
     inputs: [
       {
-        id: 'doge-verify-address',
-        label: 'Address',
-        type: 'text',
-        placeholder: 'DOGE address...'
+        id: "doge-verify-address",
+        label: "Address",
+        type: "text",
+        placeholder: "DOGE address...",
       },
       {
-        id: 'doge-verify-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Original message...'
+        id: "doge-verify-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Original message...",
       },
       {
-        id: 'doge-verify-signature',
-        label: 'Signature',
-        type: 'text',
-        placeholder: 'Signature to verify...'
-      }
+        id: "doge-verify-signature",
+        label: "Signature",
+        type: "text",
+        placeholder: "Signature to verify...",
+      },
     ],
-    action: async () => "Message verification not yet connected"
+    action: async () => "Message verification not yet connected",
   },
   {
-    id: 'doge-sign-transaction',
-    label: 'Sign Transaction',
-    description: 'Sign a Dogecoin transaction',
-    category: 'Transactions',
+    id: "doge-sign-transaction",
+    label: "Sign Transaction",
+    description: "Sign a Dogecoin transaction",
+    category: "Transactions",
     inputs: [
       {
-        id: 'doge-tx-json',
-        label: 'Transaction JSON',
-        type: 'textarea',
-        placeholder: 'Paste transaction JSON...'
-      }
+        id: "doge-tx-json",
+        label: "Transaction JSON",
+        type: "textarea",
+        placeholder: "Paste transaction JSON...",
+      },
     ],
-    action: async () => "Transaction signing not yet connected"
-  }
+    action: async () => "Transaction signing not yet connected",
+  },
 ];
 
 /**
@@ -756,46 +765,46 @@ export const DOGECOIN_TOOLS: ToolOperation[] = [
  */
 export const RIPPLE_TOOLS: ToolOperation[] = [
   {
-    id: 'ripple-address',
-    label: 'Get Address',
-    description: 'Generate Ripple (XRP) address',
-    category: 'Addresses',
+    id: "ripple-address",
+    label: "Get Address",
+    description: "Generate Ripple (XRP) address",
+    category: "Addresses",
     inputs: [
       {
-        id: 'ripple-addr-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "ripple-addr-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/144'/0'/0/0",
-        defaultValue: "m/44'/144'/0'/0/0"
-      }
+        defaultValue: "m/44'/144'/0'/0/0",
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#ripple-addr-path') as any).val();
+      const pathStr = ($("#ripple-addr-path") as any).val();
 
       const result = await wallet.rippleGetAddress({
         addressNList: parsePath(pathStr),
-        showDisplay: false
+        showDisplay: false,
       });
 
       return `Address: ${result}\nPath: ${pathStr}`;
-    }
+    },
   },
   {
-    id: 'ripple-sign-tx',
-    label: 'Sign Transaction',
-    description: 'Sign a Ripple (XRP) transaction',
-    category: 'Transactions',
+    id: "ripple-sign-tx",
+    label: "Sign Transaction",
+    description: "Sign a Ripple (XRP) transaction",
+    category: "Transactions",
     inputs: [
       {
-        id: 'ripple-tx-json',
-        label: 'Transaction JSON',
-        type: 'textarea',
-        placeholder: 'Paste Ripple transaction JSON...'
-      }
+        id: "ripple-tx-json",
+        label: "Transaction JSON",
+        type: "textarea",
+        placeholder: "Paste Ripple transaction JSON...",
+      },
     ],
-    action: async () => "Ripple transaction signing not yet connected"
-  }
+    action: async () => "Ripple transaction signing not yet connected",
+  },
 ];
 
 /**
@@ -803,53 +812,53 @@ export const RIPPLE_TOOLS: ToolOperation[] = [
  */
 export const THORCHAIN_TOOLS: ToolOperation[] = [
   {
-    id: 'thorchain-address',
-    label: 'Get Address',
-    description: 'Generate THORChain (RUNE) address',
-    category: 'Addresses',
+    id: "thorchain-address",
+    label: "Get Address",
+    description: "Generate THORChain (RUNE) address",
+    category: "Addresses",
     inputs: [
       {
-        id: 'thorchain-addr-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "thorchain-addr-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/931'/0'/0/0",
-        defaultValue: "m/44'/931'/0'/0/0"
-      }
+        defaultValue: "m/44'/931'/0'/0/0",
+      },
     ],
     action: async () => {
       const wallet = getWallet();
-      const pathStr = ($('#thorchain-addr-path') as any).val();
+      const pathStr = ($("#thorchain-addr-path") as any).val();
 
       const result = await wallet.thorchainGetAddress({
         addressNList: parsePath(pathStr),
-        showDisplay: false
+        showDisplay: false,
       });
 
       return `Address: ${result}\nPath: ${pathStr}`;
-    }
+    },
   },
   {
-    id: 'thorchain-sign-message',
-    label: 'Sign Message',
-    description: 'Sign an arbitrary message with THORChain key',
-    category: 'Signing',
+    id: "thorchain-sign-message",
+    label: "Sign Message",
+    description: "Sign an arbitrary message with THORChain key",
+    category: "Signing",
     inputs: [
       {
-        id: 'thorchain-sign-path',
-        label: 'Derivation Path',
-        type: 'text',
+        id: "thorchain-sign-path",
+        label: "Derivation Path",
+        type: "text",
         placeholder: "m/44'/931'/0'/0/0",
-        defaultValue: "m/44'/931'/0'/0/0"
+        defaultValue: "m/44'/931'/0'/0/0",
       },
       {
-        id: 'thorchain-sign-message',
-        label: 'Message',
-        type: 'textarea',
-        placeholder: 'Enter message to sign...'
-      }
+        id: "thorchain-sign-message",
+        label: "Message",
+        type: "textarea",
+        placeholder: "Enter message to sign...",
+      },
     ],
-    action: async () => "THORChain message signing not yet connected"
-  }
+    action: async () => "THORChain message signing not yet connected",
+  },
 ];
 
 /**
@@ -860,8 +869,8 @@ export function initializeToolPanels(containerId: string, tools: ToolOperation[]
 
   // Group tools by category
   const categories = new Map<string, ToolOperation[]>();
-  tools.forEach(tool => {
-    const category = tool.category || 'General';
+  tools.forEach((tool) => {
+    const category = tool.category || "General";
     if (!categories.has(category)) {
       categories.set(category, []);
     }
@@ -873,24 +882,24 @@ export function initializeToolPanels(containerId: string, tools: ToolOperation[]
     const categoryHtml = `
       <div class="tool-category">
         <h5 class="tool-category-name">${categoryName}</h5>
-        ${categoryTools.map(tool => renderToolPanel(tool)).join('')}
+        ${categoryTools.map((tool) => renderToolPanel(tool)).join("")}
       </div>
     `;
     container.append(categoryHtml);
   });
 
   // Add toggle handlers for this container
-  container.on('click', '.tool-panel-header', function() {
-    const panel = $(this).closest('.tool-panel');
-    panel.toggleClass('expanded');
-    const icon = panel.find('.tool-panel-icon');
-    icon.text(panel.hasClass('expanded') ? '▼' : '▶');
+  container.on("click", ".tool-panel-header", function () {
+    const panel = $(this).closest(".tool-panel");
+    panel.toggleClass("expanded");
+    const icon = panel.find(".tool-panel-icon");
+    icon.text(panel.hasClass("expanded") ? "▼" : "▶");
   });
 
   // Add execute button handlers for this container
-  container.on('click', '.tool-execute-btn', async function() {
-    const toolId = $(this).data('tool-id');
-    const tool = tools.find(t => t.id === toolId);
+  container.on("click", ".tool-execute-btn", async function () {
+    const toolId = $(this).data("tool-id");
+    const tool = tools.find((t) => t.id === toolId);
 
     if (!tool) {
       console.error(`Tool not found: ${toolId}`);
@@ -898,17 +907,15 @@ export function initializeToolPanels(containerId: string, tools: ToolOperation[]
     }
 
     const resultDiv = $(`#result-${toolId}`);
-    resultDiv.removeClass('success error').text('⏳ Executing...');
+    resultDiv.removeClass("success error").text("⏳ Executing...");
 
     try {
       const result = await tool.action();
-      resultDiv.addClass('success').text(result);
+      resultDiv.addClass("success").text(result);
     } catch (error) {
-      resultDiv.addClass('error').text(`Error: ${error.message || error}`);
+      resultDiv.addClass("error").text(`Error: ${error.message || error}`);
     }
   });
-
-  console.log(`✅ Initialized ${tools.length} tool panels in #${containerId}`);
 }
 
 /**
