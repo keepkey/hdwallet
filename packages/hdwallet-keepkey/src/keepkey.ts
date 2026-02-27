@@ -3,7 +3,6 @@ import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
 import semver from "semver";
 
-import * as Binance from "./binance";
 import * as Btc from "./bitcoin";
 import * as Cosmos from "./cosmos";
 import * as Eos from "./eos";
@@ -363,45 +362,6 @@ function describeRipplePath(path: core.BIP32Path): core.PathDescription {
   };
 }
 
-function describeBinancePath(path: core.BIP32Path): core.PathDescription {
-  const pathStr = core.addressNListToBIP32(path);
-  const unknown: core.PathDescription = {
-    verbose: pathStr,
-    coin: "Binance",
-    isKnown: false,
-  };
-
-  if (path.length != 5) {
-    return unknown;
-  }
-
-  if (path[0] != 0x80000000 + 44) {
-    return unknown;
-  }
-
-  if (path[1] != 0x80000000 + core.slip44ByCoin("Binance")) {
-    return unknown;
-  }
-
-  if ((path[2] & 0x80000000) >>> 0 !== 0x80000000) {
-    return unknown;
-  }
-
-  if (path[3] !== 0 || path[4] !== 0) {
-    return unknown;
-  }
-
-  const index = path[2] & 0x7fffffff;
-  return {
-    verbose: `Binance Account #${index}`,
-    accountIdx: index,
-    wholeAccount: true,
-    coin: "Binance",
-    isKnown: true,
-    isPrefork: false,
-  };
-}
-
 function describeSolanaPath(path: core.BIP32Path): core.PathDescription {
   const pathStr = core.addressNListToBIP32(path);
   const unknown: core.PathDescription = {
@@ -426,14 +386,12 @@ function describeSolanaPath(path: core.BIP32Path): core.PathDescription {
     isPrefork: false,
   };
 }
-
 export class KeepKeyHDWalletInfo
   implements
     core.HDWalletInfo,
     core.BTCWalletInfo,
     core.ETHWalletInfo,
     core.CosmosWalletInfo,
-    core.BinanceWalletInfo,
     core.RippleWalletInfo,
     core.EosWalletInfo,
     core.ThorchainWalletInfo,
@@ -444,7 +402,6 @@ export class KeepKeyHDWalletInfo
   readonly _supportsCosmosInfo = true;
   readonly _supportsOsmosisInfo = true;
   readonly _supportsRippleInfo = true;
-  readonly _supportsBinanceInfo = true;
   readonly _supportsEosInfo = true;
   readonly _supportsThorchainInfo = true;
   readonly _supportsMayachainInfo = true;
@@ -518,10 +475,6 @@ export class KeepKeyHDWalletInfo
     return Ripple.rippleGetAccountPaths(msg);
   }
 
-  public binanceGetAccountPaths(msg: core.BinanceGetAccountPaths): Array<core.BinanceAccountPath> {
-    return Binance.binanceGetAccountPaths(msg);
-  }
-
   public eosGetAccountPaths(msg: core.EosGetAccountPaths): Array<core.EosAccountPath> {
     return Eos.eosGetAccountPaths(msg);
   }
@@ -571,8 +524,6 @@ export class KeepKeyHDWalletInfo
         return describeCosmosPath(msg.path);
       case "Osmo":
         return describeOsmosisPath(msg.path);
-      case "Binance":
-        return describeBinancePath(msg.path);
       case "Ripple":
         return describeRipplePath(msg.path);
       case "Eos":
@@ -701,21 +652,6 @@ export class KeepKeyHDWalletInfo
     };
   }
 
-  public binanceNextAccountPath(msg: core.BinanceAccountPath): core.BinanceAccountPath | undefined {
-    const description = describeBinancePath(msg.addressNList);
-    if (!description.isKnown) {
-      return undefined;
-    }
-
-    const addressNList = msg.addressNList;
-    addressNList[2] += 1;
-
-    return {
-      ...msg,
-      addressNList,
-    };
-  }
-
   public eosNextAccountPath(msg: core.EosAccountPath): core.EosAccountPath | undefined {
     const description = describeEosPath(msg.addressNList);
     if (!description.isKnown) {
@@ -753,7 +689,6 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   readonly _supportsCosmosInfo = true;
   readonly _supportsOsmosisInfo = true;
   readonly _supportsRippleInfo = true;
-  readonly _supportsBinanceInfo = true;
   readonly _supportsEosInfo = true;
   readonly _supportsFioInfo = false;
   readonly _supportsDebugLink: boolean;
@@ -771,7 +706,6 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   _supportsCosmos = true;
   _supportsOsmosis = true;
   _supportsRipple = true;
-  _supportsBinance = true;
   _supportsEos = true;
   readonly _supportsFio = false;
   readonly _supportsThorchainInfo = true;
@@ -1142,7 +1076,6 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     this._supportsOsmosis = semver.gte(fwVersion, "v7.7.0");
     this._supportsCosmos = semver.gte(fwVersion, "v7.3.0");
     this._supportsRipple = semver.gte(fwVersion, "v6.4.0");
-    this._supportsBinance = semver.gte(fwVersion, "v6.4.0");
     this._supportsEos = semver.gte(fwVersion, "v6.4.0");
     // this._supportsThorchain = semver.get(fwVersion, "v7.3.0");
 
@@ -1398,18 +1331,6 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Mayachain.mayachainSignTx(this.transport, msg);
   }
 
-  public binanceGetAccountPaths(msg: core.BinanceGetAccountPaths): Array<core.BinanceAccountPath> {
-    return this.info.binanceGetAccountPaths(msg);
-  }
-
-  public binanceGetAddress(msg: core.BinanceGetAddress): Promise<string> {
-    return Binance.binanceGetAddress(this.transport, msg);
-  }
-
-  public binanceSignTx(msg: core.BinanceSignTx): Promise<core.BinanceSignedTx> {
-    return Binance.binanceSignTx(this.transport, msg);
-  }
-
   public eosGetAccountPaths(msg: core.EosGetAccountPaths): Array<core.EosAccountPath> {
     return this.info.eosGetAccountPaths(msg);
   }
@@ -1468,10 +1389,6 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
 
   public rippleNextAccountPath(msg: core.RippleAccountPath): core.RippleAccountPath | undefined {
     return this.info.rippleNextAccountPath(msg);
-  }
-
-  public binanceNextAccountPath(msg: core.BinanceAccountPath): core.BinanceAccountPath | undefined {
-    return this.info.binanceNextAccountPath(msg);
   }
 }
 

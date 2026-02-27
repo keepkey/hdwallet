@@ -128,7 +128,6 @@ const slip44Table = Object.freeze({
   Atom: 118,
   Osmo: 118,
   Arkeo: 118,
-  Binance: 714,
   Ripple: 144,
   Eos: 194,
   Fio: 235,

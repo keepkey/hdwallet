@@ -1,10 +1,7 @@
 {
   "name": "hdwallet-sandbox",
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build"
-    }
-  ]
+  "buildCommand": "yarn lerna run build --scope @keepkey/hdwallet-core && yarn workspace @keepkey/hdwallet-sandbox build",
+  "outputDirectory": "public",
+  "installCommand": "yarn install --frozen-lockfile"
 }

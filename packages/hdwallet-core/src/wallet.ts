@@ -3,7 +3,6 @@ function isObject(value: unknown): value is object {
 }
 
 import { ArkeoWallet, ArkeoWalletInfo } from "./arkeo";
-import { BinanceWallet, BinanceWalletInfo } from "./binance";
 import { BTCInputScriptType, BTCWallet, BTCWalletInfo } from "./bitcoin";
 import { CosmosWallet, CosmosWalletInfo } from "./cosmos";
 import { DebugLinkWallet } from "./debuglink";
@@ -248,14 +247,6 @@ export function infoRipple(info: HDWalletInfo): info is RippleWalletInfo {
   return isObject(info) && (info as any)._supportsRippleInfo;
 }
 
-export function supportsBinance(wallet: HDWallet): wallet is BinanceWallet {
-  return isObject(wallet) && (wallet as any)._supportsBinance;
-}
-
-export function infoBinance(info: HDWalletInfo): info is BinanceWalletInfo {
-  return isObject(info) && (info as any)._supportsBinanceInfo;
-}
-
 export function supportsSolana(wallet: HDWallet): wallet is SolanaWallet {
   return isObject(wallet) && (wallet as any)._supportsSolana;
 }
@@ -263,7 +254,6 @@ export function supportsSolana(wallet: HDWallet): wallet is SolanaWallet {
 export function infoSolana(info: HDWalletInfo): info is SolanaWalletInfo {
   return isObject(info) && (info as any)._supportsSolanaInfo;
 }
-
 export function supportsDebugLink(wallet: HDWallet): wallet is DebugLinkWallet {
   return isObject(wallet) && (wallet as any)._supportsDebugLink;
 }

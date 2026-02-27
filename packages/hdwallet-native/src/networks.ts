@@ -171,7 +171,6 @@ for (const coin of [
   "cardano",
   "cosmos",
   "osmosis",
-  "binance",
   "ethereum",
   "arkeo",
   "mayachain",

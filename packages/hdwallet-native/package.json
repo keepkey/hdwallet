@@ -24,7 +24,6 @@
     "bignumber.js": "^9.0.1",
     "bip32": "^2.0.5",
     "bip39": "^3.0.2",
-    "bnb-javascript-sdk-nobroadcast": "^2.16.14",
     "crypto-js": "^4.0.0",
     "eip-712": "^1.0.0",
     "ethers": "5.7.2",
