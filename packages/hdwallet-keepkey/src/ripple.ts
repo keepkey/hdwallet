@@ -1,8 +1,6 @@
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as RippleMessages from "@keepkey/device-protocol/lib/messages-ripple_pb";
 import * as core from "@keepkey/hdwallet-core";
-import _ from "lodash";
-
 import { Transport } from "./transport";
 
 export function rippleGetAccountPaths(msg: core.RippleGetAccountPaths): Array<core.RippleAccountPath> {
@@ -53,7 +51,7 @@ export async function rippleSignTx(transport: Transport, msg: core.RippleSignTx)
 
     const signedTx = resp.proto as RippleMessages.RippleSignedTx;
 
-    const signed = _.cloneDeep(msg.tx);
+    const signed = structuredClone(msg.tx);
 
     signed.value.signatures = [
       {

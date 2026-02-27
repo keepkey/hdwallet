@@ -1,7 +1,3 @@
-import * as eventemitter2 from "eventemitter2";
-import * as Rx from "rxjs";
-import * as RxOp from "rxjs/operators";
-
 import { BIP32Path, Coin } from "./wallet";
 
 export type Constructor<T = object> = new (...args: any[]) => T;
@@ -95,13 +91,6 @@ export function bip32ToAddressNList(path: string): number[] {
 
 export function addressNListToBIP32(address: number[]): string {
   return `m/${address.map((num) => (num >= HARDENED ? `${num - HARDENED}'` : num)).join("/")}`;
-}
-
-export function takeFirstOfManyEvents(
-  eventEmitter: eventemitter2.EventEmitter2,
-  events: string[]
-): Rx.Observable<object> {
-  return Rx.merge(...events.map((event) => Rx.fromEvent<Event>(eventEmitter, event))).pipe(RxOp.first());
 }
 
 export function stripHexPrefix(value: string) {

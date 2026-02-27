@@ -8,17 +8,21 @@ import * as RippleMessages from "@keepkey/device-protocol/lib/messages-ripple_pb
 import * as ThorchainMessages from "@keepkey/device-protocol/lib/messages-thorchain_pb";
 import * as core from "@keepkey/hdwallet-core";
 import * as jspb from "google-protobuf";
-import _ from "lodash";
+function omit(obj: Record<string, any>, ...keys: string[]): Record<string, any> {
+  const result = { ...obj };
+  for (const key of keys) delete result[key];
+  return result;
+}
 
 // Conflict between typedef and actual js export
 
 const AllMessages = ([] as Array<[string, core.Constructor<jspb.Message>]>)
-  .concat(Object.entries(_.omit(Messages, "MessageType", "MessageTypeMap")))
+  .concat(Object.entries(omit(Messages, "MessageType", "MessageTypeMap")))
   .concat(Object.entries(CosmosMessages))
   .concat(Object.entries(BinanceMessages))
   .concat(Object.entries(RippleMessages))
   .concat(Object.entries(NanoMessages))
-  .concat(Object.entries(_.omit(EosMessages, "EosPublicKeyKind", "EosPublicKeyKindMap")))
+  .concat(Object.entries(omit(EosMessages, "EosPublicKeyKind", "EosPublicKeyKindMap")))
   .concat(Object.entries(ThorchainMessages))
   .concat(Object.entries(MayachainMessages));
 
