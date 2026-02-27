@@ -1,4 +1,6 @@
-import isObject from "lodash/isObject";
+function isObject(value: unknown): value is object {
+  return typeof value === "object" && value !== null;
+}
 
 import { ArkeoWallet, ArkeoWalletInfo } from "./arkeo";
 import { BTCInputScriptType, BTCWallet, BTCWalletInfo } from "./bitcoin";
@@ -12,6 +14,7 @@ import { MayachainWallet, MayachainWalletInfo } from "./mayachain";
 import { OsmosisWallet, OsmosisWalletInfo } from "./osmosis";
 import { RippleWallet, RippleWalletInfo } from "./ripple";
 import { SecretWallet, SecretWalletInfo } from "./secret";
+import { SolanaWallet, SolanaWalletInfo } from "./solana";
 import { TerraWallet, TerraWalletInfo } from "./terra";
 import { ThorchainWallet, ThorchainWalletInfo } from "./thorchain";
 import { Transport } from "./transport";
@@ -244,6 +247,13 @@ export function infoRipple(info: HDWalletInfo): info is RippleWalletInfo {
   return isObject(info) && (info as any)._supportsRippleInfo;
 }
 
+export function supportsSolana(wallet: HDWallet): wallet is SolanaWallet {
+  return isObject(wallet) && (wallet as any)._supportsSolana;
+}
+
+export function infoSolana(info: HDWalletInfo): info is SolanaWalletInfo {
+  return isObject(info) && (info as any)._supportsSolanaInfo;
+}
 export function supportsDebugLink(wallet: HDWallet): wallet is DebugLinkWallet {
   return isObject(wallet) && (wallet as any)._supportsDebugLink;
 }

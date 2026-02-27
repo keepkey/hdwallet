@@ -1,7 +1,6 @@
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
-import _ from "lodash";
 import semver from "semver";
 
 import * as Btc from "./bitcoin";
@@ -11,13 +10,14 @@ import * as Eth from "./ethereum";
 import * as Mayachain from "./mayachain";
 import * as Osmosis from "./osmosis";
 import * as Ripple from "./ripple";
+import * as Solana from "./solana";
 import * as Thorchain from "./thorchain";
 import { Transport } from "./transport";
 import { messageTypeRegistry } from "./typeRegistry";
 import { protoFieldToSetMethod, translateInputScriptType } from "./utils";
 
 export function isKeepKey(wallet: core.HDWallet): wallet is KeepKeyHDWallet {
-  return _.isObject(wallet) && (wallet as any)._isKeepKey;
+  return typeof wallet === "object" && wallet !== null && (wallet as any)._isKeepKey;
 }
 
 function describeETHPath(path: core.BIP32Path): core.PathDescription {
@@ -362,6 +362,30 @@ function describeRipplePath(path: core.BIP32Path): core.PathDescription {
   };
 }
 
+function describeSolanaPath(path: core.BIP32Path): core.PathDescription {
+  const pathStr = core.addressNListToBIP32(path);
+  const unknown: core.PathDescription = {
+    verbose: pathStr,
+    coin: "Solana",
+    isKnown: false,
+  };
+
+  if (path.length !== 4) return unknown;
+  if (path[0] !== 0x80000000 + 44) return unknown;
+  if (path[1] !== 0x80000000 + core.slip44ByCoin("Solana")) return unknown;
+  if ((path[2] & 0x80000000) >>> 0 !== 0x80000000) return unknown;
+  if (path[3] !== 0x80000000) return unknown;
+
+  const index = path[2] & 0x7fffffff;
+  return {
+    verbose: `Solana Account #${index}`,
+    accountIdx: index,
+    wholeAccount: true,
+    coin: "Solana",
+    isKnown: true,
+    isPrefork: false,
+  };
+}
 export class KeepKeyHDWalletInfo
   implements
     core.HDWalletInfo,
@@ -381,6 +405,7 @@ export class KeepKeyHDWalletInfo
   readonly _supportsEosInfo = true;
   readonly _supportsThorchainInfo = true;
   readonly _supportsMayachainInfo = true;
+  readonly _supportsSolanaInfo = true;
 
   public getVendor(): string {
     return "KeepKey";
@@ -454,6 +479,10 @@ export class KeepKeyHDWalletInfo
     return Eos.eosGetAccountPaths(msg);
   }
 
+  public solanaGetAccountPaths(msg: core.SolanaGetAccountPaths): Array<core.SolanaAccountPath> {
+    return Solana.solanaGetAccountPaths(msg);
+  }
+
   public hasOnDevicePinEntry(): boolean {
     return false;
   }
@@ -499,6 +528,8 @@ export class KeepKeyHDWalletInfo
         return describeRipplePath(msg.path);
       case "Eos":
         return describeEosPath(msg.path);
+      case "Solana":
+        return describeSolanaPath(msg.path);
       default:
         return describeUTXOPath(msg.path, msg.coin, msg.scriptType);
     }
@@ -635,6 +666,21 @@ export class KeepKeyHDWalletInfo
       addressNList,
     };
   }
+
+  public solanaNextAccountPath(msg: core.SolanaAccountPath): core.SolanaAccountPath | undefined {
+    const description = describeSolanaPath(msg.addressNList);
+    if (!description.isKnown) {
+      return undefined;
+    }
+
+    const addressNList = msg.addressNList;
+    addressNList[2] += 1;
+
+    return {
+      ...msg,
+      addressNList,
+    };
+  }
 }
 
 export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHWallet, core.DebugLinkWallet {
@@ -672,6 +718,8 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   readonly _supportsKavaInfo = false;
   readonly _supportsTerra = false;
   readonly _supportsTerraInfo = false;
+  readonly _supportsSolanaInfo = true;
+  _supportsSolana = true;
 
   transport: Transport;
   features?: Messages.Features.AsObject;
@@ -1293,6 +1341,22 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
 
   public eosSignTx(msg: core.EosToSignTx): Promise<core.EosTxSigned> {
     return Eos.eosSignTx(this.transport, msg);
+  }
+
+  public solanaGetAccountPaths(msg: core.SolanaGetAccountPaths): Array<core.SolanaAccountPath> {
+    return this.info.solanaGetAccountPaths(msg);
+  }
+
+  public solanaGetAddress(msg: core.SolanaGetAddress): Promise<string> {
+    return Solana.solanaGetAddress(this.transport, msg);
+  }
+
+  public solanaSignTx(msg: core.SolanaSignTx): Promise<core.SolanaSignedTx> {
+    return Solana.solanaSignTx(this.transport, msg);
+  }
+
+  public solanaNextAccountPath(msg: core.SolanaAccountPath): core.SolanaAccountPath | undefined {
+    return this.info.solanaNextAccountPath(msg);
   }
 
   public describePath(msg: core.DescribePath): core.PathDescription {
