@@ -14,7 +14,7 @@
     "prepublishOnly": "yarn clean && yarn build"
   },
   "dependencies": {
-    "@keepkey/hdwallet-native": "1.53.9",
+    "@keepkey/hdwallet-native": "1.53.16",
     "bip39": "^3.0.4",
     "hash-wasm": "^4.9.0",
     "idb-keyval": "^6.0.3",

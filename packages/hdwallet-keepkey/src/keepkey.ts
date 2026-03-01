@@ -1355,6 +1355,10 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Solana.solanaSignTx(this.transport, msg);
   }
 
+  public solanaSignMessage(msg: { addressNList: number[]; message: Uint8Array | string; showDisplay?: boolean }): Promise<{ publicKey: Uint8Array; signature: Uint8Array }> {
+    return Solana.solanaSignMessage(this.transport, msg);
+  }
+
   public solanaNextAccountPath(msg: core.SolanaAccountPath): core.SolanaAccountPath | undefined {
     return this.info.solanaNextAccountPath(msg);
   }
