@@ -58,6 +58,13 @@
     "@typescript-eslint/no-explicit-any": "off",
     "simple-import-sort/imports": [
       "error"
+    ],
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
     ]
   },
   "overrides": [
