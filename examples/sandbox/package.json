@@ -1,10 +1,10 @@
 {
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "dependencies": {
-    "@keepkey/hdwallet-core": "1.53.9",
-    "@keepkey/hdwallet-keepkey-tcp": "1.53.9",
-    "@keepkey/hdwallet-keepkey-webusb": "1.53.9",
-    "@keepkey/hdwallet-native": "1.53.9",
+    "@keepkey/hdwallet-core": "1.53.16",
+    "@keepkey/hdwallet-keepkey-tcp": "1.53.16",
+    "@keepkey/hdwallet-keepkey-webusb": "1.53.16",
+    "@keepkey/hdwallet-native": "1.53.16",
     "@metamask/eth-sig-util": "^7.0.0",
     "@pioneer-platform/pioneer-coins": "^9.11.11",
     "bip32": "^2.0.4",

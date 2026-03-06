@@ -4,7 +4,7 @@
     "@keepkey/hdwallet-keepkey": "1.53.16",
     "@keepkey/hdwallet-keepkey-nodewebusb": "1.53.16",
     "@keepkey/hdwallet-keepkey-tcp": "1.53.16",
-    "@keepkey/hdwallet-native": "1.53.9",
+    "@keepkey/hdwallet-native": "1.53.16",
     "fast-json-stable-stringify": "^2.1.0",
     "msw": "^0.27.1",
     "whatwg-fetch": "^3.6.2"
