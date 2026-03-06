@@ -60,7 +60,7 @@ export class SolanaGetAddress extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  toObject(_includeInstance?: boolean): SolanaGetAddress.AsObject {
+  toObject(_includeInstance?: boolean): SolanaGetAddressAsObject {
     return {
       addressNList: this.getAddressNList(),
       coinName: this.getCoinName(),
@@ -68,7 +68,7 @@ export class SolanaGetAddress extends jspb.Message {
     };
   }
 
-  static toObject(_includeInstance: boolean, msg: SolanaGetAddress): SolanaGetAddress.AsObject {
+  static toObject(_includeInstance: boolean, msg: SolanaGetAddress): SolanaGetAddressAsObject {
     return msg.toObject(_includeInstance);
   }
 
@@ -118,12 +118,10 @@ export class SolanaGetAddress extends jspb.Message {
   }
 }
 
-export namespace SolanaGetAddress {
-  export type AsObject = {
-    addressNList: number[];
-    coinName?: string;
-    showDisplay?: boolean;
-  };
+export interface SolanaGetAddressAsObject {
+  addressNList: number[];
+  coinName?: string;
+  showDisplay?: boolean;
 }
 
 /**
@@ -148,11 +146,11 @@ export class SolanaAddress extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  toObject(_includeInstance?: boolean): SolanaAddress.AsObject {
+  toObject(_includeInstance?: boolean): SolanaAddressAsObject {
     return { address: this.getAddress() };
   }
 
-  static toObject(_includeInstance: boolean, msg: SolanaAddress): SolanaAddress.AsObject {
+  static toObject(_includeInstance: boolean, msg: SolanaAddress): SolanaAddressAsObject {
     return msg.toObject(_includeInstance);
   }
 
@@ -186,10 +184,8 @@ export class SolanaAddress extends jspb.Message {
   }
 }
 
-export namespace SolanaAddress {
-  export type AsObject = {
-    address?: string;
-  };
+export interface SolanaAddressAsObject {
+  address?: string;
 }
 
 /**
@@ -243,7 +239,7 @@ export class SolanaSignTx extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  toObject(_includeInstance?: boolean): SolanaSignTx.AsObject {
+  toObject(_includeInstance?: boolean): SolanaSignTxAsObject {
     return {
       addressNList: this.getAddressNList(),
       coinName: this.getCoinName(),
@@ -251,7 +247,7 @@ export class SolanaSignTx extends jspb.Message {
     };
   }
 
-  static toObject(_includeInstance: boolean, msg: SolanaSignTx): SolanaSignTx.AsObject {
+  static toObject(_includeInstance: boolean, msg: SolanaSignTx): SolanaSignTxAsObject {
     return msg.toObject(_includeInstance);
   }
 
@@ -301,12 +297,10 @@ export class SolanaSignTx extends jspb.Message {
   }
 }
 
-export namespace SolanaSignTx {
-  export type AsObject = {
-    addressNList: number[];
-    coinName?: string;
-    rawTx: Uint8Array | string;
-  };
+export interface SolanaSignTxAsObject {
+  addressNList: number[];
+  coinName?: string;
+  rawTx: Uint8Array | string;
 }
 
 /**
@@ -341,11 +335,11 @@ export class SolanaSignedTx extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  toObject(_includeInstance?: boolean): SolanaSignedTx.AsObject {
+  toObject(_includeInstance?: boolean): SolanaSignedTxAsObject {
     return { signature: this.getSignature() };
   }
 
-  static toObject(_includeInstance: boolean, msg: SolanaSignedTx): SolanaSignedTx.AsObject {
+  static toObject(_includeInstance: boolean, msg: SolanaSignedTx): SolanaSignedTxAsObject {
     return msg.toObject(_includeInstance);
   }
 
@@ -379,10 +373,8 @@ export class SolanaSignedTx extends jspb.Message {
   }
 }
 
-export namespace SolanaSignedTx {
-  export type AsObject = {
-    signature: Uint8Array | string;
-  };
+export interface SolanaSignedTxAsObject {
+  signature: Uint8Array | string;
 }
 
 // ── Runtime Registration ──────────────────────────────────────────────

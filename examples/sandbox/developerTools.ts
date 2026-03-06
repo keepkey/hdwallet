@@ -108,6 +108,48 @@ function parsePath(pathStr: string): number[] {
   });
 }
 
+const PURPOSE_BY_ADDR_TYPE: Record<string, number> = {
+  legacy: 44,
+  segwit: 49,
+  native: 84,
+  taproot: 86,
+};
+
+/**
+ * Normalize Bitcoin path to use the correct BIP purpose for the address type.
+ * KeepKey validates path matches script type: Legacy=44, SegWit=49, Native SegWit=84, Taproot=86
+ */
+function normalizeBtcPath(pathStr: string, addrType: string): number[] {
+  const path = parsePath(pathStr);
+  const purpose = PURPOSE_BY_ADDR_TYPE[addrType] ?? 44;
+  if (path.length >= 1) {
+    path[0] = 0x80000000 + purpose;
+  }
+  return path;
+}
+
+/**
+ * Format addressNList as BIP32 path string (m/44'/0'/0'/0/0)
+ */
+function formatPath(addressNList: number[]): string {
+  return "m/" + addressNList.map((n, i) => (i < 3 ? `${n & 0x7fffffff}'` : String(n))).join("/");
+}
+
+/**
+ * Update path input to show correct purpose for selected address type.
+ * Used when user changes Address Type dropdown.
+ */
+function syncPathFieldForAddressType(pathInputId: string, addrType: string): void {
+  const pathStr = ($(`#${pathInputId}`) as any).val();
+  if (typeof pathStr !== "string") return;
+  const purpose = PURPOSE_BY_ADDR_TYPE[addrType] ?? 44;
+  const path = parsePath(pathStr);
+  if (path.length >= 1) {
+    path[0] = 0x80000000 + purpose;
+    ($(`#${pathInputId}`) as any).val(formatPath(path));
+  }
+}
+
 /**
  * Bitcoin Developer Tools
  */
@@ -115,7 +157,7 @@ export const BITCOIN_TOOLS: ToolOperation[] = [
   {
     id: "btc-address",
     label: "Get Address",
-    description: "Generate Bitcoin address for a given derivation path",
+    description: "Generate Bitcoin address. Path purpose (44'/49'/84'/86') is auto-set to match address type.",
     category: "Addresses",
     inputs: [
       {
@@ -136,11 +178,21 @@ export const BITCOIN_TOOLS: ToolOperation[] = [
           { value: "taproot", label: "Taproot (P2TR)" },
         ],
       },
+      {
+        id: "btc-addr-display",
+        label: "Show on Device",
+        type: "select",
+        options: [
+          { value: "false", label: "No" },
+          { value: "true", label: "Yes" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
       const pathStr = ($("#btc-addr-path") as any).val();
       const addrType = ($("#btc-addr-type") as any).val();
+      const showDisplay = ($("#btc-addr-display") as any).val() === "true";
 
       const scriptTypeMap: any = {
         legacy: core.BTCInputScriptType.SpendAddress,
@@ -149,14 +201,17 @@ export const BITCOIN_TOOLS: ToolOperation[] = [
         taproot: core.BTCInputScriptType.SpendTaproot,
       };
 
+      const addressNList = normalizeBtcPath(pathStr, addrType);
       const result = await wallet.btcGetAddress({
-        addressNList: parsePath(pathStr),
+        addressNList,
         coin: "Bitcoin",
         scriptType: scriptTypeMap[addrType] || core.BTCInputScriptType.SpendAddress,
-        showDisplay: false,
+        showDisplay: showDisplay,
       });
 
-      return `Address: ${result}\nPath: ${pathStr}\nType: ${addrType}`;
+      return `Address: ${result}\nPath: ${formatPath(addressNList)}\nType: ${addrType}\nShown on device: ${
+        showDisplay ? "Yes" : "No"
+      }`;
     },
   },
   {
@@ -394,17 +449,27 @@ export const COSMOS_TOOLS: ToolOperation[] = [
         placeholder: "m/44'/118'/0'/0/0",
         defaultValue: "m/44'/118'/0'/0/0",
       },
+      {
+        id: "cosmos-addr-display",
+        label: "Show on Device",
+        type: "select",
+        options: [
+          { value: "false", label: "No" },
+          { value: "true", label: "Yes" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
       const pathStr = ($("#cosmos-addr-path") as any).val();
+      const showDisplay = ($("#cosmos-addr-display") as any).val() === "true";
 
       const result = await wallet.cosmosGetAddress({
         addressNList: parsePath(pathStr),
-        showDisplay: false,
+        showDisplay: showDisplay,
       });
 
-      return `Address: ${result}\nPath: ${pathStr}`;
+      return `Address: ${result}\nPath: ${pathStr}\nShown on device: ${showDisplay ? "Yes" : "No"}`;
     },
   },
   {
@@ -438,7 +503,7 @@ export const LITECOIN_TOOLS: ToolOperation[] = [
   {
     id: "ltc-address",
     label: "Get Address",
-    description: "Generate Litecoin address for a given derivation path",
+    description: "Generate Litecoin address. Path purpose (44'/49'/84') is auto-set to match address type.",
     category: "Addresses",
     inputs: [
       {
@@ -458,11 +523,21 @@ export const LITECOIN_TOOLS: ToolOperation[] = [
           { value: "native", label: "Native SegWit (Bech32)" },
         ],
       },
+      {
+        id: "ltc-addr-display",
+        label: "Show on Device",
+        type: "select",
+        options: [
+          { value: "false", label: "No" },
+          { value: "true", label: "Yes" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
       const pathStr = ($("#ltc-addr-path") as any).val();
       const addrType = ($("#ltc-addr-type") as any).val();
+      const showDisplay = ($("#ltc-addr-display") as any).val() === "true";
 
       const scriptTypeMap: any = {
         legacy: core.BTCInputScriptType.SpendAddress,
@@ -470,14 +545,17 @@ export const LITECOIN_TOOLS: ToolOperation[] = [
         native: core.BTCInputScriptType.SpendWitness,
       };
 
+      const addressNList = normalizeBtcPath(pathStr, addrType);
       const result = await wallet.btcGetAddress({
-        addressNList: parsePath(pathStr),
+        addressNList,
         coin: "Litecoin",
         scriptType: scriptTypeMap[addrType] || core.BTCInputScriptType.SpendAddress,
-        showDisplay: false,
+        showDisplay: showDisplay,
       });
 
-      return `Address: ${result}\nPath: ${pathStr}\nType: ${addrType}`;
+      return `Address: ${result}\nPath: ${formatPath(addressNList)}\nType: ${addrType}\nShown on device: ${
+        showDisplay ? "Yes" : "No"
+      }`;
     },
   },
   {
@@ -631,20 +709,30 @@ export const DOGECOIN_TOOLS: ToolOperation[] = [
         type: "select",
         options: [{ value: "legacy", label: "Legacy (P2PKH)" }],
       },
+      {
+        id: "doge-addr-display",
+        label: "Show on Device",
+        type: "select",
+        options: [
+          { value: "false", label: "No" },
+          { value: "true", label: "Yes" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
       const pathStr = ($("#doge-addr-path") as any).val();
       const addrType = ($("#doge-addr-type") as any).val();
+      const showDisplay = ($("#doge-addr-display") as any).val() === "true";
 
       const result = await wallet.btcGetAddress({
         addressNList: parsePath(pathStr),
         coin: "Dogecoin",
         scriptType: core.BTCInputScriptType.SpendAddress,
-        showDisplay: false,
+        showDisplay: showDisplay,
       });
 
-      return `Address: ${result}\nPath: ${pathStr}\nType: ${addrType}`;
+      return `Address: ${result}\nPath: ${pathStr}\nType: ${addrType}\nShown on device: ${showDisplay ? "Yes" : "No"}`;
     },
   },
   {
@@ -777,17 +865,27 @@ export const RIPPLE_TOOLS: ToolOperation[] = [
         placeholder: "m/44'/144'/0'/0/0",
         defaultValue: "m/44'/144'/0'/0/0",
       },
+      {
+        id: "ripple-addr-display",
+        label: "Show on Device",
+        type: "select",
+        options: [
+          { value: "false", label: "No" },
+          { value: "true", label: "Yes" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
       const pathStr = ($("#ripple-addr-path") as any).val();
+      const showDisplay = ($("#ripple-addr-display") as any).val() === "true";
 
       const result = await wallet.rippleGetAddress({
         addressNList: parsePath(pathStr),
-        showDisplay: false,
+        showDisplay: showDisplay,
       });
 
-      return `Address: ${result}\nPath: ${pathStr}`;
+      return `Address: ${result}\nPath: ${pathStr}\nShown on device: ${showDisplay ? "Yes" : "No"}`;
     },
   },
   {
@@ -824,17 +922,27 @@ export const THORCHAIN_TOOLS: ToolOperation[] = [
         placeholder: "m/44'/931'/0'/0/0",
         defaultValue: "m/44'/931'/0'/0/0",
       },
+      {
+        id: "thorchain-addr-display",
+        label: "Show on Device",
+        type: "select",
+        options: [
+          { value: "false", label: "No" },
+          { value: "true", label: "Yes" },
+        ],
+      },
     ],
     action: async () => {
       const wallet = getWallet();
       const pathStr = ($("#thorchain-addr-path") as any).val();
+      const showDisplay = ($("#thorchain-addr-display") as any).val() === "true";
 
       const result = await wallet.thorchainGetAddress({
         addressNList: parsePath(pathStr),
-        showDisplay: false,
+        showDisplay: showDisplay,
       });
 
-      return `Address: ${result}\nPath: ${pathStr}`;
+      return `Address: ${result}\nPath: ${pathStr}\nShown on device: ${showDisplay ? "Yes" : "No"}`;
     },
   },
   {
@@ -861,11 +969,28 @@ export const THORCHAIN_TOOLS: ToolOperation[] = [
   },
 ];
 
+/** Path input IDs that sync with Address Type dropdown (path prefix before -addr-path) */
+const ADDR_TYPE_PATH_SYNC_TOOLS = [
+  { typeId: "btc-addr-type", pathId: "btc-addr-path" },
+  { typeId: "ltc-addr-type", pathId: "ltc-addr-path" },
+];
+
 /**
  * Initialize interactive tool panels
  */
 export function initializeToolPanels(containerId: string, tools: ToolOperation[]): void {
   const container = $(`#${containerId}`);
+
+  // One-time setup: sync Derivation Path when Address Type changes (Bitcoin, Litecoin)
+  if (!(window as any).__addrTypePathSyncBound) {
+    (window as any).__addrTypePathSyncBound = true;
+    ADDR_TYPE_PATH_SYNC_TOOLS.forEach(({ typeId, pathId }) => {
+      $(document).on("change", `#${typeId}`, function () {
+        const addrType = ($(this) as any).val();
+        syncPathFieldForAddressType(pathId, addrType);
+      });
+    });
+  }
 
   // Group tools by category
   const categories = new Map<string, ToolOperation[]>();
@@ -1085,4 +1210,3 @@ export const TOOL_PANEL_CSS = `
     color: var(--keepkey-error);
   }
 `;
-// Force rebuild
