@@ -5,6 +5,7 @@ import * as MayachainMessages from "@keepkey/device-protocol/lib/messages-mayach
 import * as NanoMessages from "@keepkey/device-protocol/lib/messages-nano_pb";
 import * as RippleMessages from "@keepkey/device-protocol/lib/messages-ripple_pb";
 import * as ThorchainMessages from "@keepkey/device-protocol/lib/messages-thorchain_pb";
+import * as ZcashMessages from "@keepkey/device-protocol/lib/messages-zcash_pb";
 import * as core from "@keepkey/hdwallet-core";
 import * as jspb from "google-protobuf";
 function omit(obj: Record<string, any>, ...keys: string[]): Record<string, any> {
@@ -22,7 +23,8 @@ const AllMessages = ([] as Array<[string, core.Constructor<jspb.Message>]>)
   .concat(Object.entries(NanoMessages))
   .concat(Object.entries(omit(EosMessages, "EosPublicKeyKind", "EosPublicKeyKindMap")))
   .concat(Object.entries(ThorchainMessages))
-  .concat(Object.entries(MayachainMessages));
+  .concat(Object.entries(MayachainMessages))
+  .concat(Object.entries(ZcashMessages));
 
 const upperCasedMessageClasses = AllMessages.reduce((registry, entry: [string, core.Constructor<jspb.Message>]) => {
   registry[entry[0].toUpperCase()] = entry[1];

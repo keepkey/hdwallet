@@ -12,6 +12,7 @@ import * as Osmosis from "./osmosis";
 import * as Ripple from "./ripple";
 import * as Solana from "./solana";
 import * as Thorchain from "./thorchain";
+import * as Zcash from "./zcash";
 import { Transport } from "./transport";
 import { messageTypeRegistry } from "./typeRegistry";
 import { protoFieldToSetMethod, translateInputScriptType } from "./utils";
@@ -1361,6 +1362,14 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
 
   public solanaNextAccountPath(msg: core.SolanaAccountPath): core.SolanaAccountPath | undefined {
     return this.info.solanaNextAccountPath(msg);
+  }
+
+  public zcashGetOrchardFVK(account: number = 0): Promise<{ ak: Uint8Array; nk: Uint8Array; rivk: Uint8Array }> {
+    return Zcash.zcashGetOrchardFVK(this.transport, account);
+  }
+
+  public zcashSignPczt(signingRequest: Parameters<typeof Zcash.zcashSignPczt>[1], sighash: string): Promise<string[]> {
+    return Zcash.zcashSignPczt(this.transport, signingRequest, sighash);
   }
 
   public describePath(msg: core.DescribePath): core.PathDescription {
