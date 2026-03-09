@@ -1,12 +1,10 @@
 import * as core from "@keepkey/hdwallet-core";
 import * as keepkey from "@keepkey/hdwallet-keepkey";
-import * as native from "@keepkey/hdwallet-native";
 
 import { btcTests } from "./bitcoin";
 import { cosmosTests } from "./cosmos";
 import { eosTests } from "./eos";
 import { ethTests } from "./ethereum";
-import { fioTests } from "./fio";
 import { kavaTests } from "./kava";
 import { mayachainTests } from "./mayachain";
 import { osmosisTests } from "./osmosis";
@@ -42,7 +40,7 @@ export function integration(suite: WalletSuite): void {
       });
 
       it("has only one vendor", () => {
-        expect((keepkey.isKeepKey(wallet) ? 1 : 0) + (native.isNative(wallet) ? 1 : 0)).toEqual(1);
+        expect(keepkey.isKeepKey(wallet) ? 1 : 0).toEqual(1);
       });
     });
 
@@ -68,16 +66,6 @@ export function integration(suite: WalletSuite): void {
       });
 
       eosTests(() => ({ wallet, info }));
-    });
-
-    describe("FioWallet", () => {
-      let wallet2: core.HDWallet;
-      beforeAll(async () => {
-        wallet = await suite.createWallet("Fio");
-        wallet2 = await suite.createWallet("Fio");
-      });
-
-      fioTests(() => ({ wallet, info, wallet2 }));
     });
 
     describe("CosmosWallet", () => {

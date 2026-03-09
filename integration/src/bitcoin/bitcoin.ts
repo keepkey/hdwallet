@@ -1,5 +1,4 @@
 import * as core from "@keepkey/hdwallet-core";
-import * as native from "@keepkey/hdwallet-native";
 
 import { each } from "../utils";
 
@@ -360,10 +359,6 @@ export function bitcoinTests(get: () => { wallet: core.HDWallet; info: core.HDWa
       async () => {
         if (!wallet) return;
 
-        // not implemented for native
-        if (native.isNative(wallet)) {
-          return;
-        }
 
         const res = wallet.btcSignMessage({
           addressNList: core.bip32ToAddressNList("m/44'/0'/0'/0/0"),
@@ -386,10 +381,6 @@ export function bitcoinTests(get: () => { wallet: core.HDWallet; info: core.HDWa
       async () => {
         if (!wallet) return;
 
-        // not implemented for native
-        if (native.isNative(wallet)) {
-          return;
-        }
 
         const res = await wallet.btcVerifyMessage({
           address: "1FH6ehAd5ZFXCM1cLGzHxK1s4dGdq1JusM",
@@ -409,10 +400,6 @@ export function bitcoinTests(get: () => { wallet: core.HDWallet; info: core.HDWa
       async () => {
         if (!wallet) return;
 
-        // not implemented for native
-        if (native.isNative(wallet)) {
-          return;
-        }
 
         const res = await wallet.btcVerifyMessage({
           address: "1FH6ehAd5ZFXCM1cLGzHxK1s4dGdq1JusM",
