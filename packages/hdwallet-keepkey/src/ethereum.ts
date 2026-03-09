@@ -6,10 +6,28 @@ import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
 import { SignTypedDataVersion, TypedDataUtils } from "@metamask/eth-sig-util";
 import * as eip55 from "eip55";
-import { arrayify, isBytes, isHexString } from "ethers/lib/utils.js";
 
 import { Transport } from "./transport";
 import { toUTF8Array } from "./utils";
+
+function isHexString(value: string): boolean {
+  return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
+}
+
+function isBytes(value: unknown): value is Uint8Array {
+  if (value instanceof Uint8Array) return true;
+  if (!Array.isArray(value)) return false;
+  for (const v of value) {
+    if (typeof v !== "number" || v < 0 || v >= 256 || v % 1 !== 0) return false;
+  }
+  return true;
+}
+
+function arrayify(value: string | Uint8Array): Uint8Array {
+  if (value instanceof Uint8Array) return value;
+  if (typeof value === "string") return core.arrayify(value);
+  throw new Error("invalid arrayify value");
+}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function ethSupportsNetwork(chainId: number): Promise<boolean> {
@@ -241,7 +259,7 @@ export async function ethVerifyMessage(transport: Transport, msg: core.ETHVerify
   const m = new Ethereum.EthereumVerifyMessage();
   m.setAddress(core.arrayify(msg.address));
   m.setSignature(core.arrayify(msg.signature));
-  m.setMessage(isBytes(msg.message) ? arrayify(msg.message) : toUTF8Array(msg.message));
+  m.setMessage(isBytes(msg.message) ? new Uint8Array(msg.message) : toUTF8Array(msg.message as string));
   let event: core.Event;
   try {
     event = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMVERIFYMESSAGE, m, {

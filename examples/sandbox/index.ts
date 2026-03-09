@@ -4,7 +4,6 @@ import * as core from "@keepkey/hdwallet-core";
 import * as keepkey from "@keepkey/hdwallet-keepkey";
 import * as keepkeyTcp from "@keepkey/hdwallet-keepkey-tcp";
 import * as keepkeyWebUSB from "@keepkey/hdwallet-keepkey-webusb";
-
 import * as sigUtil from "@metamask/eth-sig-util";
 import { TypedData } from "eip-712";
 import $ from "jquery";
