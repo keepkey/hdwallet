@@ -6,6 +6,7 @@ import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
 import { SignTypedDataVersion, TypedDataUtils } from "@metamask/eth-sig-util";
 import * as eip55 from "eip55";
+
 import { Transport } from "./transport";
 import { toUTF8Array } from "./utils";
 

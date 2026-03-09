@@ -359,7 +359,6 @@ export function bitcoinTests(get: () => { wallet: core.HDWallet; info: core.HDWa
       async () => {
         if (!wallet) return;
 
-
         const res = wallet.btcSignMessage({
           addressNList: core.bip32ToAddressNList("m/44'/0'/0'/0/0"),
           coin: "Bitcoin",
@@ -381,7 +380,6 @@ export function bitcoinTests(get: () => { wallet: core.HDWallet; info: core.HDWa
       async () => {
         if (!wallet) return;
 
-
         const res = await wallet.btcVerifyMessage({
           address: "1FH6ehAd5ZFXCM1cLGzHxK1s4dGdq1JusM",
           coin: "Bitcoin",
@@ -399,7 +397,6 @@ export function bitcoinTests(get: () => { wallet: core.HDWallet; info: core.HDWa
       "btcVerifyMessage() - bad",
       async () => {
         if (!wallet) return;
-
 
         const res = await wallet.btcVerifyMessage({
           address: "1FH6ehAd5ZFXCM1cLGzHxK1s4dGdq1JusM",

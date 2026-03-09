@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-namespace */
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as core from "@keepkey/hdwallet-core";
 import * as jspb from "google-protobuf";
@@ -723,7 +724,7 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
  */
 export async function solanaSignMessage(
   transport: Transport,
-  msg: { addressNList: number[]; message: Uint8Array | string; showDisplay?: boolean },
+  msg: { addressNList: number[]; message: Uint8Array | string; showDisplay?: boolean }
 ): Promise<{ publicKey: Uint8Array; signature: Uint8Array }> {
   return transport.lockDuring(async () => {
     const signMsg = new SolanaSignMessage();
