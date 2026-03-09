@@ -39,7 +39,6 @@
     { "path": "./packages/hdwallet-keepkey-nodehid" },
     { "path": "./packages/hdwallet-keepkey-nodewebusb" },
     { "path": "./packages/hdwallet-keepkey-tcp" },
-    { "path": "./packages/hdwallet-keepkey-webusb" },
-    { "path": "./packages/hdwallet-native" },
+    { "path": "./packages/hdwallet-keepkey-webusb" }
   ]
 }

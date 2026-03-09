@@ -4,7 +4,6 @@ import * as core from "@keepkey/hdwallet-core";
 import * as keepkey from "@keepkey/hdwallet-keepkey";
 import * as keepkeyTcp from "@keepkey/hdwallet-keepkey-tcp";
 import * as keepkeyWebUSB from "@keepkey/hdwallet-keepkey-webusb";
-import * as native from "@keepkey/hdwallet-native";
 import * as sigUtil from "@metamask/eth-sig-util";
 import { TypedData } from "eip-712";
 import $ from "jquery";
@@ -235,7 +234,6 @@ const testPublicWalletXpubs = [
 const keepkeyAdapter = keepkeyWebUSB.WebUSBKeepKeyAdapter.useKeyring(keyring);
 const kkbridgeAdapter = keepkeyTcp.TCPKeepKeyAdapter.useKeyring(keyring);
 const kkemuAdapter = keepkeyTcp.TCPKeepKeyAdapter.useKeyring(keyring);
-const nativeAdapter = native.NativeAdapter.useKeyring(keyring);
 
 window["keyring"] = keyring;
 
@@ -269,13 +267,6 @@ $kkemu.on("click", async (e) => {
   wallet = await kkemuAdapter.pairDevice("http://localhost:5000");
   window["wallet"] = wallet;
   $("#keyring select").val(await wallet.transport.getDeviceID());
-});
-
-$native.on("click", async (e) => {
-  e.preventDefault();
-  wallet = await nativeAdapter.pairDevice("testid");
-  window["wallet"] = wallet;
-  $("#keyring select").val(await wallet.getDeviceID());
 });
 
 // Update settings button visibility based on wallet connection
@@ -337,18 +328,11 @@ async function deviceConnected(deviceId) {
 
   keyring.on(["*", "*", core.Events.PIN_REQUEST], () => window["pinOpen"]());
   keyring.on(["*", "*", core.Events.PASSPHRASE_REQUEST], () => window["passphraseOpen"]());
-  keyring.on(["*", "*", native.NativeEvents.MNEMONIC_REQUIRED], () => window["mnemonicOpen"]());
 
   try {
     await kkbridgeAdapter.pairDevice("http://localhost:1646");
   } catch (e) {
     console.error("Could not initialize keepkey bridge", e);
-  }
-
-  try {
-    await nativeAdapter.initialize();
-  } catch (e) {
-    console.error("Could not initialize NativeAdapter", e);
   }
 
   for (const deviceID of Object.keys(keyring.wallets)) {
@@ -423,9 +407,6 @@ window["mnemonicEntered"] = async function () {
 };
 
 window["useTestWallet"] = async function () {
-  wallet.loadDevice({
-    mnemonic: await native.crypto.Isolation.Engines.Dummy.BIP39.Mnemonic.create(testPublicWalletXpubs),
-  });
   document.getElementById("#mnemonicModal").className = "modal";
 };
 
@@ -475,16 +456,6 @@ $("#settings-kkemu").on("click", async (e) => {
   wallet = await kkemuAdapter.pairDevice("http://localhost:5000");
   window["wallet"] = wallet;
   const deviceID = await wallet.transport.getDeviceID();
-  $("#keyring").val(deviceID);
-  $("#settings-keyring").val(deviceID);
-  updateSettingsButtonVisibility();
-});
-
-$("#settings-native").on("click", async (e) => {
-  e.preventDefault();
-  wallet = await nativeAdapter.pairDevice("testid");
-  window["wallet"] = wallet;
-  const deviceID = await wallet.getDeviceID();
   $("#keyring").val(deviceID);
   $("#settings-keyring").val(deviceID);
   updateSettingsButtonVisibility();
@@ -1079,22 +1050,6 @@ $("#kyc-pair-emulator").on("click", async function (e) {
   } catch (error) {
     console.error("Failed to pair emulator:", error);
     alert("Failed to pair emulator. Make sure it's running on localhost:5000");
-  }
-});
-
-// KYC Pair Native
-$("#kyc-pair-native").on("click", async function (e) {
-  e.preventDefault();
-  try {
-    kycWallet = await nativeAdapter.pairDevice("kyc-testid");
-    window["wallet"] = kycWallet;
-    wallet = kycWallet;
-    const deviceID = await kycWallet.getDeviceID();
-    updateKycDeviceStatus(true, `Native Wallet ${deviceID.substring(0, 8)}...`);
-    await updateKycAddressPreview();
-  } catch (error) {
-    console.error("Failed to pair native wallet:", error);
-    alert("Failed to pair native wallet.");
   }
 });
 
