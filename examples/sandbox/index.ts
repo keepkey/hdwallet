@@ -4,7 +4,7 @@ import * as core from "@keepkey/hdwallet-core";
 import * as keepkey from "@keepkey/hdwallet-keepkey";
 import * as keepkeyTcp from "@keepkey/hdwallet-keepkey-tcp";
 import * as keepkeyWebUSB from "@keepkey/hdwallet-keepkey-webusb";
-import * as native from "@keepkey/hdwallet-native";
+
 import * as sigUtil from "@metamask/eth-sig-util";
 import { TypedData } from "eip-712";
 import $ from "jquery";
@@ -217,26 +217,9 @@ class BIP39PathEditor {
   }
 }
 
-const testPublicWalletXpubs = [
-  "xpub661MyMwAqRbcFLgDU7wpcEVubSF7NkswwmXBUkDiGUW6uopeUMys4AqKXNgpfZKRTLnpKQgffd6a2c3J8JxLkF1AQN17Pm9QYHEqEfo1Rsx", // all seed root key
-  "xpub68Zyu13qjcQxDzLNfTYnUXtJuX2qJgnxP6osrcAvJGdo6bs9M2Adt2BunbwiYrZS5qpA1QKoMf3uqS2NHpbyZp4KMJxDrL58NTyvHXBeAv6", // all seed m/44'
-  "xpub6APRH5kELakva27TFbzpfhfsY3Jd4dRGo7NocHb63qWecSgK2dUkjWaYevJsCunicpdAkPg9fvHAdpSFMDCMCDMit8kiTM1w9QoGmfyVwDo", // all seed m/44'/0'
-  "xpub6BiVtCpG9fQPxnPmHXG8PhtzQdWC2Su4qWu6XW9tpWFYhxydCLJGrWBJZ5H6qTAHdPQ7pQhtpjiYZVZARo14qHiay2fvrX996oEP42u8wZy", // all seed m/44'/0'/0'
-  "xpub6APRH5kELakyDsZMmBU9HEoeRUzM9F8STp6ztXLPUJQLiXGrbsfACbngkw5vySPfa9vFs2p3kMsRPxhyDTLhKYEf5HLVfDcDuTTazgzvArk", // all seed m/44'/60'
-  "xpub6CNFa58kEQJu2hwMVoofpDEKVVSg6gfwqBqE2zHAianaUnQkrJzJJ42iLDp7Dmg2aP88qCKoFZ4jidk3tECdQuF4567NGHDfe7iBRwHxgke", // all seed m/44'/60'/0'
-  "xpub68Zyu13qjcQxUZiesSWiHJMqkg8G8Guft6MvDhwP72zSYXr9iKnNmDo7LxuSVwtpamrNwGQHkGDWoK8MAp3S9GW5fVxsjBY6AdvZc1hB7kK", // all seed m/49'
-  "xpub6AA5piovovuKytxa5QtBWAbixSjg7fbmu5gqs6QmvARrUMgewJV51roNH4M7GtvZmjBY1m5oAgAjoHivasewSh4S2H7LAikCyuhJxfHdSsK", // all seed m/49'/0'
-  "xpub6CVKsQYXc9awxgV1tWbG4foDvdcnieK2JkbpPEBKB5WwAPKBZ1mstLbKVB4ov7QzxzjaxNK6EfmNY5Jsk2cG26EVcEkycGW4tchT2dyUhrx", // all seed m/49'/0'/0'
-  "xpub68Zyu13qjcQz2DTzkBfLNCfsCTgT39rsUY9JT7MFvG3oEJvS8gUYwRX4RheUTFGZ6EtW4dFYhCdBX32GHJCodkQLAARjNsw4Drj1oDxvo9p", // all seed m/84'
-  "xpub69s3dQnszuX49hTwhNAQEMJyTcRQNZyhtKAqNgQXApquzXdR3fEjXg75ScXzMMMLkUjQnz2Giwt2L7vesiswkAYwzbHezaUXayU8Z81CW56", // all seed m/84'/0'
-  "xpub6DDUPHpUo4pcy43iJeZjbSVWGav1SMMmuWdMHiGtkK8rhKmfbomtkwW6GKs1GGAKehT6QRocrmda3WWxXawpjmwaUHfFRXuKrXSapdckEYF", // all seed m/84'/0'/0'
-].join(" ");
-
 const keepkeyAdapter = keepkeyWebUSB.WebUSBKeepKeyAdapter.useKeyring(keyring);
 const kkbridgeAdapter = keepkeyTcp.TCPKeepKeyAdapter.useKeyring(keyring);
 const kkemuAdapter = keepkeyTcp.TCPKeepKeyAdapter.useKeyring(keyring);
-const nativeAdapter = native.NativeAdapter.useKeyring(keyring);
-
 window["keyring"] = keyring;
 
 window.localStorage.debug = "*";
@@ -247,7 +230,6 @@ window["wallet"] = wallet;
 const $keepkey = $("#keepkey");
 const $keepkeybridge = $("#keepkeybridge");
 const $kkemu = $("#kkemu");
-const $native = $("#native");
 const $keyring = $("#keyring");
 
 $keepkey.on("click", async (e) => {
@@ -269,13 +251,6 @@ $kkemu.on("click", async (e) => {
   wallet = await kkemuAdapter.pairDevice("http://localhost:5000");
   window["wallet"] = wallet;
   $("#keyring select").val(await wallet.transport.getDeviceID());
-});
-
-$native.on("click", async (e) => {
-  e.preventDefault();
-  wallet = await nativeAdapter.pairDevice("testid");
-  window["wallet"] = wallet;
-  $("#keyring select").val(await wallet.getDeviceID());
 });
 
 // Update settings button visibility based on wallet connection
@@ -337,18 +312,10 @@ async function deviceConnected(deviceId) {
 
   keyring.on(["*", "*", core.Events.PIN_REQUEST], () => window["pinOpen"]());
   keyring.on(["*", "*", core.Events.PASSPHRASE_REQUEST], () => window["passphraseOpen"]());
-  keyring.on(["*", "*", native.NativeEvents.MNEMONIC_REQUIRED], () => window["mnemonicOpen"]());
-
   try {
     await kkbridgeAdapter.pairDevice("http://localhost:1646");
   } catch (e) {
     console.error("Could not initialize keepkey bridge", e);
-  }
-
-  try {
-    await nativeAdapter.initialize();
-  } catch (e) {
-    console.error("Could not initialize NativeAdapter", e);
   }
 
   for (const deviceID of Object.keys(keyring.wallets)) {
@@ -423,10 +390,7 @@ window["mnemonicEntered"] = async function () {
 };
 
 window["useTestWallet"] = async function () {
-  wallet.loadDevice({
-    mnemonic: await native.crypto.Isolation.Engines.Dummy.BIP39.Mnemonic.create(testPublicWalletXpubs),
-  });
-  document.getElementById("#mnemonicModal").className = "modal";
+  console.warn("Native wallet removed — useTestWallet unavailable");
 };
 
 /**
@@ -475,16 +439,6 @@ $("#settings-kkemu").on("click", async (e) => {
   wallet = await kkemuAdapter.pairDevice("http://localhost:5000");
   window["wallet"] = wallet;
   const deviceID = await wallet.transport.getDeviceID();
-  $("#keyring").val(deviceID);
-  $("#settings-keyring").val(deviceID);
-  updateSettingsButtonVisibility();
-});
-
-$("#settings-native").on("click", async (e) => {
-  e.preventDefault();
-  wallet = await nativeAdapter.pairDevice("testid");
-  window["wallet"] = wallet;
-  const deviceID = await wallet.getDeviceID();
   $("#keyring").val(deviceID);
   $("#settings-keyring").val(deviceID);
   updateSettingsButtonVisibility();
@@ -1079,22 +1033,6 @@ $("#kyc-pair-emulator").on("click", async function (e) {
   } catch (error) {
     console.error("Failed to pair emulator:", error);
     alert("Failed to pair emulator. Make sure it's running on localhost:5000");
-  }
-});
-
-// KYC Pair Native
-$("#kyc-pair-native").on("click", async function (e) {
-  e.preventDefault();
-  try {
-    kycWallet = await nativeAdapter.pairDevice("kyc-testid");
-    window["wallet"] = kycWallet;
-    wallet = kycWallet;
-    const deviceID = await kycWallet.getDeviceID();
-    updateKycDeviceStatus(true, `Native Wallet ${deviceID.substring(0, 8)}...`);
-    await updateKycAddressPreview();
-  } catch (error) {
-    console.error("Failed to pair native wallet:", error);
-    alert("Failed to pair native wallet.");
   }
 });
 
