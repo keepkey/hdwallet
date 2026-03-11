@@ -118,6 +118,7 @@ export class TronGetAddress extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TronGetAddress {
   export type AsObject = {
     addressNList: number[];
@@ -186,6 +187,7 @@ export class TronAddress extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TronAddress {
   export type AsObject = {
     address?: string;
@@ -304,6 +306,7 @@ export class TronSignTx extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TronSignTx {
   export type AsObject = {
     addressNList: number[];
@@ -382,6 +385,7 @@ export class TronSignedTx extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TronSignedTx {
   export type AsObject = {
     signature: Uint8Array | string;
@@ -418,13 +422,7 @@ registerTronMessages();
 export function tronGetAccountPaths(msg: core.TronGetAccountPaths): Array<core.TronAccountPath> {
   return [
     {
-      addressNList: [
-        0x80000000 + 44,
-        0x80000000 + core.slip44ByCoin("Tron"),
-        0x80000000 + msg.accountIdx,
-        0,
-        0,
-      ],
+      addressNList: [0x80000000 + 44, 0x80000000 + core.slip44ByCoin("Tron"), 0x80000000 + msg.accountIdx, 0, 0],
     },
   ];
 }

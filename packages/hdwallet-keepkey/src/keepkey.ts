@@ -12,12 +12,12 @@ import * as Osmosis from "./osmosis";
 import * as Ripple from "./ripple";
 import * as Solana from "./solana";
 import * as Thorchain from "./thorchain";
-import * as Tron from "./tron";
 import * as Ton from "./ton";
-import * as Zcash from "./zcash";
 import { Transport } from "./transport";
+import * as Tron from "./tron";
 import { messageTypeRegistry } from "./typeRegistry";
 import { protoFieldToSetMethod, translateInputScriptType } from "./utils";
+import * as Zcash from "./zcash";
 
 export function isKeepKey(wallet: core.HDWallet): wallet is KeepKeyHDWallet {
   return typeof wallet === "object" && wallet !== null && (wallet as any)._isKeepKey;

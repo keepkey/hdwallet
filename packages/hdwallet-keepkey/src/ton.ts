@@ -167,6 +167,7 @@ export class TonGetAddress extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TonGetAddress {
   export type AsObject = {
     addressNList: number[];
@@ -255,6 +256,7 @@ export class TonAddress extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TonAddress {
   export type AsObject = {
     address?: string;
@@ -449,6 +451,7 @@ export class TonSignTx extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TonSignTx {
   export type AsObject = {
     addressNList: number[];
@@ -532,6 +535,7 @@ export class TonSignedTx extends jspb.Message {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace TonSignedTx {
   export type AsObject = {
     signature: Uint8Array | string;
@@ -568,11 +572,7 @@ registerTonMessages();
 export function tonGetAccountPaths(msg: core.TonGetAccountPaths): Array<core.TonAccountPath> {
   return [
     {
-      addressNList: [
-        0x80000000 + 44,
-        0x80000000 + core.slip44ByCoin("Ton"),
-        0x80000000 + msg.accountIdx,
-      ],
+      addressNList: [0x80000000 + 44, 0x80000000 + core.slip44ByCoin("Ton"), 0x80000000 + msg.accountIdx],
     },
   ];
 }
