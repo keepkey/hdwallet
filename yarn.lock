@@ -1151,10 +1151,10 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@keepkey/device-protocol@^7.13.2":
-  version "7.13.4"
-  resolved "https://registry.yarnpkg.com/@keepkey/device-protocol/-/device-protocol-7.13.4.tgz#e62259273303d14a8ea4d3e813bbd82e4c5ac7c6"
-  integrity sha512-ZykDp2NjkHOmekZ3Ak2l1jsobUIkk7HIu/2XCQ5cU1Lx9R9lj2uJGCQE4ONQqD4cbEOUC5xEMsuI+7Tut35jMQ==
+"@keepkey/device-protocol@npm:@bithighlander/device-protocol@7.14.0":
+  version "7.14.0"
+  resolved "https://registry.yarnpkg.com/@bithighlander/device-protocol/-/device-protocol-7.14.0.tgz#fb6a0d54f6940c2a6428a67a8d151c70c006fce1"
+  integrity sha512-C9NrPVKo712TwbaBFcGBsjg8T1BzYCvj8zIIs30UJJOrm6U2+2/xGrG6TkqEBsuTLFsjm9y4QWwZOlfYFRXTSg==
   dependencies:
     google-protobuf "^3.7.0-rc.2"
     pbjs "^0.0.5"
