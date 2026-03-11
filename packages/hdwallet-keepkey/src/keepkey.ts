@@ -815,6 +815,7 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   readonly _supportsKavaInfo = false;
   readonly _supportsTerra = false;
   readonly _supportsTerraInfo = false;
+  readonly _supportsBip85 = true;
   readonly _supportsSolanaInfo = true;
   _supportsSolana = true;
   readonly _supportsTronInfo = true;
@@ -1122,6 +1123,24 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     const response = await this.transport.call(Messages.MessageType.MESSAGETYPE_CIPHERKEYVALUE, cipherKeyValue);
     const ckv = response.message as Messages.CipheredKeyValue;
     return ckv.getValue();
+  }
+
+  // BIP-85: Derive a child mnemonic from the master seed
+  public async bip85GetMnemonic(msg: core.Bip85GetMnemonicMsg): Promise<core.Bip85Mnemonic> {
+    const getBip85 = new Messages.GetBip85Mnemonic();
+    getBip85.setWordCount(msg.wordCount);
+    getBip85.setIndex(msg.index);
+
+    const event = await this.transport.call(
+      Messages.MessageType.MESSAGETYPE_GETBIP85MNEMONIC,
+      getBip85,
+      { msgTimeout: core.LONG_TIMEOUT }
+    );
+
+    const resp = event.message as Messages.Bip85Mnemonic;
+    const mnemonic = resp.getMnemonic();
+    if (!mnemonic) throw new Error("BIP-85: device returned empty mnemonic");
+    return { mnemonic };
   }
 
   // ClearSession clears cached session values such as the pin and passphrase

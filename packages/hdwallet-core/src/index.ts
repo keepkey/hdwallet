@@ -1,4 +1,5 @@
 export * from "./arkeo";
+export * from "./bip85";
 export * from "./bitcoin";
 export * from "./cosmos";
 export * from "./osmosis";
