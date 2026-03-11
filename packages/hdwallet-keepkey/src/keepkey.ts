@@ -1131,11 +1131,9 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     getBip85.setWordCount(msg.wordCount);
     getBip85.setIndex(msg.index);
 
-    const event = await this.transport.call(
-      Messages.MessageType.MESSAGETYPE_GETBIP85MNEMONIC,
-      getBip85,
-      { msgTimeout: core.LONG_TIMEOUT }
-    );
+    const event = await this.transport.call(Messages.MessageType.MESSAGETYPE_GETBIP85MNEMONIC, getBip85, {
+      msgTimeout: core.LONG_TIMEOUT,
+    });
 
     const resp = event.message as Messages.Bip85Mnemonic;
     const mnemonic = resp.getMnemonic();
