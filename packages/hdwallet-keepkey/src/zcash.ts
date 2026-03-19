@@ -48,16 +48,31 @@ export async function zcashGetOrchardFVK(
 }
 
 /**
+ * Transparent input descriptor for hybrid shielding transactions.
+ */
+export interface TransparentInput {
+  index: number;
+  sighash: string;          // hex, 32 bytes — per-input ZIP-244 §4.10 sighash
+  addressNList: number[];   // BIP44 path [44', 133', 0', 0, 0]
+  amount: number;           // zatoshis (for display)
+}
+
+/**
  * Sign a PCZT (Partially Constructed Zcash Transaction) on the device.
  *
+ * Supports two modes:
+ * 1. Shielded-only: Orchard spend authorization (RedPallas signatures)
+ * 2. Hybrid shielding: Transparent ECDSA + Orchard RedPallas in a single v5 tx
+ *
  * The signing flow is:
- * 1. Send ZcashSignPCZT with transaction metadata + sub-digests
- * 2. Device responds with ZcashPCZTActionAck requesting first action
- * 3. Send ZcashPCZTAction for each action (alpha, sighash, cv_net, etc.)
- * 4. Device responds with ZcashPCZTActionAck for next, or ZcashSignedPCZT when done
+ * 1. Send ZcashSignPCZT with transaction metadata + sub-digests + n_transparent_inputs
+ * 2. Device responds with ZcashPCZTActionAck requesting first input/action
+ * 3. [If hybrid] For each transparent input: send ZcashTransparentInput, receive ZcashTransparentSig
+ * 4. For each Orchard action: send ZcashPCZTAction, receive ZcashPCZTActionAck or ZcashSignedPCZT
  *
  * @param signingRequest - The signing request from the Rust sidecar
- * @returns Array of 64-byte RedPallas signatures, one per action
+ * @param sighash - The transaction sighash (hex) for Orchard actions
+ * @returns Object with orchardSignatures and transparentSignatures arrays
  */
 export async function zcashSignPczt(
   transport: Transport,
@@ -81,10 +96,13 @@ export async function zcashSignPczt(
       is_spend: boolean;
     }>;
     display: { amount: string; fee: string; to: string };
+    transparent_inputs?: TransparentInput[];
   },
   sighash: string
 ): Promise<string[]> {
   const account = (signingRequest as any).account ?? 0;
+  const transparentInputs = signingRequest.transparent_inputs ?? [];
+  const nTransparentInputs = transparentInputs.length;
 
   return transport.lockDuring(async () => {
     // Step 1: Send ZcashSignPCZT with metadata
@@ -117,31 +135,78 @@ export async function zcashSignPczt(
       signMsg.setOrchardAnchor(hexToBytes(signingRequest.bundle_meta.anchor));
     }
 
+    // Phase 3: Set transparent input count for hybrid shielding
+    if (nTransparentInputs > 0) {
+      signMsg.setNTransparentInputs(nTransparentInputs);
+    }
+
     let response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT, signMsg, {
       msgTimeout: core.LONG_TIMEOUT,
       omitLock: true,
     });
 
-    // Step 2: Stream actions to device
-    for (let i = 0; i < signingRequest.n_actions; i++) {
+    // Step 2: Transparent phase (if hybrid shielding)
+    const transparentSignatures: string[] = [];
+    for (let i = 0; i < nTransparentInputs; i++) {
       if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK) {
-        // If device returned ZcashSignedPCZT early, break
-        if (response.message_enum === Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT) {
-          break;
+        throw new Error(`zcash: expected ActionAck for transparent input ${i}, got ${response.message_type}`);
+      }
+
+      const input = transparentInputs[i];
+      const inputMsg = new ZcashMessages.ZcashTransparentInput();
+      inputMsg.setIndex(input.index);
+      inputMsg.setSighash(hexToBytes(input.sighash));
+      inputMsg.setAddressNList(input.addressNList);
+      inputMsg.setAmount(input.amount);
+
+      response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT, inputMsg, {
+        msgTimeout: core.LONG_TIMEOUT,
+        omitLock: true,
+      });
+
+      if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTSIG) {
+        throw new Error(`zcash: expected TransparentSig for input ${i}, got ${response.message_type}`);
+      }
+
+      const sigResp = response.proto as ZcashMessages.ZcashTransparentSig;
+      transparentSignatures.push(bytesToHex(sigResp.getSignature_asU8()));
+
+      // After last transparent input, device transitions to Orchard phase.
+      // If there are Orchard actions, we need to get the next ActionAck.
+      if (i === nTransparentInputs - 1 && signingRequest.n_actions > 0) {
+        // The device sends a ZcashPCZTActionAck after the last TransparentSig
+        // to signal readiness for Orchard actions. But the TransparentSig
+        // already has next_index=0xFF meaning "done with transparent".
+        // We need to send the first Orchard action now — the device
+        // implicitly transitions to the Orchard phase.
+      }
+    }
+
+    // Step 3: Stream Orchard actions to device
+    // After transparent phase, device expects ZcashPCZTAction messages.
+    // If we just finished transparent phase, `response` is the last TransparentSig.
+    // For the first Orchard action, we send it directly.
+    const orchardSignatures: string[] = [];
+    for (let i = 0; i < signingRequest.n_actions; i++) {
+      // For the first Orchard action after transparent phase, skip the ActionAck check
+      if (i > 0 || nTransparentInputs === 0) {
+        if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK) {
+          if (response.message_enum === Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT) {
+            break;
+          }
+          throw new Error(`zcash: unexpected response during Orchard signing: ${response.message_type}`);
         }
-        throw new Error(`zcash: unexpected response during signing: ${response.message_type}`);
       }
 
       const action = signingRequest.actions[i];
       const actionMsg = new ZcashMessages.ZcashPCZTAction();
       actionMsg.setIndex(action.index);
       actionMsg.setAlpha(hexToBytes(action.alpha));
-      actionMsg.setSighash(hexToBytes(sighash)); // Legacy fallback if firmware lacks digests
+      actionMsg.setSighash(hexToBytes(sighash));
       actionMsg.setCvNet(hexToBytes(action.cv_net));
       actionMsg.setValue(action.value);
       actionMsg.setIsSpend(action.is_spend);
 
-      // Phase 2b: Full action fields for on-device orchard digest verification
       if (action.nullifier) actionMsg.setNullifier(hexToBytes(action.nullifier));
       if (action.cmx) actionMsg.setCmx(hexToBytes(action.cmx));
       if (action.epk) actionMsg.setEpk(hexToBytes(action.epk));
@@ -157,17 +222,26 @@ export async function zcashSignPczt(
       });
     }
 
-    // Step 3: Collect signatures
+    // Step 4: Collect Orchard signatures
     if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT) {
       throw new Error(`zcash: expected ZcashSignedPCZT, got ${response.message_type}`);
     }
 
     const signedPczt = response.proto as ZcashMessages.ZcashSignedPCZT;
-    const signatures: string[] = [];
     for (const sig of signedPczt.getSignaturesList_asU8()) {
-      signatures.push(bytesToHex(sig));
+      orchardSignatures.push(bytesToHex(sig));
     }
 
-    return signatures;
+    // Return combined result — for backward compatibility, if no transparent inputs,
+    // return just the orchard signatures as a flat array (existing behavior).
+    if (nTransparentInputs === 0) {
+      return orchardSignatures;
+    }
+
+    // For hybrid shielding, attach transparent signatures to the result.
+    // Callers can check (result as any)._transparentSignatures for the DER sigs.
+    const result = orchardSignatures as any;
+    result._transparentSignatures = transparentSignatures;
+    return result;
   });
 }
