@@ -370,8 +370,8 @@ export class TronSignTx extends jspb.Message {
     // Field 9: amount (legacy)
     const amount = jspb.Message.getField(message, 9);
     if (amount != null) writer.writeUint64(9, Number(amount));
-    // Field 10: transfer (sub-message)
-    const transfer = jspb.Message.getField(message, 10) as TronTransferContract | null;
+    // Field 10: transfer (sub-message) — must use getWrapperField, not getField
+    const transfer = jspb.Message.getWrapperField(message, TronTransferContract, 10) as TronTransferContract | null;
     if (transfer != null) writer.writeMessage(10, transfer, TronTransferContract.serializeBinaryToWriter);
     // Field 12: fee_limit
     const feeLimit = jspb.Message.getField(message, 12);
@@ -555,7 +555,8 @@ export async function tronSignTx(transport: Transport, msg: core.TronSignTx): Pr
       const contract = rawData.contract?.[0];
       if (contract?.type === 'TransferContract' && contract?.parameter?.value) {
         const transfer = new TronTransferContract();
-        transfer.setToAddress(contract.parameter.value.to_address);
+        // Use msg.toAddress (Base58 T...) — TronGrid raw_data has hex 41... which firmware rejects
+        transfer.setToAddress(msg.toAddress || contract.parameter.value.to_address);
         transfer.setAmount(contract.parameter.value.amount);
         signTx.setTransfer(transfer);
       }

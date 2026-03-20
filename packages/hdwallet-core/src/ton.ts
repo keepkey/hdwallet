@@ -21,6 +21,9 @@ export interface TonSignTx {
   workchain?: number;
   toAddress?: string;
   amount?: string; // nanoTON as string (uint64)
+  bounce?: boolean;
+  memo?: string;
+  isDeploy?: boolean;
 }
 
 export interface TonSignedTx {

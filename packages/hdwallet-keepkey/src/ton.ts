@@ -267,7 +267,8 @@ export namespace TonAddress {
 /**
  * TonSignTx: address_n(1, repeated uint32), coin_name(2, string),
  *            raw_tx(3, bytes), expire_at(4, uint32), seqno(5, uint32),
- *            workchain(6, sint32), to_address(7, string), amount(8, uint64)
+ *            workchain(6, sint32), to_address(7, string), amount(8, uint64),
+ *            bounce(9, bool), memo(10, string), is_deploy(11, bool)
  */
 export class TonSignTx extends jspb.Message {
   static repeatedFields_ = [1];
@@ -347,6 +348,27 @@ export class TonSignTx extends jspb.Message {
     jspb.Message.setField(this, 8, String(value));
   }
 
+  getBounce(): boolean {
+    return jspb.Message.getFieldWithDefault(this, 9, false) as boolean;
+  }
+  setBounce(value: boolean): void {
+    jspb.Message.setField(this, 9, value);
+  }
+
+  getMemo(): string | undefined {
+    return jspb.Message.getFieldWithDefault(this, 10, "") as string;
+  }
+  setMemo(value: string): void {
+    jspb.Message.setField(this, 10, value);
+  }
+
+  getIsDeploy(): boolean {
+    return jspb.Message.getFieldWithDefault(this, 11, false) as boolean;
+  }
+  setIsDeploy(value: boolean): void {
+    jspb.Message.setField(this, 11, value);
+  }
+
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
     TonSignTx.serializeBinaryToWriter(this, writer);
@@ -363,6 +385,9 @@ export class TonSignTx extends jspb.Message {
       workchain: this.getWorkchain(),
       toAddress: this.getToAddress(),
       amount: this.getAmount(),
+      bounce: this.getBounce(),
+      memo: this.getMemo(),
+      isDeploy: this.getIsDeploy(),
     };
   }
 
@@ -407,6 +432,15 @@ export class TonSignTx extends jspb.Message {
         case 8:
           msg.setAmount(reader.readUint64String());
           break;
+        case 9:
+          msg.setBounce(reader.readBool());
+          break;
+        case 10:
+          msg.setMemo(reader.readString());
+          break;
+        case 11:
+          msg.setIsDeploy(reader.readBool());
+          break;
         default:
           reader.skipField();
           break;
@@ -448,6 +482,18 @@ export class TonSignTx extends jspb.Message {
     if (amount !== "0") {
       writer.writeUint64String(8, amount);
     }
+    const bounce = jspb.Message.getField(message, 9) as boolean | null;
+    if (bounce != null) {
+      writer.writeBool(9, bounce);
+    }
+    const memo = jspb.Message.getField(message, 10) as string | null;
+    if (memo != null) {
+      writer.writeString(10, memo);
+    }
+    const isDeploy = jspb.Message.getField(message, 11) as boolean | null;
+    if (isDeploy != null) {
+      writer.writeBool(11, isDeploy);
+    }
   }
 }
 
@@ -462,6 +508,9 @@ export namespace TonSignTx {
     workchain: number;
     toAddress?: string;
     amount: string;
+    bounce?: boolean;
+    memo?: string;
+    isDeploy?: boolean;
   };
 }
 
@@ -618,6 +667,9 @@ export async function tonSignTx(transport: Transport, msg: core.TonSignTx): Prom
     if (msg.workchain !== undefined) signTx.setWorkchain(msg.workchain);
     if (msg.toAddress !== undefined) signTx.setToAddress(msg.toAddress);
     if (msg.amount !== undefined) signTx.setAmount(msg.amount);
+    if (msg.bounce !== undefined) signTx.setBounce(msg.bounce);
+    if (msg.memo !== undefined) signTx.setMemo(msg.memo);
+    if (msg.isDeploy !== undefined) signTx.setIsDeploy(msg.isDeploy);
 
     const resp = await transport.call(MESSAGETYPE_TONSIGNTX, signTx, {
       msgTimeout: core.LONG_TIMEOUT,

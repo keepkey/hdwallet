@@ -1125,20 +1125,18 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return ckv.getValue();
   }
 
-  // BIP-85: Derive a child mnemonic from the master seed
-  public async bip85GetMnemonic(msg: core.Bip85GetMnemonicMsg): Promise<core.Bip85Mnemonic> {
+  // BIP-85: Derive a child mnemonic and display it on the device screen.
+  // The seed is never sent over USB — firmware replies with Success.
+  public async bip85GetMnemonic(msg: core.Bip85GetMnemonicMsg): Promise<core.Bip85DisplayResult> {
     const getBip85 = new Messages.GetBip85Mnemonic();
     getBip85.setWordCount(msg.wordCount);
     getBip85.setIndex(msg.index);
 
-    const event = await this.transport.call(Messages.MessageType.MESSAGETYPE_GETBIP85MNEMONIC, getBip85, {
+    await this.transport.call(Messages.MessageType.MESSAGETYPE_GETBIP85MNEMONIC, getBip85, {
       msgTimeout: core.LONG_TIMEOUT,
     });
 
-    const resp = event.proto as Messages.Bip85Mnemonic;
-    const mnemonic = resp.getMnemonic();
-    if (!mnemonic) throw new Error("BIP-85: device returned empty mnemonic");
-    return { mnemonic };
+    return { displayed: true };
   }
 
   // ClearSession clears cached session values such as the pin and passphrase
