@@ -1,4 +1,5 @@
 export * from "./arkeo";
+export * from "./bip85";
 export * from "./bitcoin";
 export * from "./cosmos";
 export * from "./osmosis";
@@ -14,6 +15,8 @@ export * from "./ripple";
 export * from "./secret";
 export * from "./solana";
 export * from "./terra";
+export * from "./tron";
+export * from "./ton";
 export * from "./thorchain";
 export * from "./mayachain";
 export * from "./transport";

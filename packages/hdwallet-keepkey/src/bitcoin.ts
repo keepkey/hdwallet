@@ -22,7 +22,7 @@ const supportedCoins = [
   "Dogecoin",
   "Zcash",
   "Komodo",
-  "Zcash",
+  "Lynx",
 ];
 
 const segwitCoins = ["Bitcoin", "Testnet", "BitcoinGold", "Litecoin"];
@@ -111,7 +111,7 @@ function prepareSignTx(
   const txmap: Record<string, unknown> = {}; // Create a map of transactions by txid needed for the KeepKey signing flow.
   txmap["unsigned"] = unsignedTx;
 
-  const forceBip143Coins = ["BitcoinGold", "BitcoinCash", "BitcoinSV"];
+  const forceBip143Coins = ["BitcoinGold", "BitcoinCash", "BitcoinSV", "Zcash"];
   if (forceBip143Coins.includes(coin)) return txmap;
 
   inputs.forEach((inputTx) => {
@@ -313,6 +313,12 @@ export async function btcSignTx(
     tx.setCoinName(msg.coin);
     if (msg.version !== undefined) tx.setVersion(msg.version);
     tx.setLockTime(msg.locktime || 0);
+    if ((msg as any).overwintered) {
+      tx.setOverwintered(true);
+      if ((msg as any).versionGroupId !== undefined) tx.setVersionGroupId((msg as any).versionGroupId);
+      if ((msg as any).branchId !== undefined) tx.setBranchId((msg as any).branchId);
+    }
+    if ((msg as any).expiry !== undefined) tx.setExpiry((msg as any).expiry);
 
     let responseType: number | undefined;
     let response: any;
