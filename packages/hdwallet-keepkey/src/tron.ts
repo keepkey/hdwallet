@@ -205,10 +205,18 @@ export class TronTransferContract extends jspb.Message {
     super();
     jspb.Message.initialize(this, opt_data || [], 0, -1, null, null);
   }
-  getToAddress(): string { return jspb.Message.getFieldWithDefault(this, 1, "") as string; }
-  setToAddress(value: string): void { jspb.Message.setField(this, 1, value); }
-  getAmount(): number { return Number(jspb.Message.getFieldWithDefault(this, 2, 0)); }
-  setAmount(value: number): void { jspb.Message.setField(this, 2, value); }
+  getToAddress(): string {
+    return jspb.Message.getFieldWithDefault(this, 1, "") as string;
+  }
+  setToAddress(value: string): void {
+    jspb.Message.setField(this, 1, value);
+  }
+  getAmount(): number {
+    return Number(jspb.Message.getFieldWithDefault(this, 2, 0));
+  }
+  setAmount(value: number): void {
+    jspb.Message.setField(this, 2, value);
+  }
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -272,11 +280,17 @@ export class TronSignTx extends jspb.Message {
   }
 
   // Field 4: ref_block_bytes (2 bytes from block reference)
-  setRefBlockBytes(value: Uint8Array | string): void { jspb.Message.setField(this, 4, value); }
+  setRefBlockBytes(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 4, value);
+  }
   // Field 5: ref_block_hash (8 bytes from block hash)
-  setRefBlockHash(value: Uint8Array | string): void { jspb.Message.setField(this, 5, value); }
+  setRefBlockHash(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 5, value);
+  }
   // Field 6: expiration (uint64 ms timestamp)
-  setExpiration(value: number): void { jspb.Message.setField(this, 6, value); }
+  setExpiration(value: number): void {
+    jspb.Message.setField(this, 6, value);
+  }
 
   getToAddress(): string | undefined {
     return jspb.Message.getFieldWithDefault(this, 8, "") as string;
@@ -298,11 +312,17 @@ export class TronSignTx extends jspb.Message {
     jspb.Message.setWrapperField(this, 10, value);
   }
   // Field 12: fee_limit (uint64)
-  setFeeLimit(value: number): void { jspb.Message.setField(this, 12, value); }
+  setFeeLimit(value: number): void {
+    jspb.Message.setField(this, 12, value);
+  }
   // Field 13: timestamp (uint64 ms)
-  setTimestamp(value: number): void { jspb.Message.setField(this, 13, value); }
+  setTimestamp(value: number): void {
+    jspb.Message.setField(this, 13, value);
+  }
   // Field 14: data/memo (bytes)
-  setData(value: Uint8Array | string): void { jspb.Message.setField(this, 14, value); }
+  setData(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 14, value);
+  }
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -338,11 +358,21 @@ export class TronSignTx extends jspb.Message {
           for (const v of values) msg.addAddressN(v);
           break;
         }
-        case 2: msg.setCoinName(reader.readString()); break;
-        case 3: msg.setRawData(reader.readBytes()); break;
-        case 8: msg.setToAddress(reader.readString()); break;
-        case 9: msg.setAmount(reader.readUint64()); break;
-        default: reader.skipField(); break;
+        case 2:
+          msg.setCoinName(reader.readString());
+          break;
+        case 3:
+          msg.setRawData(reader.readBytes());
+          break;
+        case 8:
+          msg.setToAddress(reader.readString());
+          break;
+        case 9:
+          msg.setAmount(reader.readUint64());
+          break;
+        default:
+          reader.skipField();
+          break;
       }
     }
     return msg;
@@ -543,8 +573,7 @@ export async function tronSignTx(transport: Transport, msg: core.TronSignTx): Pr
     // clear-sign confirmation (amount + recipient) instead of blind-signing.
     const tgTx = (msg as any).tronGridTx;
     const rawData = tgTx?.raw_data;
-    if (rawData?.ref_block_bytes && rawData?.ref_block_hash &&
-        rawData?.expiration && rawData?.timestamp) {
+    if (rawData?.ref_block_bytes && rawData?.ref_block_hash && rawData?.expiration && rawData?.timestamp) {
       // Block reference fields (required for structured mode)
       signTx.setRefBlockBytes(core.fromHexString(rawData.ref_block_bytes));
       signTx.setRefBlockHash(core.fromHexString(rawData.ref_block_hash));
@@ -553,7 +582,7 @@ export async function tronSignTx(transport: Transport, msg: core.TronSignTx): Pr
 
       // Extract TransferContract from the contract array
       const contract = rawData.contract?.[0];
-      if (contract?.type === 'TransferContract' && contract?.parameter?.value) {
+      if (contract?.type === "TransferContract" && contract?.parameter?.value) {
         const transfer = new TronTransferContract();
         // Use msg.toAddress (Base58 T...) — TronGrid raw_data has hex 41... which firmware rejects
         transfer.setToAddress(msg.toAddress || contract.parameter.value.to_address);

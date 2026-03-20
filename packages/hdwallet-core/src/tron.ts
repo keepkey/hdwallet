@@ -12,8 +12,8 @@ export interface TronAddress {
 export interface TronSignTx {
   addressNList: BIP32Path;
   rawTx: Uint8Array | string;
-  toAddress?: string;   // Destination address — enables clear-sign on device
-  amount?: string;      // Amount in SUN (string to avoid precision loss) — enables clear-sign on device
+  toAddress?: string; // Destination address — enables clear-sign on device
+  amount?: string; // Amount in SUN (string to avoid precision loss) — enables clear-sign on device
 }
 
 export interface TronSignedTx {

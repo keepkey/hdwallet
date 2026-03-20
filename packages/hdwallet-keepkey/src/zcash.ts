@@ -52,9 +52,9 @@ export async function zcashGetOrchardFVK(
  */
 export interface TransparentInput {
   index: number;
-  sighash: string;          // hex, 32 bytes — per-input ZIP-244 §4.10 sighash
-  addressNList: number[];   // BIP44 path [44', 133', 0', 0, 0]
-  amount: number;           // zatoshis (for display)
+  sighash: string; // hex, 32 bytes — per-input ZIP-244 §4.10 sighash
+  addressNList: number[]; // BIP44 path [44', 133', 0', 0, 0]
+  amount: number; // zatoshis (for display)
 }
 
 /**
