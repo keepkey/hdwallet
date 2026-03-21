@@ -59,6 +59,19 @@ export type ETHSignTx = {
   /** mainnet: 1, ropsten: 3, kovan: 42 */
   chainId: number;
   /**
+   * EVM clear-signing metadata (firmware 7.14+).
+   * If provided, sent as EthereumTxMetadata BEFORE EthereumSignTx so the
+   * device OLED can display decoded contract call info instead of raw hex.
+   */
+  txMetadata?: {
+    /** Cryptographically signed metadata blob from Pioneer descriptor API */
+    signedPayload: Uint8Array | string;
+    /** Verification key slot embedded in the blob */
+    keyId?: number;
+    /** Metadata schema version (default 1) */
+    metadataVersion?: number;
+  };
+  /**
    * Device must `ethSupportsNativeShapeShift()`
    */
 } & (
