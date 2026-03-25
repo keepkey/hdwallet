@@ -1,8 +1,10 @@
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
+import * as BinanceMessages from "@keepkey/device-protocol/lib/messages-binance_pb";
 import * as CosmosMessages from "@keepkey/device-protocol/lib/messages-cosmos_pb";
 import * as EosMessages from "@keepkey/device-protocol/lib/messages-eos_pb";
 import * as MayachainMessages from "@keepkey/device-protocol/lib/messages-mayachain_pb";
 import * as NanoMessages from "@keepkey/device-protocol/lib/messages-nano_pb";
+import * as OsmosisMessages from "@keepkey/device-protocol/lib/messages-osmosis_pb";
 import * as RippleMessages from "@keepkey/device-protocol/lib/messages-ripple_pb";
 import * as ThorchainMessages from "@keepkey/device-protocol/lib/messages-thorchain_pb";
 import * as ZcashMessages from "@keepkey/device-protocol/lib/messages-zcash_pb";
@@ -18,7 +20,9 @@ function omit(obj: Record<string, any>, ...keys: string[]): Record<string, any> 
 
 const AllMessages = ([] as Array<[string, core.Constructor<jspb.Message>]>)
   .concat(Object.entries(omit(Messages, "MessageType", "MessageTypeMap")))
+  .concat(Object.entries(BinanceMessages))
   .concat(Object.entries(CosmosMessages))
+  .concat(Object.entries(OsmosisMessages))
   .concat(Object.entries(RippleMessages))
   .concat(Object.entries(NanoMessages))
   .concat(Object.entries(omit(EosMessages, "EosPublicKeyKind", "EosPublicKeyKindMap")))
