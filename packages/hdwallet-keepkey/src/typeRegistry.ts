@@ -7,8 +7,11 @@ import * as MayachainMessages from "@keepkey/device-protocol/lib/messages-mayach
 import * as NanoMessages from "@keepkey/device-protocol/lib/messages-nano_pb";
 import * as OsmosisMessages from "@keepkey/device-protocol/lib/messages-osmosis_pb";
 import * as RippleMessages from "@keepkey/device-protocol/lib/messages-ripple_pb";
+import * as SolanaMessages from "@keepkey/device-protocol/lib/messages-solana_pb";
 import * as TendermintMessages from "@keepkey/device-protocol/lib/messages-tendermint_pb";
 import * as ThorchainMessages from "@keepkey/device-protocol/lib/messages-thorchain_pb";
+import * as TonMessages from "@keepkey/device-protocol/lib/messages-ton_pb";
+import * as TronMessages from "@keepkey/device-protocol/lib/messages-tron_pb";
 import * as ZcashMessages from "@keepkey/device-protocol/lib/messages-zcash_pb";
 import * as core from "@keepkey/hdwallet-core";
 import * as jspb from "google-protobuf";
@@ -29,8 +32,11 @@ const AllMessages = ([] as Array<[string, core.Constructor<jspb.Message>]>)
   .concat(Object.entries(RippleMessages))
   .concat(Object.entries(NanoMessages))
   .concat(Object.entries(omit(EosMessages, "EosPublicKeyKind", "EosPublicKeyKindMap")))
+  .concat(Object.entries(SolanaMessages))
   .concat(Object.entries(TendermintMessages))
   .concat(Object.entries(ThorchainMessages))
+  .concat(Object.entries(TonMessages))
+  .concat(Object.entries(TronMessages))
   .concat(Object.entries(MayachainMessages))
   .concat(Object.entries(ZcashMessages));
 
