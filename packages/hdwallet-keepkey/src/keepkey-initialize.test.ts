@@ -32,12 +32,10 @@ describe("KeepKeyHDWallet.initialize() version-field validation", () => {
     });
     const wallet = new KeepKeyHDWallet(transport);
 
-    await expect(wallet.initialize()).rejects.toThrow(
-      /KeepKey Initialize returned Features without firmware version/
-    );
-    await expect(wallet.initialize()).rejects.toThrow(
-      /major=undefined, minor=undefined, patch=undefined/
-    );
+    const err = await wallet.initialize().catch((e: any) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toMatch(/KeepKey Initialize returned Features without firmware version/);
+    expect(err.message).toMatch(/major=undefined, minor=undefined, patch=undefined/);
   });
 
   it("throws when only majorVersion is missing", async () => {
@@ -54,7 +52,7 @@ describe("KeepKeyHDWallet.initialize() version-field validation", () => {
     );
   });
 
-  it("does NOT throw the version-validation error when all version fields are present", async () => {
+  it("resolves successfully when all version fields are present", async () => {
     const transport = makeMockTransport({
       message: {
         deviceId: "mock-device-id",
@@ -65,21 +63,11 @@ describe("KeepKeyHDWallet.initialize() version-field validation", () => {
     });
     const wallet = new KeepKeyHDWallet(transport);
 
-    // initialize() may still throw downstream (e.g. coin support setup) since
-    // we're using a stub Features. We only assert the validation error is NOT
-    // present — the version check has passed.
-    let err: any;
-    try {
-      await wallet.initialize();
-    } catch (e) {
-      err = e;
-    }
-    if (err) {
-      expect(String(err.message ?? err)).not.toMatch(
-        /KeepKey Initialize returned Features without firmware version/
-      );
-      expect(String(err.message ?? err)).not.toMatch(/Invalid Version/);
-    }
+    const features = await wallet.initialize();
+    expect(features).toBeDefined();
+    expect(features.majorVersion).toBe(7);
+    expect(features.minorVersion).toBe(14);
+    expect(features.patchVersion).toBe(0);
   });
 
   it("regression: never produces 'Invalid Version: vundefined.undefined.undefined'", async () => {
