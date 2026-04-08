@@ -1187,6 +1187,24 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
       this.transport.keyring.addAlias(transportDeviceID, out.deviceId);
     }
 
+    // Validate version fields BEFORE constructing the semver string. Without this,
+    // a Features response missing major/minor/patch (e.g. wrong message type cast,
+    // device in an unexpected state, or runtime decode mismatch) produces
+    // `vundefined.undefined.undefined`, which semver.gte() rejects with the opaque
+    // error "Invalid Version: vundefined.undefined.undefined". Surface a clear
+    // diagnostic instead so callers can recognize the failure mode.
+    if (
+      typeof out.majorVersion !== "number" ||
+      typeof out.minorVersion !== "number" ||
+      typeof out.patchVersion !== "number"
+    ) {
+      throw new Error(
+        `KeepKey Initialize returned Features without firmware version ` +
+        `(major=${out.majorVersion}, minor=${out.minorVersion}, patch=${out.patchVersion}). ` +
+        `Device may be in bootloader mode, mid-update, or returned an unexpected message type.`
+      );
+    }
+
     const fwVersion = `v${out.majorVersion}.${out.minorVersion}.${out.patchVersion}`;
     //Lost Support per proto 44.3
     this._supportsOsmosis = semver.gte(fwVersion, "v7.7.0");
