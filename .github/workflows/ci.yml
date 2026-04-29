@@ -31,3 +31,10 @@ jobs:
 
       - name: Lint
         run: yarn lint
+
+      # Unit tests dropped in commit 58272ddd (CircleCI → GHA migration).
+      # Restored here so PRs catch regressions in the 49-test jest suite.
+      # Integration tests (yarn test:integration) still need a kkemu
+      # sidecar — that's a follow-up, tracked in a separate PR/issue.
+      - name: Unit tests
+        run: yarn test --runInBand --coverage=false
