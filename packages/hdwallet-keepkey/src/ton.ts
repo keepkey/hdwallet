@@ -13,6 +13,8 @@ const MESSAGETYPE_TONGETADDRESS = 1500;
 const MESSAGETYPE_TONADDRESS = 1501;
 const MESSAGETYPE_TONSIGNTX = 1502;
 const MESSAGETYPE_TONSIGNEDTX = 1503;
+const MESSAGETYPE_TONSIGNMESSAGE = 1504;
+const MESSAGETYPE_TONMESSAGESIGNATURE = 1505;
 
 // ── Protobuf Shims ──────────────────────────────────────────────────
 // Hand-rolled jspb.Message subclasses matching messages-ton.proto.
@@ -591,6 +593,227 @@ export namespace TonSignedTx {
   };
 }
 
+/**
+ * TonSignMessage: address_n(1, repeated uint32), coin_name(2, string),
+ *                 message(3, bytes), show_display(4, bool)
+ *
+ * Bare Ed25519 over message bytes — no domain separation. Firmware fences
+ * this behind the AdvancedMode policy until TON Connect's ton_proof
+ * envelope is added as a separate proto.
+ */
+export class TonSignMessage extends jspb.Message {
+  static repeatedFields_ = [1];
+
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, TonSignMessage.repeatedFields_, null);
+  }
+
+  getAddressNList(): number[] {
+    return Msg.getRepeatedField(this, 1) as number[];
+  }
+  setAddressNList(value: number[]): void {
+    jspb.Message.setField(this, 1, value || []);
+  }
+  addAddressN(value: number): void {
+    jspb.Message.addToRepeatedField(this, 1, value);
+  }
+
+  getCoinName(): string | undefined {
+    return jspb.Message.getFieldWithDefault(this, 2, "Ton") as string;
+  }
+  setCoinName(value: string): void {
+    jspb.Message.setField(this, 2, value);
+  }
+
+  getMessage(): Uint8Array | undefined {
+    const f = jspb.Message.getField(this, 3) as Uint8Array | string | null;
+    if (f == null) return undefined;
+    return typeof f === "string" ? Uint8Array.from(Buffer.from(f, "base64")) : f;
+  }
+  setMessage(value: Uint8Array): void {
+    jspb.Message.setField(this, 3, value);
+  }
+
+  getShowDisplay(): boolean | undefined {
+    const f = jspb.Message.getField(this, 4);
+    return f == null ? undefined : !!f;
+  }
+  setShowDisplay(value: boolean): void {
+    jspb.Message.setField(this, 4, value ? 1 : 0);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    TonSignMessage.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(_includeInstance?: boolean): TonSignMessage.AsObject {
+    return {
+      addressNList: this.getAddressNList(),
+      coinName: this.getCoinName(),
+      message: this.getMessage(),
+      showDisplay: this.getShowDisplay(),
+    };
+  }
+
+  static toObject(_includeInstance: boolean, msg: TonSignMessage): TonSignMessage.AsObject {
+    return msg.toObject(_includeInstance);
+  }
+
+  static deserializeBinary(bytes: Uint8Array): TonSignMessage {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new TonSignMessage();
+    return TonSignMessage.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(msg: TonSignMessage, reader: jspb.BinaryReader): TonSignMessage {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      const field = reader.getFieldNumber();
+      switch (field) {
+        case 1: {
+          const values = reader.isDelimited() ? reader.readPackedUint32() : [reader.readUint32()];
+          for (const v of values) msg.addAddressN(v);
+          break;
+        }
+        case 2:
+          msg.setCoinName(reader.readString());
+          break;
+        case 3:
+          msg.setMessage(reader.readBytes() as Uint8Array);
+          break;
+        case 4:
+          msg.setShowDisplay(reader.readBool());
+          break;
+        default:
+          reader.skipField();
+          break;
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: TonSignMessage, writer: jspb.BinaryWriter): void {
+    const addressN = message.getAddressNList();
+    if (addressN.length > 0) {
+      writer.writeRepeatedUint32(1, addressN);
+    }
+    const coinName = jspb.Message.getField(message, 2) as string | null;
+    if (coinName != null) {
+      writer.writeString(2, coinName);
+    }
+    const messageBytes = jspb.Message.getField(message, 3) as Uint8Array | null;
+    if (messageBytes != null) {
+      writer.writeBytes(3, messageBytes);
+    }
+    const showDisplay = jspb.Message.getField(message, 4);
+    if (showDisplay != null) {
+      writer.writeBool(4, !!showDisplay);
+    }
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace TonSignMessage {
+  export type AsObject = {
+    addressNList: number[];
+    coinName?: string;
+    message?: Uint8Array;
+    showDisplay?: boolean;
+  };
+}
+
+/**
+ * TonMessageSignature: public_key(1, bytes), signature(2, bytes)
+ */
+export class TonMessageSignature extends jspb.Message {
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, [], null);
+  }
+
+  getPublicKey(): Uint8Array | undefined {
+    const f = jspb.Message.getField(this, 1) as Uint8Array | string | null;
+    if (f == null) return undefined;
+    return typeof f === "string" ? Uint8Array.from(Buffer.from(f, "base64")) : f;
+  }
+  setPublicKey(value: Uint8Array): void {
+    jspb.Message.setField(this, 1, value);
+  }
+
+  getSignature(): Uint8Array | undefined {
+    const f = jspb.Message.getField(this, 2) as Uint8Array | string | null;
+    if (f == null) return undefined;
+    return typeof f === "string" ? Uint8Array.from(Buffer.from(f, "base64")) : f;
+  }
+  setSignature(value: Uint8Array): void {
+    jspb.Message.setField(this, 2, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    TonMessageSignature.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(_includeInstance?: boolean): TonMessageSignature.AsObject {
+    return {
+      publicKey: this.getPublicKey(),
+      signature: this.getSignature(),
+    };
+  }
+
+  static toObject(_includeInstance: boolean, msg: TonMessageSignature): TonMessageSignature.AsObject {
+    return msg.toObject(_includeInstance);
+  }
+
+  static deserializeBinary(bytes: Uint8Array): TonMessageSignature {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new TonMessageSignature();
+    return TonMessageSignature.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(msg: TonMessageSignature, reader: jspb.BinaryReader): TonMessageSignature {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      const field = reader.getFieldNumber();
+      switch (field) {
+        case 1:
+          msg.setPublicKey(reader.readBytes() as Uint8Array);
+          break;
+        case 2:
+          msg.setSignature(reader.readBytes() as Uint8Array);
+          break;
+        default:
+          reader.skipField();
+          break;
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: TonMessageSignature, writer: jspb.BinaryWriter): void {
+    const pk = jspb.Message.getField(message, 1) as Uint8Array | null;
+    if (pk != null) {
+      writer.writeBytes(1, pk);
+    }
+    const sig = jspb.Message.getField(message, 2) as Uint8Array | null;
+    if (sig != null) {
+      writer.writeBytes(2, sig);
+    }
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace TonMessageSignature {
+  export type AsObject = {
+    publicKey?: Uint8Array;
+    signature?: Uint8Array;
+  };
+}
+
 // ── Runtime Registration ──────────────────────────────────────────────
 // Inject TON message types into the KeepKey transport registries.
 
@@ -600,16 +823,22 @@ export function registerTonMessages() {
   mt["MESSAGETYPE_TONADDRESS"] = MESSAGETYPE_TONADDRESS;
   mt["MESSAGETYPE_TONSIGNTX"] = MESSAGETYPE_TONSIGNTX;
   mt["MESSAGETYPE_TONSIGNEDTX"] = MESSAGETYPE_TONSIGNEDTX;
+  mt["MESSAGETYPE_TONSIGNMESSAGE"] = MESSAGETYPE_TONSIGNMESSAGE;
+  mt["MESSAGETYPE_TONMESSAGESIGNATURE"] = MESSAGETYPE_TONMESSAGESIGNATURE;
 
   messageNameRegistry[MESSAGETYPE_TONGETADDRESS] = "TonGetAddress";
   messageNameRegistry[MESSAGETYPE_TONADDRESS] = "TonAddress";
   messageNameRegistry[MESSAGETYPE_TONSIGNTX] = "TonSignTx";
   messageNameRegistry[MESSAGETYPE_TONSIGNEDTX] = "TonSignedTx";
+  messageNameRegistry[MESSAGETYPE_TONSIGNMESSAGE] = "TonSignMessage";
+  messageNameRegistry[MESSAGETYPE_TONMESSAGESIGNATURE] = "TonMessageSignature";
 
   messageTypeRegistry[MESSAGETYPE_TONGETADDRESS] = TonGetAddress as any;
   messageTypeRegistry[MESSAGETYPE_TONADDRESS] = TonAddress as any;
   messageTypeRegistry[MESSAGETYPE_TONSIGNTX] = TonSignTx as any;
   messageTypeRegistry[MESSAGETYPE_TONSIGNEDTX] = TonSignedTx as any;
+  messageTypeRegistry[MESSAGETYPE_TONSIGNMESSAGE] = TonSignMessage as any;
+  messageTypeRegistry[MESSAGETYPE_TONMESSAGESIGNATURE] = TonMessageSignature as any;
 }
 
 // Register on module load
@@ -683,6 +912,47 @@ export async function tonSignTx(transport: Transport, msg: core.TonSignTx): Prom
     const signedTx = resp.proto as TonSignedTx;
     return {
       signature: signedTx.getSignature_asU8(),
+    };
+  });
+}
+
+/**
+ * tonSignMessage — bare Ed25519 over message bytes.
+ *
+ * The firmware handler is fenced behind the AdvancedMode policy. With the
+ * policy disabled (the default) this call returns a Failure response.
+ */
+export async function tonSignMessage(
+  transport: Transport,
+  msg: core.TonSignMessage,
+): Promise<core.TonMessageSignature> {
+  return transport.lockDuring(async () => {
+    const signMsg = new TonSignMessage();
+    signMsg.setAddressNList(msg.addressNList);
+
+    const messageBytes =
+      msg.message instanceof Uint8Array
+        ? msg.message
+        : typeof msg.message === "string"
+        ? new TextEncoder().encode(msg.message)
+        : new Uint8Array(msg.message as any);
+    signMsg.setMessage(messageBytes);
+
+    if (msg.showDisplay !== undefined) signMsg.setShowDisplay(msg.showDisplay);
+
+    const resp = await transport.call(MESSAGETYPE_TONSIGNMESSAGE, signMsg, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+
+    if (resp.message_enum !== MESSAGETYPE_TONMESSAGESIGNATURE) {
+      throw new Error(`ton: unexpected response ${resp.message_type}`);
+    }
+
+    const sig = resp.proto as TonMessageSignature;
+    return {
+      publicKey: core.mustBeDefined(sig.getPublicKey()),
+      signature: core.mustBeDefined(sig.getSignature()),
     };
   });
 }

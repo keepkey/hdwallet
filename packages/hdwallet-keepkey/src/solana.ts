@@ -16,6 +16,8 @@ const MESSAGETYPE_SOLANASIGNTX = 752;
 const MESSAGETYPE_SOLANASIGNEDTX = 753;
 const MESSAGETYPE_SOLANASIGNMESSAGE = 754;
 const MESSAGETYPE_SOLANAMESSAGESIGNATURE = 755;
+const MESSAGETYPE_SOLANASIGNOFFCHAINMESSAGE = 756;
+const MESSAGETYPE_SOLANAOFFCHAINMESSAGESIGNATURE = 757;
 
 // ── Protobuf Shims ──────────────────────────────────────────────────
 // Hand-rolled jspb.Message subclasses matching messages-solana.proto.
@@ -616,6 +618,273 @@ export namespace SolanaMessageSignature {
   };
 }
 
+/**
+ * SolanaSignOffchainMessage: address_n(1, repeated uint32), coin_name(2, string),
+ *                            version(3, uint32), message_format(4, uint32),
+ *                            message(5, bytes), show_display(6, bool)
+ *
+ * Per the Solana off-chain message spec, firmware signs the envelope:
+ *   "\xff" || "solana offchain" || version:u8 || format:u8 ||
+ *           length:u16 LE || message
+ *
+ * The 0xFF lead byte is invalid as a Solana transaction prefix, so a signed
+ * off-chain message can NEVER be replayed as a transaction — this is the
+ * domain separation that bare SolanaSignMessage lacks.
+ */
+export class SolanaSignOffchainMessage extends jspb.Message {
+  static repeatedFields_ = [1];
+
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, SolanaSignOffchainMessage.repeatedFields_, null);
+  }
+
+  getAddressNList(): number[] {
+    return Msg.getRepeatedField(this, 1) as number[];
+  }
+  setAddressNList(value: number[]): void {
+    jspb.Message.setField(this, 1, value || []);
+  }
+  addAddressN(value: number): void {
+    jspb.Message.addToRepeatedField(this, 1, value);
+  }
+
+  getCoinName(): string | undefined {
+    return jspb.Message.getFieldWithDefault(this, 2, "Solana") as string;
+  }
+  setCoinName(value: string): void {
+    jspb.Message.setField(this, 2, value);
+  }
+
+  getVersion(): number | undefined {
+    const f = jspb.Message.getField(this, 3);
+    return f == null ? undefined : Number(f);
+  }
+  setVersion(value: number): void {
+    jspb.Message.setField(this, 3, value);
+  }
+
+  getMessageFormat(): number | undefined {
+    const f = jspb.Message.getField(this, 4);
+    return f == null ? undefined : Number(f);
+  }
+  setMessageFormat(value: number): void {
+    jspb.Message.setField(this, 4, value);
+  }
+
+  getMessage(): Uint8Array | undefined {
+    const f = jspb.Message.getField(this, 5) as Uint8Array | string | null;
+    if (f == null) return undefined;
+    return typeof f === "string" ? Uint8Array.from(Buffer.from(f, "base64")) : f;
+  }
+  setMessage(value: Uint8Array): void {
+    jspb.Message.setField(this, 5, value);
+  }
+
+  getShowDisplay(): boolean | undefined {
+    const f = jspb.Message.getField(this, 6);
+    return f == null ? undefined : !!f;
+  }
+  setShowDisplay(value: boolean): void {
+    jspb.Message.setField(this, 6, value ? 1 : 0);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    SolanaSignOffchainMessage.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(_includeInstance?: boolean): SolanaSignOffchainMessage.AsObject {
+    return {
+      addressNList: this.getAddressNList(),
+      coinName: this.getCoinName(),
+      version: this.getVersion(),
+      messageFormat: this.getMessageFormat(),
+      message: this.getMessage(),
+      showDisplay: this.getShowDisplay(),
+    };
+  }
+
+  static toObject(_includeInstance: boolean, msg: SolanaSignOffchainMessage): SolanaSignOffchainMessage.AsObject {
+    return msg.toObject(_includeInstance);
+  }
+
+  static deserializeBinary(bytes: Uint8Array): SolanaSignOffchainMessage {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new SolanaSignOffchainMessage();
+    return SolanaSignOffchainMessage.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(
+    msg: SolanaSignOffchainMessage,
+    reader: jspb.BinaryReader,
+  ): SolanaSignOffchainMessage {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      const field = reader.getFieldNumber();
+      switch (field) {
+        case 1: {
+          const values = reader.isDelimited() ? reader.readPackedUint32() : [reader.readUint32()];
+          for (const v of values) msg.addAddressN(v);
+          break;
+        }
+        case 2:
+          msg.setCoinName(reader.readString());
+          break;
+        case 3:
+          msg.setVersion(reader.readUint32());
+          break;
+        case 4:
+          msg.setMessageFormat(reader.readUint32());
+          break;
+        case 5:
+          msg.setMessage(reader.readBytes() as Uint8Array);
+          break;
+        case 6:
+          msg.setShowDisplay(reader.readBool());
+          break;
+        default:
+          reader.skipField();
+          break;
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: SolanaSignOffchainMessage, writer: jspb.BinaryWriter): void {
+    const addressN = message.getAddressNList();
+    if (addressN.length > 0) {
+      writer.writeRepeatedUint32(1, addressN);
+    }
+    const coinName = jspb.Message.getField(message, 2) as string | null;
+    if (coinName != null) {
+      writer.writeString(2, coinName);
+    }
+    const version = jspb.Message.getField(message, 3);
+    if (version != null) {
+      writer.writeUint32(3, Number(version));
+    }
+    const fmt = jspb.Message.getField(message, 4);
+    if (fmt != null) {
+      writer.writeUint32(4, Number(fmt));
+    }
+    const messageBytes = jspb.Message.getField(message, 5) as Uint8Array | null;
+    if (messageBytes != null) {
+      writer.writeBytes(5, messageBytes);
+    }
+    const showDisplay = jspb.Message.getField(message, 6);
+    if (showDisplay != null) {
+      writer.writeBool(6, !!showDisplay);
+    }
+  }
+}
+
+export namespace SolanaSignOffchainMessage {
+  export type AsObject = {
+    addressNList: number[];
+    coinName?: string;
+    version?: number;
+    messageFormat?: number;
+    message?: Uint8Array;
+    showDisplay?: boolean;
+  };
+}
+
+/**
+ * SolanaOffchainMessageSignature: public_key(1, bytes), signature(2, bytes)
+ */
+export class SolanaOffchainMessageSignature extends jspb.Message {
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, [], null);
+  }
+
+  getPublicKey(): Uint8Array | undefined {
+    const f = jspb.Message.getField(this, 1) as Uint8Array | string | null;
+    if (f == null) return undefined;
+    return typeof f === "string" ? Uint8Array.from(Buffer.from(f, "base64")) : f;
+  }
+  setPublicKey(value: Uint8Array): void {
+    jspb.Message.setField(this, 1, value);
+  }
+
+  getSignature(): Uint8Array | undefined {
+    const f = jspb.Message.getField(this, 2) as Uint8Array | string | null;
+    if (f == null) return undefined;
+    return typeof f === "string" ? Uint8Array.from(Buffer.from(f, "base64")) : f;
+  }
+  setSignature(value: Uint8Array): void {
+    jspb.Message.setField(this, 2, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    SolanaOffchainMessageSignature.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(_includeInstance?: boolean): SolanaOffchainMessageSignature.AsObject {
+    return {
+      publicKey: this.getPublicKey(),
+      signature: this.getSignature(),
+    };
+  }
+
+  static toObject(
+    _includeInstance: boolean,
+    msg: SolanaOffchainMessageSignature,
+  ): SolanaOffchainMessageSignature.AsObject {
+    return msg.toObject(_includeInstance);
+  }
+
+  static deserializeBinary(bytes: Uint8Array): SolanaOffchainMessageSignature {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new SolanaOffchainMessageSignature();
+    return SolanaOffchainMessageSignature.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(
+    msg: SolanaOffchainMessageSignature,
+    reader: jspb.BinaryReader,
+  ): SolanaOffchainMessageSignature {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      const field = reader.getFieldNumber();
+      switch (field) {
+        case 1:
+          msg.setPublicKey(reader.readBytes() as Uint8Array);
+          break;
+        case 2:
+          msg.setSignature(reader.readBytes() as Uint8Array);
+          break;
+        default:
+          reader.skipField();
+          break;
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: SolanaOffchainMessageSignature, writer: jspb.BinaryWriter): void {
+    const pk = jspb.Message.getField(message, 1) as Uint8Array | null;
+    if (pk != null) {
+      writer.writeBytes(1, pk);
+    }
+    const sig = jspb.Message.getField(message, 2) as Uint8Array | null;
+    if (sig != null) {
+      writer.writeBytes(2, sig);
+    }
+  }
+}
+
+export namespace SolanaOffchainMessageSignature {
+  export type AsObject = {
+    publicKey?: Uint8Array;
+    signature?: Uint8Array;
+  };
+}
+
 // ── Runtime Registration ──────────────────────────────────────────────
 // Inject Solana message types into the KeepKey transport registries.
 // This allows transport.call() / fromMessageBuffer() to encode/decode them.
@@ -629,6 +898,8 @@ function registerSolanaMessages() {
   mt["MESSAGETYPE_SOLANASIGNEDTX"] = MESSAGETYPE_SOLANASIGNEDTX;
   mt["MESSAGETYPE_SOLANASIGNMESSAGE"] = MESSAGETYPE_SOLANASIGNMESSAGE;
   mt["MESSAGETYPE_SOLANAMESSAGESIGNATURE"] = MESSAGETYPE_SOLANAMESSAGESIGNATURE;
+  mt["MESSAGETYPE_SOLANASIGNOFFCHAINMESSAGE"] = MESSAGETYPE_SOLANASIGNOFFCHAINMESSAGE;
+  mt["MESSAGETYPE_SOLANAOFFCHAINMESSAGESIGNATURE"] = MESSAGETYPE_SOLANAOFFCHAINMESSAGESIGNATURE;
 
   // Register name lookup (for readResponse event emitting)
   messageNameRegistry[MESSAGETYPE_SOLANAGETADDRESS] = "SolanaGetAddress";
@@ -637,6 +908,8 @@ function registerSolanaMessages() {
   messageNameRegistry[MESSAGETYPE_SOLANASIGNEDTX] = "SolanaSignedTx";
   messageNameRegistry[MESSAGETYPE_SOLANASIGNMESSAGE] = "SolanaSignMessage";
   messageNameRegistry[MESSAGETYPE_SOLANAMESSAGESIGNATURE] = "SolanaMessageSignature";
+  messageNameRegistry[MESSAGETYPE_SOLANASIGNOFFCHAINMESSAGE] = "SolanaSignOffchainMessage";
+  messageNameRegistry[MESSAGETYPE_SOLANAOFFCHAINMESSAGESIGNATURE] = "SolanaOffchainMessageSignature";
 
   // Register protobuf constructors (for fromMessageBuffer deserialization)
   messageTypeRegistry[MESSAGETYPE_SOLANAGETADDRESS] = SolanaGetAddress as any;
@@ -645,6 +918,8 @@ function registerSolanaMessages() {
   messageTypeRegistry[MESSAGETYPE_SOLANASIGNEDTX] = SolanaSignedTx as any;
   messageTypeRegistry[MESSAGETYPE_SOLANASIGNMESSAGE] = SolanaSignMessage as any;
   messageTypeRegistry[MESSAGETYPE_SOLANAMESSAGESIGNATURE] = SolanaMessageSignature as any;
+  messageTypeRegistry[MESSAGETYPE_SOLANASIGNOFFCHAINMESSAGE] = SolanaSignOffchainMessage as any;
+  messageTypeRegistry[MESSAGETYPE_SOLANAOFFCHAINMESSAGESIGNATURE] = SolanaOffchainMessageSignature as any;
 }
 
 // Register on module load
@@ -759,6 +1034,54 @@ export async function solanaSignMessage(
     return {
       publicKey: msgSig.getPublicKey_asU8(),
       signature: msgSig.getSignature_asU8(),
+    };
+  });
+}
+
+/**
+ * solanaSignOffchainMessage — domain-separated Ed25519 message signing.
+ *
+ * Firmware constructs the spec envelope from (version, message_format,
+ * message) and Ed25519-signs it. NO AdvancedMode gate is needed for this
+ * primitive — the envelope's 0xFF prefix provides domain separation that
+ * bare SolanaSignMessage lacks. Format 2 (extended UTF-8) is rejected
+ * device-side; only formats 0 (ASCII) and 1 (UTF-8 limited, max 1212 bytes)
+ * are supported.
+ */
+export async function solanaSignOffchainMessage(
+  transport: Transport,
+  msg: core.SolanaSignOffchainMessage,
+): Promise<core.SolanaOffchainMessageSignature> {
+  return transport.lockDuring(async () => {
+    const signMsg = new SolanaSignOffchainMessage();
+    signMsg.setAddressNList(msg.addressNList);
+
+    if (msg.version !== undefined) signMsg.setVersion(msg.version);
+    if (msg.messageFormat !== undefined) signMsg.setMessageFormat(msg.messageFormat);
+
+    const messageBytes =
+      msg.message instanceof Uint8Array
+        ? msg.message
+        : typeof msg.message === "string"
+        ? new TextEncoder().encode(msg.message)
+        : new Uint8Array(msg.message as any);
+    signMsg.setMessage(messageBytes);
+
+    if (msg.showDisplay !== undefined) signMsg.setShowDisplay(msg.showDisplay);
+
+    const resp = await transport.call(MESSAGETYPE_SOLANASIGNOFFCHAINMESSAGE, signMsg, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+
+    if (resp.message_enum !== MESSAGETYPE_SOLANAOFFCHAINMESSAGESIGNATURE) {
+      throw new Error(`solana: unexpected response ${resp.message_type}`);
+    }
+
+    const sig = resp.proto as SolanaOffchainMessageSignature;
+    return {
+      publicKey: core.mustBeDefined(sig.getPublicKey()),
+      signature: core.mustBeDefined(sig.getSignature()),
     };
   });
 }

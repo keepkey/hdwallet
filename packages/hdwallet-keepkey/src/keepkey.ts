@@ -1489,6 +1489,12 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Solana.solanaSignTx(this.transport, msg);
   }
 
+  public solanaSignOffchainMessage(
+    msg: core.SolanaSignOffchainMessage,
+  ): Promise<core.SolanaOffchainMessageSignature> {
+    return Solana.solanaSignOffchainMessage(this.transport, msg);
+  }
+
   public solanaSignMessage(msg: {
     addressNList: number[];
     message: Uint8Array | string;
@@ -1513,6 +1519,18 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Tron.tronSignTx(this.transport, msg);
   }
 
+  public tronSignMessage(msg: core.TronSignMessage): Promise<core.TronMessageSignature> {
+    return Tron.tronSignMessage(this.transport, msg);
+  }
+
+  public tronVerifyMessage(msg: core.TronVerifyMessage): Promise<boolean> {
+    return Tron.tronVerifyMessage(this.transport, msg);
+  }
+
+  public tronSignTypedHash(msg: core.TronSignTypedHash): Promise<core.TronTypedDataSignature> {
+    return Tron.tronSignTypedHash(this.transport, msg);
+  }
+
   public tronNextAccountPath(msg: core.TronAccountPath): core.TronAccountPath | undefined {
     return this.info.tronNextAccountPath(msg);
   }
@@ -1527,6 +1545,10 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
 
   public tonSignTx(msg: core.TonSignTx): Promise<core.TonSignedTx> {
     return Ton.tonSignTx(this.transport, msg);
+  }
+
+  public tonSignMessage(msg: core.TonSignMessage): Promise<core.TonMessageSignature> {
+    return Ton.tonSignMessage(this.transport, msg);
   }
 
   public tonNextAccountPath(msg: core.TonAccountPath): core.TonAccountPath | undefined {
