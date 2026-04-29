@@ -924,7 +924,7 @@ export async function tonSignTx(transport: Transport, msg: core.TonSignTx): Prom
  */
 export async function tonSignMessage(
   transport: Transport,
-  msg: core.TonSignMessage,
+  msg: core.TonSignMessage
 ): Promise<core.TonMessageSignature> {
   return transport.lockDuring(async () => {
     const signMsg = new TonSignMessage();

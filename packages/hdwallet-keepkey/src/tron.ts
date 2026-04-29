@@ -1189,7 +1189,7 @@ export async function tronSignTx(transport: Transport, msg: core.TronSignTx): Pr
 
 export async function tronSignMessage(
   transport: Transport,
-  msg: core.TronSignMessage,
+  msg: core.TronSignMessage
 ): Promise<core.TronMessageSignature> {
   return transport.lockDuring(async () => {
     const signMsg = new TronSignMessage();
@@ -1222,10 +1222,7 @@ export async function tronSignMessage(
   });
 }
 
-export async function tronVerifyMessage(
-  transport: Transport,
-  msg: core.TronVerifyMessage,
-): Promise<boolean> {
+export async function tronVerifyMessage(transport: Transport, msg: core.TronVerifyMessage): Promise<boolean> {
   return transport.lockDuring(async () => {
     const verifyMsg = new TronVerifyMessage();
     verifyMsg.setAddress(msg.address);
@@ -1259,7 +1256,7 @@ export async function tronVerifyMessage(
 
 export async function tronSignTypedHash(
   transport: Transport,
-  msg: core.TronSignTypedHash,
+  msg: core.TronSignTypedHash
 ): Promise<core.TronTypedDataSignature> {
   return transport.lockDuring(async () => {
     const signMsg = new TronSignTypedHash();

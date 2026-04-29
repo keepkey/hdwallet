@@ -718,7 +718,7 @@ export class SolanaSignOffchainMessage extends jspb.Message {
 
   static deserializeBinaryFromReader(
     msg: SolanaSignOffchainMessage,
-    reader: jspb.BinaryReader,
+    reader: jspb.BinaryReader
   ): SolanaSignOffchainMessage {
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
@@ -833,7 +833,7 @@ export class SolanaOffchainMessageSignature extends jspb.Message {
 
   static toObject(
     _includeInstance: boolean,
-    msg: SolanaOffchainMessageSignature,
+    msg: SolanaOffchainMessageSignature
   ): SolanaOffchainMessageSignature.AsObject {
     return msg.toObject(_includeInstance);
   }
@@ -846,7 +846,7 @@ export class SolanaOffchainMessageSignature extends jspb.Message {
 
   static deserializeBinaryFromReader(
     msg: SolanaOffchainMessageSignature,
-    reader: jspb.BinaryReader,
+    reader: jspb.BinaryReader
   ): SolanaOffchainMessageSignature {
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
@@ -1050,7 +1050,7 @@ export async function solanaSignMessage(
  */
 export async function solanaSignOffchainMessage(
   transport: Transport,
-  msg: core.SolanaSignOffchainMessage,
+  msg: core.SolanaSignOffchainMessage
 ): Promise<core.SolanaOffchainMessageSignature> {
   return transport.lockDuring(async () => {
     const signMsg = new SolanaSignOffchainMessage();

@@ -1200,8 +1200,8 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     ) {
       throw new Error(
         `KeepKey Initialize returned Features without firmware version ` +
-        `(major=${out.majorVersion}, minor=${out.minorVersion}, patch=${out.patchVersion}). ` +
-        `Device may be in bootloader mode, mid-update, or returned an unexpected message type.`
+          `(major=${out.majorVersion}, minor=${out.minorVersion}, patch=${out.patchVersion}). ` +
+          `Device may be in bootloader mode, mid-update, or returned an unexpected message type.`
       );
     }
 
@@ -1489,9 +1489,7 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Solana.solanaSignTx(this.transport, msg);
   }
 
-  public solanaSignOffchainMessage(
-    msg: core.SolanaSignOffchainMessage,
-  ): Promise<core.SolanaOffchainMessageSignature> {
+  public solanaSignOffchainMessage(msg: core.SolanaSignOffchainMessage): Promise<core.SolanaOffchainMessageSignature> {
     return Solana.solanaSignOffchainMessage(this.transport, msg);
   }
 
