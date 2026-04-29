@@ -1243,14 +1243,27 @@ export async function tronVerifyMessage(transport: Transport, msg: core.TronVeri
         : new Uint8Array(msg.message as any);
     verifyMsg.setMessage(messageBytes);
 
-    const resp = await transport.call(MESSAGETYPE_TRONVERIFYMESSAGE, verifyMsg, {
-      msgTimeout: core.LONG_TIMEOUT,
-      omitLock: true,
-    });
+    // Firmware returns Success on a valid signature and Failure
+    // (FailureType_Failure_SyntaxError) on signature/address mismatch.
+    // transport.call() throws the Failure event for the mismatch case,
+    // so we have to translate that into `false` here. ActionCancelled
+    // (user pressed Cancel on the confirm dialog) is thrown as a
+    // distinct core.ActionCancelled instance — that should bubble up
+    // unchanged. Mirrors btcVerifyMessage / ethVerifyMessage.
+    let event: core.Event;
+    try {
+      event = await transport.call(MESSAGETYPE_TRONVERIFYMESSAGE, verifyMsg, {
+        msgTimeout: core.LONG_TIMEOUT,
+        omitLock: true,
+      });
+    } catch (e) {
+      if (core.isIndexable(e) && e.message_enum === Messages.MessageType.MESSAGETYPE_FAILURE) {
+        return false;
+      }
+      throw e;
+    }
 
-    // Firmware returns Success on valid sig, Failure otherwise.
-    // transport.call already throws on Failure, so reaching here = verified.
-    return resp.message_enum === MESSAGETYPE_SUCCESS;
+    return event.message_enum === MESSAGETYPE_SUCCESS;
   });
 }
 
