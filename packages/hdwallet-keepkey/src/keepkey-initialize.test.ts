@@ -47,9 +47,7 @@ describe("KeepKeyHDWallet.initialize() version-field validation", () => {
       },
     });
     const wallet = new KeepKeyHDWallet(transport);
-    await expect(wallet.initialize()).rejects.toThrow(
-      /KeepKey Initialize returned Features without firmware version/
-    );
+    await expect(wallet.initialize()).rejects.toThrow(/KeepKey Initialize returned Features without firmware version/);
   });
 
   it("resolves successfully when all version fields are present", async () => {
@@ -82,8 +80,6 @@ describe("KeepKeyHDWallet.initialize() version-field validation", () => {
       err = e;
     }
     expect(err).toBeDefined();
-    expect(String(err.message ?? err)).not.toMatch(
-      /Invalid Version: vundefined\.undefined\.undefined/
-    );
+    expect(String(err.message ?? err)).not.toMatch(/Invalid Version: vundefined\.undefined\.undefined/);
   });
 });

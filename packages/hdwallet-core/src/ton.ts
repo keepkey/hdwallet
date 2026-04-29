@@ -44,8 +44,22 @@ export interface TonWalletInfo extends HDWalletInfo {
   tonNextAccountPath(msg: TonAccountPath): TonAccountPath | undefined;
 }
 
+// ── Bare Ed25519 message signing (AdvancedMode-gated firmware-side) ──
+
+export interface TonSignMessage {
+  addressNList: BIP32Path;
+  message: Uint8Array | string;
+  showDisplay?: boolean;
+}
+
+export interface TonMessageSignature {
+  publicKey: Uint8Array | string;
+  signature: Uint8Array | string;
+}
+
 export interface TonWallet extends TonWalletInfo, HDWallet {
   readonly _supportsTon: boolean;
   tonGetAddress(msg: TonGetAddress): Promise<string | null>;
   tonSignTx(msg: TonSignTx): Promise<TonSignedTx | null>;
+  tonSignMessage(msg: TonSignMessage): Promise<TonMessageSignature | null>;
 }
