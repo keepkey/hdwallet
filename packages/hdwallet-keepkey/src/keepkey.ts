@@ -1558,7 +1558,7 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   }
 
   public zcashDisplayAddress(
-    params: Parameters<typeof Zcash.zcashDisplayAddress>[1],
+    params: Parameters<typeof Zcash.zcashDisplayAddress>[1]
   ): Promise<{ address: string; seedFingerprint?: Uint8Array }> {
     return Zcash.zcashDisplayAddress(this.transport, params);
   }

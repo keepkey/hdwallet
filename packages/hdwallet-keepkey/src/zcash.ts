@@ -87,11 +87,9 @@ export async function zcashDisplayAddress(
     msg.setExpectedSeedFingerprint(params.expectedSeedFingerprint);
   }
 
-  const response = await transport.call(
-    Messages.MessageType.MESSAGETYPE_ZCASHDISPLAYADDRESS,
-    msg,
-    { msgTimeout: core.LONG_TIMEOUT },
-  );
+  const response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHDISPLAYADDRESS, msg, {
+    msgTimeout: core.LONG_TIMEOUT,
+  });
 
   if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHADDRESS) {
     throw new Error(`zcash: unexpected response ${response.message_type}`);
