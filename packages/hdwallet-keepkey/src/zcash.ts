@@ -182,38 +182,58 @@ export async function zcashSignPczt(
 
     // Step 2: Transparent phase (if hybrid shielding)
     const transparentSignatures: string[] = [];
-    for (let i = 0; i < nTransparentInputs; i++) {
+    if (nTransparentInputs > 0) {
       if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK) {
-        throw new Error(`zcash: expected ActionAck for transparent input ${i}, got ${response.message_type}`);
+        throw new Error(`zcash: expected ActionAck before transparent input 0, got ${response.message_type}`);
       }
 
-      const input = transparentInputs[i];
-      const inputMsg = new ZcashMessages.ZcashTransparentInput();
-      inputMsg.setIndex(input.index);
-      inputMsg.setSighash(hexToBytes(input.sighash));
-      inputMsg.setAddressNList(input.addressNList);
-      inputMsg.setAmount(input.amount);
+      const initialAck = response.proto as ZcashMessages.ZcashPCZTActionAck;
+      let inputIndex = initialAck.hasNextIndex() ? initialAck.getNextIndex() ?? 0 : 0;
 
-      response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT, inputMsg, {
-        msgTimeout: core.LONG_TIMEOUT,
-        omitLock: true,
-      });
+      for (let signedCount = 0; signedCount < nTransparentInputs; signedCount++) {
+        if (inputIndex === 0xff) {
+          throw new Error(`zcash: device finished transparent inputs after ${signedCount}, expected ${nTransparentInputs}`);
+        }
+        if (inputIndex >= nTransparentInputs) {
+          throw new Error(`zcash: device requested transparent input ${inputIndex}, only ${nTransparentInputs} provided`);
+        }
 
-      if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTSIG) {
-        throw new Error(`zcash: expected TransparentSig for input ${i}, got ${response.message_type}`);
-      }
+        const input = transparentInputs[inputIndex];
+        if (input.index !== inputIndex) {
+          throw new Error(`zcash: transparent input descriptor index mismatch: requested ${inputIndex}, got ${input.index}`);
+        }
 
-      const sigResp = response.proto as ZcashMessages.ZcashTransparentSig;
-      transparentSignatures.push(bytesToHex(sigResp.getSignature_asU8()));
+        const inputMsg = new ZcashMessages.ZcashTransparentInput();
+        inputMsg.setIndex(input.index);
+        inputMsg.setSighash(hexToBytes(input.sighash));
+        inputMsg.setAddressNList(input.addressNList);
+        inputMsg.setAmount(input.amount);
 
-      // After last transparent input, device transitions to Orchard phase.
-      // If there are Orchard actions, we need to get the next ActionAck.
-      if (i === nTransparentInputs - 1 && signingRequest.n_actions > 0) {
-        // The device sends a ZcashPCZTActionAck after the last TransparentSig
-        // to signal readiness for Orchard actions. But the TransparentSig
-        // already has next_index=0xFF meaning "done with transparent".
-        // We need to send the first Orchard action now — the device
-        // implicitly transitions to the Orchard phase.
+        response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT, inputMsg, {
+          msgTimeout: core.LONG_TIMEOUT,
+          omitLock: true,
+        });
+
+        if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTSIG) {
+          throw new Error(`zcash: expected TransparentSig for input ${inputIndex}, got ${response.message_type}`);
+        }
+
+        const sigResp = response.proto as ZcashMessages.ZcashTransparentSig;
+        transparentSignatures.push(bytesToHex(sigResp.getSignature_asU8()));
+
+        // The device does not send an ActionAck between transparent inputs.
+        // ZcashTransparentSig.next_index drives the next request; 0xff means
+        // the transparent phase is complete and the next host message should
+        // be the first Orchard action.
+        const nextIndex = sigResp.hasNextIndex() ? sigResp.getNextIndex() : signedCount + 1;
+        if (signedCount < nTransparentInputs - 1) {
+          if (nextIndex === 0xff) {
+            throw new Error(`zcash: device finished transparent inputs after ${signedCount + 1}, expected ${nTransparentInputs}`);
+          }
+          inputIndex = nextIndex ?? signedCount + 1;
+        } else if (nextIndex !== undefined && nextIndex !== 0xff) {
+          throw new Error(`zcash: device requested transparent input ${nextIndex} after all inputs were signed`);
+        }
       }
     }
 
