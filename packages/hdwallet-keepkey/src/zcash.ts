@@ -98,8 +98,12 @@ export async function zcashDisplayAddress(
   }
 
   const addressResp = response.proto as ZcashMessages.ZcashAddress;
+  const confirmedAddress = addressResp.getAddress();
+  if (!confirmedAddress) {
+    throw new Error("zcash: device returned an empty address");
+  }
   const out: { address: string; seedFingerprint?: Uint8Array } = {
-    address: addressResp.getAddress(),
+    address: confirmedAddress,
   };
   // seed_fingerprint is optional on the response; only populate when
   // the device included it (firmware with PR #27 fields).
