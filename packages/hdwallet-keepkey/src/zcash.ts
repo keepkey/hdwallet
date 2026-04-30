@@ -48,6 +48,69 @@ export async function zcashGetOrchardFVK(
 }
 
 /**
+ * Display a Zcash unified address on the device for user verification.
+ *
+ * Host provides the UA string + the FVK components (ak, nk, rivk) used
+ * to derive it. Device re-derives its own Orchard FVK at the requested
+ * account and rejects with Failure if the host-supplied FVK doesn't
+ * match — proving the address belongs to this device's seed at this
+ * account. On match, device renders the address with QR on the OLED;
+ * device returns the confirmed address bytes once the user accepts.
+ *
+ * Optional expectedSeedFingerprint binds the call to the device's
+ * ZIP-32 §6.1 seed fingerprint:
+ *   BLAKE2b-256("Zcash_HD_Seed_FP", I2LEBSP_8(len(seed)) || seed)
+ * Device rejects before any FVK derivation if it doesn't match.
+ *
+ * Requires firmware ≥ 7.15.0 with the ZcashDisplayAddress proto handler.
+ */
+export async function zcashDisplayAddress(
+  transport: Transport,
+  params: {
+    addressNList: number[];
+    account?: number;
+    address: string;
+    ak: Uint8Array;
+    nk: Uint8Array;
+    rivk: Uint8Array;
+    expectedSeedFingerprint?: Uint8Array;
+  }
+): Promise<{ address: string; seedFingerprint?: Uint8Array }> {
+  const msg = new ZcashMessages.ZcashDisplayAddress();
+  msg.setAddressNList(params.addressNList);
+  if (params.account !== undefined) msg.setAccount(params.account);
+  msg.setAddress(params.address);
+  msg.setAk(params.ak);
+  msg.setNk(params.nk);
+  msg.setRivk(params.rivk);
+  if (params.expectedSeedFingerprint) {
+    msg.setExpectedSeedFingerprint(params.expectedSeedFingerprint);
+  }
+
+  const response = await transport.call(
+    Messages.MessageType.MESSAGETYPE_ZCASHDISPLAYADDRESS,
+    msg,
+    { msgTimeout: core.LONG_TIMEOUT },
+  );
+
+  if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHADDRESS) {
+    throw new Error(`zcash: unexpected response ${response.message_type}`);
+  }
+
+  const addressResp = response.proto as ZcashMessages.ZcashAddress;
+  const out: { address: string; seedFingerprint?: Uint8Array } = {
+    address: addressResp.getAddress(),
+  };
+  // seed_fingerprint is optional on the response; only populate when
+  // the device included it (firmware with PR #27 fields).
+  const fpBytes = addressResp.getSeedFingerprint_asU8?.();
+  if (fpBytes && fpBytes.length === 32) {
+    out.seedFingerprint = fpBytes;
+  }
+  return out;
+}
+
+/**
  * Transparent input descriptor for hybrid shielding transactions.
  */
 export interface TransparentInput {
