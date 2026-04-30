@@ -48,44 +48,23 @@ export async function zcashGetOrchardFVK(
 }
 
 /**
- * Display a Zcash unified address on the device for user verification.
+ * Display the device-derived Orchard unified address on the device.
  *
- * Host provides the UA string + the FVK components (ak, nk, rivk) used
- * to derive it. Device re-derives its own Orchard FVK at the requested
- * account and rejects with Failure if the host-supplied FVK doesn't
- * match — proving the address belongs to this device's seed at this
- * account. On match, device renders the address with QR on the OLED;
- * device returns the confirmed address bytes once the user accepts.
- *
- * Optional expectedSeedFingerprint binds the call to the device's
- * ZIP-32 §6.1 seed fingerprint:
- *   BLAKE2b-256("Zcash_HD_Seed_FP", I2LEBSP_8(len(seed)) || seed)
- * Device rejects before any FVK derivation if it doesn't match.
- *
- * Requires firmware ≥ 7.15.0 with the ZcashDisplayAddress proto handler.
+ * Host sends only the ZIP-32 account path. Firmware derives the UA from
+ * seed material internally, displays it, and returns the confirmed address
+ * after user approval.
  */
 export async function zcashDisplayAddress(
   transport: Transport,
   params: {
-    addressNList: number[];
+    addressNList?: number[];
     account?: number;
-    address: string;
-    ak: Uint8Array;
-    nk: Uint8Array;
-    rivk: Uint8Array;
-    expectedSeedFingerprint?: Uint8Array;
-  }
-): Promise<{ address: string; seedFingerprint?: Uint8Array }> {
+  } = {}
+): Promise<{ address: string }> {
+  const account = params.account ?? 0;
   const msg = new ZcashMessages.ZcashDisplayAddress();
-  msg.setAddressNList(params.addressNList);
-  if (params.account !== undefined) msg.setAccount(params.account);
-  msg.setAddress(params.address);
-  msg.setAk(params.ak);
-  msg.setNk(params.nk);
-  msg.setRivk(params.rivk);
-  if (params.expectedSeedFingerprint) {
-    msg.setExpectedSeedFingerprint(params.expectedSeedFingerprint);
-  }
+  msg.setAddressNList(params.addressNList ?? [0x80000000 + 32, 0x80000000 + 133, 0x80000000 + account]);
+  msg.setAccount(account);
 
   const response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHDISPLAYADDRESS, msg, {
     msgTimeout: core.LONG_TIMEOUT,
@@ -100,16 +79,7 @@ export async function zcashDisplayAddress(
   if (!confirmedAddress) {
     throw new Error("zcash: device returned an empty address");
   }
-  const out: { address: string; seedFingerprint?: Uint8Array } = {
-    address: confirmedAddress,
-  };
-  // seed_fingerprint is optional on the response; only populate when
-  // the device included it (firmware with PR #27 fields).
-  const fpBytes = addressResp.getSeedFingerprint_asU8?.();
-  if (fpBytes && fpBytes.length === 32) {
-    out.seedFingerprint = fpBytes;
-  }
-  return out;
+  return { address: confirmedAddress };
 }
 
 /**
