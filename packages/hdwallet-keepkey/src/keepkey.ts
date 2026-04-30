@@ -1557,6 +1557,12 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Zcash.zcashGetOrchardFVK(this.transport, account);
   }
 
+  public zcashDisplayAddress(
+    params: Parameters<typeof Zcash.zcashDisplayAddress>[1] = {}
+  ): Promise<{ address: string }> {
+    return Zcash.zcashDisplayAddress(this.transport, params);
+  }
+
   public zcashSignPczt(signingRequest: Parameters<typeof Zcash.zcashSignPczt>[1], sighash: string): Promise<string[]> {
     return Zcash.zcashSignPczt(this.transport, signingRequest, sighash);
   }

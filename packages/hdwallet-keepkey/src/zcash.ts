@@ -27,7 +27,7 @@ export async function zcashGetOrchardFVK(
   account: number = 0
 ): Promise<{ ak: Uint8Array; nk: Uint8Array; rivk: Uint8Array }> {
   const msg = new ZcashMessages.ZcashGetOrchardFVK();
-  msg.setAddressNList([0x80000000 + 32, 0x80000000 + 133, 0x80000000 + account]);
+  msg.setAddressNList(orchardAccountPath(account));
   msg.setAccount(account);
   msg.setShowDisplay(false);
 
@@ -45,6 +45,51 @@ export async function zcashGetOrchardFVK(
     nk: fvk.getNk_asU8(),
     rivk: fvk.getRivk_asU8(),
   };
+}
+
+function orchardAccountPath(account: number): number[] {
+  return [0x80000000 + 32, 0x80000000 + 133, 0x80000000 + account];
+}
+
+/**
+ * Ask the device to derive and display its Orchard unified address.
+ *
+ * Firmware derives the raw Orchard receiver from the device seed and returns
+ * the UA after approval. The host sends only the ZIP-32 account path.
+ */
+export async function zcashDisplayAddress(
+  transport: Transport,
+  params: {
+    addressNList?: number[];
+    account?: number;
+  } = {}
+): Promise<{ address: string }> {
+  const account = params.account ?? 0;
+  const ZcashDisplayAddress = (ZcashMessages as any).ZcashDisplayAddress;
+  const displayMessageType = (Messages.MessageType as any).MESSAGETYPE_ZCASHDISPLAYADDRESS;
+  const addressMessageType = (Messages.MessageType as any).MESSAGETYPE_ZCASHADDRESS;
+  if (!ZcashDisplayAddress || displayMessageType === undefined || addressMessageType === undefined) {
+    throw new Error("zcash: device protocol does not include ZcashDisplayAddress");
+  }
+
+  const msg = new ZcashDisplayAddress();
+  msg.setAddressNList(params.addressNList ?? orchardAccountPath(account));
+  msg.setAccount(account);
+
+  const response = await transport.call(displayMessageType, msg, {
+    msgTimeout: core.LONG_TIMEOUT,
+  });
+
+  if (response.message_enum !== addressMessageType) {
+    throw new Error(`zcash: unexpected response ${response.message_type}`);
+  }
+
+  const addressResp = response.proto as any;
+  const address = addressResp.getAddress();
+  if (!address) {
+    throw new Error("zcash: device returned an empty address");
+  }
+  return { address };
 }
 
 /**
