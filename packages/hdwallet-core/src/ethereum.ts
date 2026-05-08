@@ -103,6 +103,10 @@ export interface ETHSignedTx {
   s: string;
   /** big-endian hex, prefixed with '0x' */
   serialized: string;
+  /** KeepKey-only: keccak256 pre-image the firmware actually signed (32-byte hex).
+   *  Optional — older firmware doesn't populate it. Useful for diagnostics where
+   *  the caller needs to verify which bytes the device hashed. */
+  deviceSignedHash?: string;
 }
 
 export interface ETHSignMessage {

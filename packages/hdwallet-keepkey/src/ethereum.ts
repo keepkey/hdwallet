@@ -412,13 +412,14 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
         })
       : Transaction.fromTxData({ ...utxBase, gasPrice: msg.gasPrice, r: r, s: s, v: v2 }, { common });
 
-    return {
+    const result: core.ETHSignedTx = {
       r,
       s,
       v,
       serialized: "0x" + core.toHexString(tx.serialize()),
-      ...(deviceSignedHash ? { deviceSignedHash } : {}),
-    } as core.ETHSignedTx & { deviceSignedHash?: string };
+    };
+    if (deviceSignedHash) result.deviceSignedHash = deviceSignedHash;
+    return result;
   });
 }
 
