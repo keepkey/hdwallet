@@ -38,6 +38,7 @@ describe("zcashSignPczt", () => {
       calls.push(mtype);
 
       if (calls.length === 1) {
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(mtype).toBe(Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT);
         const ack = new ZcashMessages.ZcashPCZTActionAck();
         ack.setNextIndex(0);
@@ -50,7 +51,11 @@ describe("zcashSignPczt", () => {
 
       if (calls.length >= 2 && calls.length <= 4) {
         const expectedInputIndex = calls.length - 2;
+        // The mock implements a protocol state-machine; per-step assertions
+        // here verify the host sent the right message at the right time.
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(mtype).toBe(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT);
+        // eslint-disable-next-line jest/no-conditional-expect
         expect(msg.getIndex()).toBe(expectedInputIndex);
 
         const sig = new ZcashMessages.ZcashTransparentSig();

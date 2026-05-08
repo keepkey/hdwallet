@@ -192,15 +192,21 @@ export async function zcashSignPczt(
 
       for (let signedCount = 0; signedCount < nTransparentInputs; signedCount++) {
         if (inputIndex === 0xff) {
-          throw new Error(`zcash: device finished transparent inputs after ${signedCount}, expected ${nTransparentInputs}`);
+          throw new Error(
+            `zcash: device finished transparent inputs after ${signedCount}, expected ${nTransparentInputs}`
+          );
         }
         if (inputIndex >= nTransparentInputs) {
-          throw new Error(`zcash: device requested transparent input ${inputIndex}, only ${nTransparentInputs} provided`);
+          throw new Error(
+            `zcash: device requested transparent input ${inputIndex}, only ${nTransparentInputs} provided`
+          );
         }
 
         const input = transparentInputs[inputIndex];
         if (input.index !== inputIndex) {
-          throw new Error(`zcash: transparent input descriptor index mismatch: requested ${inputIndex}, got ${input.index}`);
+          throw new Error(
+            `zcash: transparent input descriptor index mismatch: requested ${inputIndex}, got ${input.index}`
+          );
         }
 
         const inputMsg = new ZcashMessages.ZcashTransparentInput();
@@ -228,7 +234,9 @@ export async function zcashSignPczt(
         const nextIndex = sigResp.hasNextIndex() ? sigResp.getNextIndex() : signedCount + 1;
         if (signedCount < nTransparentInputs - 1) {
           if (nextIndex === 0xff) {
-            throw new Error(`zcash: device finished transparent inputs after ${signedCount + 1}, expected ${nTransparentInputs}`);
+            throw new Error(
+              `zcash: device finished transparent inputs after ${signedCount + 1}, expected ${nTransparentInputs}`
+            );
           }
           inputIndex = nextIndex ?? signedCount + 1;
         } else if (nextIndex !== undefined && nextIndex !== 0xff) {
