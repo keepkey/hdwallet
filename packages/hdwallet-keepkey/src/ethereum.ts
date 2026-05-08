@@ -386,6 +386,20 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
     const v = core.mustBeDefined(response.getSignatureV());
     const v2 = "0x" + v.toString(16);
 
+    // Capture the firmware-reported pre-image hash (KeepKey custom field).
+    // Older firmware doesn't populate this; absence is non-fatal.
+    let deviceSignedHash: string | undefined;
+    try {
+      if (response.hasHash && response.hasHash() && response.getHash_asU8) {
+        const h = response.getHash_asU8();
+        if (h && h.length === 32) {
+          deviceSignedHash = "0x" + core.toHexString(h);
+        }
+      }
+    } catch {
+      // ignore — older firmware/proto may not support `hash`
+    }
+
     const common = Common.custom({ chainId: msg.chainId });
     const tx = msg.maxFeePerGas
       ? FeeMarketEIP1559Transaction.fromTxData({
@@ -403,7 +417,8 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
       s,
       v,
       serialized: "0x" + core.toHexString(tx.serialize()),
-    };
+      ...(deviceSignedHash ? { deviceSignedHash } : {}),
+    } as core.ETHSignedTx & { deviceSignedHash?: string };
   });
 }
 
