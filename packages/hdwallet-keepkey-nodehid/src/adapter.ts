@@ -2,7 +2,7 @@ import * as keepkey from "@keepkey/hdwallet-keepkey";
 import * as hid from "node-hid";
 
 import { Device, TransportDelegate } from "./transport";
-import { PRODUCT_ID, VENDOR_ID } from "./utils";
+import { PRODUCT_ID, PRODUCT_ID_WEBUSB, VENDOR_ID } from "./utils";
 
 export const HIDKeepKeyAdapterDelegate = {
   async inspectDevice(device: Device) {
@@ -17,7 +17,7 @@ export const HIDKeepKeyAdapterDelegate = {
   },
   async getDevices(): Promise<Device[]> {
     return (hid.devices().filter((d) => d.path !== undefined && d.serialNumber !== undefined) as Device[]).filter(
-      (d) => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID
+      (d) => d.vendorId === VENDOR_ID && (d.productId === PRODUCT_ID || d.productId === PRODUCT_ID_WEBUSB)
     );
   },
   async getDevice(serialNumber?: string): Promise<Device> {
