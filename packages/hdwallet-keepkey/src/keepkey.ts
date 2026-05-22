@@ -10,6 +10,7 @@ import * as Eth from "./ethereum";
 import * as Mayachain from "./mayachain";
 import * as Osmosis from "./osmosis";
 import * as Ripple from "./ripple";
+import * as Hive from "./hive";
 import * as Solana from "./solana";
 import * as Thorchain from "./thorchain";
 import * as Ton from "./ton";
@@ -461,6 +462,7 @@ export class KeepKeyHDWalletInfo
   readonly _supportsSolanaInfo = true;
   readonly _supportsTronInfo = true;
   readonly _supportsTonInfo = true;
+  readonly _supportsHive = true;
 
   public getVendor(): string {
     return "KeepKey";
@@ -822,6 +824,7 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   _supportsTron = true;
   readonly _supportsTonInfo = true;
   _supportsTon = true;
+  readonly _supportsHive = true;
 
   transport: Transport;
   features?: Messages.Features.AsObject;
@@ -1565,6 +1568,14 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
 
   public zcashSignPczt(signingRequest: Parameters<typeof Zcash.zcashSignPczt>[1], sighash: string): Promise<string[]> {
     return Zcash.zcashSignPczt(this.transport, signingRequest, sighash);
+  }
+
+  public hiveGetPublicKey(msg: core.HiveGetPublicKey): Promise<core.HivePublicKey | null> {
+    return Hive.hiveGetPublicKey(this.transport, msg);
+  }
+
+  public hiveSignTx(msg: core.HiveSignTx): Promise<core.HiveSignedTx | null> {
+    return Hive.hiveSignTx(this.transport, msg);
   }
 
   public describePath(msg: core.DescribePath): core.PathDescription {
