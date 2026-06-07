@@ -9,10 +9,18 @@ export type Device = WebUSBDevice & { serialNumber: string };
 // Bound a single USB transfer so a wedged/suspended/unplugged device cannot
 // block the caller forever (libusb submits transfers with an infinite timeout).
 // Writes complete in well under DEFAULT_TIMEOUT; a read may legitimately wait on
-// a device button press, so it gets LONG_TIMEOUT. On timeout we throw -- the
-// caller's disconnect path closes the device, which aborts the orphaned native
-// transfer and releases the claimed interface (otherwise a later claimInterface
-// hits LIBUSB code 19 / ConflictingApp against our own zombie transfer).
+// a device button press, so it gets LONG_TIMEOUT. On timeout we throw a retryable
+// error and stop blocking the worker.
+//
+// CAVEAT: throwing here does NOT by itself release the claimed interface. The
+// interface is only freed when something calls transport.disconnect() ->
+// usbDevice.close(). That reliably happens on the syncState()/getFeatures()
+// recovery path, but NOT on the sign/address RPC paths, which currently re-throw
+// without disconnecting. Until the caller is hardened (or this is changed to do
+// clearHalt + releaseInterface(0) + close() in-transport), a mid-sign timeout can
+// leave interface 0 claimed until the next USB event triggers recovery -- which
+// can surface as a transient LIBUSB code 19 / ConflictingApp on an immediate
+// reconnect. Bounding the transfer is still strictly better than hanging forever.
 function withTransferTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   // Swallow a late rejection from the orphaned transfer after we've given up.
   promise.catch(() => {});
