@@ -27,10 +27,10 @@ const SHIELD_REQUEST = {
     expiry_height: 0,
   },
   digests: {
-    header:      "59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d",
+    header: "59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d",
     transparent: "f6424c87af931906154bc15c40fa50b9323fc99271e5c1a98c2d9cc214eb9f94",
     // sapling intentionally absent — firmware rejects it if set
-    orchard:     "a8554ee3a53af330a6b6cf56112a203d3d028f2e421cb494a3f590161d27414a",
+    orchard: "a8554ee3a53af330a6b6cf56112a203d3d028f2e421cb494a3f590161d27414a",
   },
   bundle_meta: {
     flags: 3,
@@ -46,27 +46,45 @@ const SHIELD_REQUEST = {
       index: 0,
       addressNList: [0x80000000 + 44, 0x80000000 + 133, 0x80000000, 0, 0],
       amount: 4008918,
-      prevoutTxid:  "ca3a5ef0323760c97406564a0eb51239ca1afa4944e968af78084d70982c13df",
+      prevoutTxid: "ca3a5ef0323760c97406564a0eb51239ca1afa4944e968af78084d70982c13df",
       prevoutIndex: 1,
-      sequence:     0xffffffff,
+      sequence: 0xffffffff,
       scriptPubkey: "76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac",
     },
   ],
   actions: [
     {
-      index: 0, alpha: "aa".repeat(32), cv_net: "bb".repeat(32),
-      nullifier: "cc".repeat(32), cmx: "dd".repeat(32), epk: "ee".repeat(32),
-      enc_compact: "ff".repeat(52), enc_memo: "11".repeat(512), enc_noncompact: "22".repeat(16),
-      rk: "33".repeat(32), out_ciphertext: "44".repeat(80), value: 3983918, is_spend: false,
+      index: 0,
+      alpha: "aa".repeat(32),
+      cv_net: "bb".repeat(32),
+      nullifier: "cc".repeat(32),
+      cmx: "dd".repeat(32),
+      epk: "ee".repeat(32),
+      enc_compact: "ff".repeat(52),
+      enc_memo: "11".repeat(512),
+      enc_noncompact: "22".repeat(16),
+      rk: "33".repeat(32),
+      out_ciphertext: "44".repeat(80),
+      value: 3983918,
+      is_spend: false,
       // recipient/rseed required for output actions (firmware clear-signing check)
       recipient: "ab".repeat(43),
       rseed: "cd".repeat(32),
     },
     {
-      index: 1, alpha: "55".repeat(32), cv_net: "66".repeat(32),
-      nullifier: "77".repeat(32), cmx: "88".repeat(32), epk: "99".repeat(32),
-      enc_compact: "aa".repeat(52), enc_memo: "bb".repeat(512), enc_noncompact: "cc".repeat(16),
-      rk: "dd".repeat(32), out_ciphertext: "ee".repeat(80), value: 0, is_spend: true,
+      index: 1,
+      alpha: "55".repeat(32),
+      cv_net: "66".repeat(32),
+      nullifier: "77".repeat(32),
+      cmx: "88".repeat(32),
+      epk: "99".repeat(32),
+      enc_compact: "aa".repeat(52),
+      enc_memo: "bb".repeat(512),
+      enc_noncompact: "cc".repeat(16),
+      rk: "dd".repeat(32),
+      out_ciphertext: "ee".repeat(80),
+      value: 0,
+      is_spend: true,
     },
   ],
 };
@@ -78,16 +96,14 @@ function makeMockTransport(callImpl: jest.Mock, readResponseImpl?: jest.Mock) {
     debugLink: false,
     call: callImpl,
     lockDuring: <T>(fn: () => Promise<T>) => fn(),
-    readResponse: readResponseImpl ?? jest.fn().mockResolvedValue({
-      message_enum: -1, message_type: "Unknown", proto: {},
-    }),
+    readResponse:
+      readResponseImpl ??
+      jest.fn().mockResolvedValue({
+        message_enum: -1,
+        message_type: "Unknown",
+        proto: {},
+      }),
   } as any;
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  return bytes;
 }
 
 describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
@@ -117,13 +133,16 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(msg.getBranchId()).toBe(0x4dec4df0);
 
     // Sub-digests
-    expect(Buffer.from(msg.getHeaderDigest_asU8()).toString("hex"))
-      .toBe("59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d");
-    expect(Buffer.from(msg.getTransparentDigest_asU8()).toString("hex"))
-      .toBe("f6424c87af931906154bc15c40fa50b9323fc99271e5c1a98c2d9cc214eb9f94");
+    expect(Buffer.from(msg.getHeaderDigest_asU8()).toString("hex")).toBe(
+      "59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d"
+    );
+    expect(Buffer.from(msg.getTransparentDigest_asU8()).toString("hex")).toBe(
+      "f6424c87af931906154bc15c40fa50b9323fc99271e5c1a98c2d9cc214eb9f94"
+    );
     expect(msg.hasSaplingDigest()).toBe(false); // sapling must NOT be set
-    expect(Buffer.from(msg.getOrchardDigest_asU8()).toString("hex"))
-      .toBe("a8554ee3a53af330a6b6cf56112a203d3d028f2e421cb494a3f590161d27414a");
+    expect(Buffer.from(msg.getOrchardDigest_asU8()).toString("hex")).toBe(
+      "a8554ee3a53af330a6b6cf56112a203d3d028f2e421cb494a3f590161d27414a"
+    );
 
     // Transparent counts
     expect(msg.getNTransparentOutputs()).toBe(1);
@@ -195,7 +214,7 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
       }
 
       // Step 4a: ZcashPCZTAction (action 0) → ZcashPCZTActionAck(nextIndex=1)
-      if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION && calls.filter(c => c === mtype).length === 1) {
+      if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION && calls.filter((c) => c === mtype).length === 1) {
         capturedActionMsg.push(msg);
         const ack = new ZcashMessages.ZcashPCZTActionAck();
         ack.setNextIndex(1);
@@ -220,7 +239,7 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
       throw new Error(`unexpected call: ${mtype}`);
     });
 
-    const result = await zcashSignPczt(makeMockTransport(call, readResponse), SHIELD_REQUEST, SIGHASH) as any;
+    const result = (await zcashSignPczt(makeMockTransport(call, readResponse), SHIELD_REQUEST, SIGHASH)) as any;
 
     // Protocol sequence: SignPCZT → Output → Input → Action × 2 (via call)
     // + readResponse() called once to drain ZcashSignedPCZT after ZcashTransparentSigned
@@ -237,19 +256,22 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(capturedOutputMsg).toHaveLength(1);
     expect(capturedOutputMsg[0].getIndex()).toBe(0);
     expect(capturedOutputMsg[0].getAmount()).toBe(10000);
-    expect(Buffer.from(capturedOutputMsg[0].getScriptPubkey_asU8()).toString("hex"))
-      .toBe("76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac");
+    expect(Buffer.from(capturedOutputMsg[0].getScriptPubkey_asU8()).toString("hex")).toBe(
+      "76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac"
+    );
 
     // ZcashTransparentInput fields
     expect(capturedInputMsg).toHaveLength(1);
     expect(capturedInputMsg[0].getIndex()).toBe(0);
     expect(capturedInputMsg[0].getAmount()).toBe(4008918);
-    expect(Buffer.from(capturedInputMsg[0].getPrevoutTxid_asU8()).toString("hex"))
-      .toBe("ca3a5ef0323760c97406564a0eb51239ca1afa4944e968af78084d70982c13df");
+    expect(Buffer.from(capturedInputMsg[0].getPrevoutTxid_asU8()).toString("hex")).toBe(
+      "ca3a5ef0323760c97406564a0eb51239ca1afa4944e968af78084d70982c13df"
+    );
     expect(capturedInputMsg[0].getPrevoutIndex()).toBe(1);
     expect(capturedInputMsg[0].getSequence()).toBe(0xffffffff);
-    expect(Buffer.from(capturedInputMsg[0].getScriptPubkey_asU8()).toString("hex"))
-      .toBe("76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac");
+    expect(Buffer.from(capturedInputMsg[0].getScriptPubkey_asU8()).toString("hex")).toBe(
+      "76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac"
+    );
 
     // ZcashPCZTAction fields — output action must carry value/recipient/rseed for clear-signing
     expect(capturedActionMsg).toHaveLength(2);
@@ -258,11 +280,9 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     // value must be the OUTPUT note value, not 0 — firmware recomputes cmx from value+recipient+rseed+nullifier
     expect(capturedActionMsg[0].getValue()).toBe(3983918);
     expect(capturedActionMsg[0].getRecipient_asU8()).toHaveLength(43);
-    expect(Buffer.from(capturedActionMsg[0].getRecipient_asU8()).toString("hex"))
-      .toBe("ab".repeat(43));
+    expect(Buffer.from(capturedActionMsg[0].getRecipient_asU8()).toString("hex")).toBe("ab".repeat(43));
     expect(capturedActionMsg[0].getRseed_asU8()).toHaveLength(32);
-    expect(Buffer.from(capturedActionMsg[0].getRseed_asU8()).toString("hex"))
-      .toBe("cd".repeat(32));
+    expect(Buffer.from(capturedActionMsg[0].getRseed_asU8()).toString("hex")).toBe("cd".repeat(32));
     // action[1] is the dummy spend (is_spend=true) — value 0, no recipient/rseed
     expect(capturedActionMsg[1].getIsSpend()).toBe(true);
     expect(capturedActionMsg[1].getValue()).toBe(0);
@@ -277,7 +297,7 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     const calls: number[] = [];
     const call = jest.fn().mockImplementation((mtype: number) => {
       calls.push(mtype);
-      const actionCount = calls.filter(c => c === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION).length;
+      const actionCount = calls.filter((c) => c === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION).length;
 
       if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT) {
         const ack = new ZcashMessages.ZcashPCZTActionAck();
@@ -341,11 +361,15 @@ const DESHIELD_REQUEST = {
   branch_id: 0x4dec4df0,
   header_fields: { tx_version: 5, version_group_id: 0x26a7270a, lock_time: 0, expiry_height: 0 },
   digests: {
-    header:      "59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d",
+    header: "59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d",
     transparent: "0a259ca3000000000000000000000000000000000000000000000000000000ff",
-    orchard:     "d0f62785000000000000000000000000000000000000000000000000000000ff",
+    orchard: "d0f62785000000000000000000000000000000000000000000000000000000ff",
   },
-  bundle_meta: { flags: 3, value_balance: 2515000, anchor: "419a28788f9fbfe0a01807e50c00e938f7b9b8381584021efeecb3d18a3c0b28" },
+  bundle_meta: {
+    flags: 3,
+    value_balance: 2515000,
+    anchor: "419a28788f9fbfe0a01807e50c00e938f7b9b8381584021efeecb3d18a3c0b28",
+  },
   display: { amount: "0.02500000 ZEC", fee: "0.00015000 ZEC" },
   transparent_outputs: [
     { index: 0, value: 2500000, script_pubkey: "76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac" },
@@ -354,22 +378,40 @@ const DESHIELD_REQUEST = {
   actions: [
     {
       // Change output back to Orchard — is_spend=false, value is the OUTPUT note value (change amount)
-      index: 0, alpha: "aa".repeat(32), cv_net: "bb".repeat(32),
-      nullifier: "cc".repeat(32), cmx: "dd".repeat(32), epk: "ee".repeat(32),
-      enc_compact: "ff".repeat(52), enc_memo: "11".repeat(512), enc_noncompact: "22".repeat(16),
-      rk: "33".repeat(32), out_ciphertext: "44".repeat(80),
-      value: 1358918, is_spend: false,
-      recipient: "ab".repeat(43), rseed: "cd".repeat(32),
+      index: 0,
+      alpha: "aa".repeat(32),
+      cv_net: "bb".repeat(32),
+      nullifier: "cc".repeat(32),
+      cmx: "dd".repeat(32),
+      epk: "ee".repeat(32),
+      enc_compact: "ff".repeat(52),
+      enc_memo: "11".repeat(512),
+      enc_noncompact: "22".repeat(16),
+      rk: "33".repeat(32),
+      out_ciphertext: "44".repeat(80),
+      value: 1358918,
+      is_spend: false,
+      recipient: "ab".repeat(43),
+      rseed: "cd".repeat(32),
     },
     {
       // Real spend + dummy output — is_spend=true, dummy output value is 0
       // recipient/rseed still required: firmware verifies cmx for the dummy output too
-      index: 1, alpha: "55".repeat(32), cv_net: "66".repeat(32),
-      nullifier: "77".repeat(32), cmx: "88".repeat(32), epk: "99".repeat(32),
-      enc_compact: "aa".repeat(52), enc_memo: "bb".repeat(512), enc_noncompact: "cc".repeat(16),
-      rk: "dd".repeat(32), out_ciphertext: "ee".repeat(80),
-      value: 0, is_spend: true,
-      recipient: "ef".repeat(43), rseed: "12".repeat(32),
+      index: 1,
+      alpha: "55".repeat(32),
+      cv_net: "66".repeat(32),
+      nullifier: "77".repeat(32),
+      cmx: "88".repeat(32),
+      epk: "99".repeat(32),
+      enc_compact: "aa".repeat(52),
+      enc_memo: "bb".repeat(512),
+      enc_noncompact: "cc".repeat(16),
+      rk: "dd".repeat(32),
+      out_ciphertext: "ee".repeat(80),
+      value: 0,
+      is_spend: true,
+      recipient: "ef".repeat(43),
+      rseed: "12".repeat(32),
     },
   ],
 };
@@ -386,7 +428,7 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
 
     const call = jest.fn().mockImplementation((mtype: number, msg: any) => {
       calls.push(mtype);
-      const actionsSent = calls.filter(c => c === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION).length;
+      const actionsSent = calls.filter((c) => c === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION).length;
 
       // Step 1: ZcashSignPCZT → TransparentAck(nextOutputIndex=0)
       if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT) {
@@ -394,7 +436,8 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
         ack.setNextOutputIndex(0);
         return Promise.resolve({
           message_enum: Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTACK,
-          message_type: "ZcashTransparentAck", proto: ack,
+          message_type: "ZcashTransparentAck",
+          proto: ack,
         });
       }
 
@@ -407,7 +450,8 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
         ack.setNextIndex(0);
         return Promise.resolve({
           message_enum: Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK,
-          message_type: "ZcashPCZTActionAck", proto: ack,
+          message_type: "ZcashPCZTActionAck",
+          proto: ack,
         });
       }
 
@@ -418,7 +462,8 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
         ack.setNextIndex(1);
         return Promise.resolve({
           message_enum: Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK,
-          message_type: "ZcashPCZTActionAck", proto: ack,
+          message_type: "ZcashPCZTActionAck",
+          proto: ack,
         });
       }
 
@@ -427,14 +472,15 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
         capturedActionMsg.push(msg);
         return Promise.resolve({
           message_enum: Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT,
-          message_type: "ZcashSignedPCZT", proto: signedPczt,
+          message_type: "ZcashSignedPCZT",
+          proto: signedPczt,
         });
       }
 
       throw new Error(`unexpected call: ${mtype}`);
     });
 
-    const result = await zcashSignPczt(makeMockTransport(call), DESHIELD_REQUEST, SIGHASH) as any;
+    const result = (await zcashSignPczt(makeMockTransport(call), DESHIELD_REQUEST, SIGHASH)) as any;
 
     // Protocol must be: SignPCZT → Output → Action × 2 (no Input step)
     expect(calls).toEqual([
@@ -453,8 +499,9 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
     // Output fields
     expect(capturedOutputMsg[0].getIndex()).toBe(0);
     expect(capturedOutputMsg[0].getAmount()).toBe(2500000);
-    expect(Buffer.from(capturedOutputMsg[0].getScriptPubkey_asU8()).toString("hex"))
-      .toBe("76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac");
+    expect(Buffer.from(capturedOutputMsg[0].getScriptPubkey_asU8()).toString("hex")).toBe(
+      "76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac"
+    );
 
     // Action[0] — change output: value must be OUTPUT note value (not 0 or spend value)
     expect(capturedActionMsg[0].getValue()).toBe(1358918);
