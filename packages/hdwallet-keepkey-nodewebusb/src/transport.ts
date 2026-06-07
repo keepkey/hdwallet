@@ -6,6 +6,25 @@ import { VENDOR_ID, WEBUSB_PRODUCT_ID } from "./utils";
 
 export type Device = WebUSBDevice & { serialNumber: string };
 
+// Bound a single USB transfer so a wedged/suspended/unplugged device cannot
+// block the caller forever (libusb submits transfers with an infinite timeout).
+// Writes complete in well under DEFAULT_TIMEOUT; a read may legitimately wait on
+// a device button press, so it gets LONG_TIMEOUT. On timeout we throw -- the
+// caller's disconnect path closes the device, which aborts the orphaned native
+// transfer and releases the claimed interface (otherwise a later claimInterface
+// hits LIBUSB code 19 / ConflictingApp against our own zombie transfer).
+function withTransferTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  // Swallow a late rejection from the orphaned transfer after we've given up.
+  promise.catch(() => {});
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]).finally(() => clearTimeout(timer!));
+}
+
 export class TransportDelegate implements keepkey.TransportDelegate {
   usbDevice: Device;
 
@@ -69,15 +88,25 @@ export class TransportDelegate implements keepkey.TransportDelegate {
   }
 
   async writeChunk(buf: Uint8Array, debugLink?: boolean): Promise<void> {
-    const result = await this.usbDevice.transferOut(
-      debugLink ? 2 : 1,
-      buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+    const result = await withTransferTimeout(
+      this.usbDevice.transferOut(
+        debugLink ? 2 : 1,
+        buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+      ),
+      core.DEFAULT_TIMEOUT,
+      "transferOut"
     );
     if (result.status !== "ok" || result.bytesWritten !== buf.length) throw new Error("bad write");
   }
 
   async readChunk(debugLink?: boolean): Promise<Uint8Array> {
-    const result = await this.usbDevice.transferIn(debugLink ? 2 : 1, keepkey.SEGMENT_SIZE + 1);
+    // LONG_TIMEOUT: a read may legitimately block on a device button press
+    // (PIN, passphrase, tx/seed confirmation), so it must not be cut short.
+    const result = await withTransferTimeout(
+      this.usbDevice.transferIn(debugLink ? 2 : 1, keepkey.SEGMENT_SIZE + 1),
+      core.LONG_TIMEOUT,
+      "transferIn"
+    );
 
     if (result.status === "stall") {
       // Reset the halt on the IN pipe we just read (not OUT), then surface a
