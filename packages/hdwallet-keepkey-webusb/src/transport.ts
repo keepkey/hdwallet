@@ -76,7 +76,10 @@ export class TransportDelegate implements keepkey.TransportDelegate {
     const { status, data } = await this.usbDevice.transferIn(debugLink ? 2 : 1, keepkey.SEGMENT_SIZE + 1);
 
     if (status === "stall") {
-      await this.usbDevice.clearHalt("out", debugLink ? 2 : 1);
+      // Reset the halt on the IN pipe we just read (not OUT), then surface a
+      // retryable error -- a stalled transfer's buffer is not a valid packet.
+      await this.usbDevice.clearHalt("in", debugLink ? 2 : 1);
+      throw new Error("bad read");
     }
 
     if (data === undefined) throw new Error("bad read");
