@@ -9,9 +9,9 @@ const Msg = jspb.Message as any;
 
 // ── Hive Message Type IDs (messages-hive.proto, wire IDs 1600–1603) ───
 const MESSAGETYPE_HIVEGETPUBLICKEY = 1600;
-const MESSAGETYPE_HIVEPUBLICKEY    = 1601;
-const MESSAGETYPE_HIVESIGNTX       = 1602;
-const MESSAGETYPE_HIVESIGNEDTX     = 1603;
+const MESSAGETYPE_HIVEPUBLICKEY = 1601;
+const MESSAGETYPE_HIVESIGNTX = 1602;
+const MESSAGETYPE_HIVESIGNEDTX = 1603;
 
 // ── Protobuf Shims ─────────────────────────────────────────────────────
 
@@ -26,15 +26,23 @@ export class HiveGetPublicKey extends jspb.Message {
     jspb.Message.initialize(this, opt_data || [], 0, -1, HiveGetPublicKey.repeatedFields_, null);
   }
 
-  getAddressNList(): number[] { return Msg.getRepeatedField(this, 1) as number[]; }
-  setAddressNList(value: number[]): void { jspb.Message.setField(this, 1, value || []); }
-  addAddressN(value: number): void { jspb.Message.addToRepeatedField(this, 1, value); }
+  getAddressNList(): number[] {
+    return Msg.getRepeatedField(this, 1) as number[];
+  }
+  setAddressNList(value: number[]): void {
+    jspb.Message.setField(this, 1, value || []);
+  }
+  addAddressN(value: number): void {
+    jspb.Message.addToRepeatedField(this, 1, value);
+  }
 
   getShowDisplay(): boolean | undefined {
     const f = jspb.Message.getField(this, 2);
     return f == null ? undefined : !!f;
   }
-  setShowDisplay(value: boolean): void { jspb.Message.setField(this, 2, value ? 1 : 0); }
+  setShowDisplay(value: boolean): void {
+    jspb.Message.setField(this, 2, value ? 1 : 0);
+  }
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -42,8 +50,12 @@ export class HiveGetPublicKey extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  toObject(): object { return { addressNList: this.getAddressNList(), showDisplay: this.getShowDisplay() }; }
-  static toObject(_: boolean, msg: HiveGetPublicKey): object { return msg.toObject(); }
+  toObject(): object {
+    return { addressNList: this.getAddressNList(), showDisplay: this.getShowDisplay() };
+  }
+  static toObject(_: boolean, msg: HiveGetPublicKey): object {
+    return msg.toObject();
+  }
 
   static deserializeBinary(bytes: Uint8Array): HiveGetPublicKey {
     const reader = new jspb.BinaryReader(bytes);
@@ -60,8 +72,11 @@ export class HiveGetPublicKey extends jspb.Message {
           for (const v of values) msg.addAddressN(v);
           break;
         }
-        case 2: msg.setShowDisplay(reader.readBool()); break;
-        default: reader.skipField();
+        case 2:
+          msg.setShowDisplay(reader.readBool());
+          break;
+        default:
+          reader.skipField();
       }
     }
     return msg;
@@ -84,16 +99,24 @@ export class HivePublicKey extends jspb.Message {
     jspb.Message.initialize(this, opt_data || [], 0, -1, null, null);
   }
 
-  getPublicKey(): string | undefined { return jspb.Message.getFieldWithDefault(this, 1, "") as string; }
-  setPublicKey(value: string): void { jspb.Message.setField(this, 1, value); }
+  getPublicKey(): string | undefined {
+    return jspb.Message.getFieldWithDefault(this, 1, "") as string;
+  }
+  setPublicKey(value: string): void {
+    jspb.Message.setField(this, 1, value);
+  }
 
-  getRawPublicKey(): Uint8Array | string { return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string; }
+  getRawPublicKey(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string;
+  }
   getRawPublicKey_asU8(): Uint8Array {
     const val = this.getRawPublicKey();
     if (val instanceof Uint8Array) return val;
     return jspb.Message.bytesAsU8(val as string);
   }
-  setRawPublicKey(value: Uint8Array | string): void { jspb.Message.setField(this, 2, value); }
+  setRawPublicKey(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -101,8 +124,12 @@ export class HivePublicKey extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  toObject(): object { return { publicKey: this.getPublicKey(), rawPublicKey: this.getRawPublicKey() }; }
-  static toObject(_: boolean, msg: HivePublicKey): object { return msg.toObject(); }
+  toObject(): object {
+    return { publicKey: this.getPublicKey(), rawPublicKey: this.getRawPublicKey() };
+  }
+  static toObject(_: boolean, msg: HivePublicKey): object {
+    return msg.toObject();
+  }
 
   static deserializeBinary(bytes: Uint8Array): HivePublicKey {
     const reader = new jspb.BinaryReader(bytes);
@@ -114,9 +141,14 @@ export class HivePublicKey extends jspb.Message {
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
       switch (reader.getFieldNumber()) {
-        case 1: msg.setPublicKey(reader.readString()); break;
-        case 2: msg.setRawPublicKey(reader.readBytes()); break;
-        default: reader.skipField();
+        case 1:
+          msg.setPublicKey(reader.readString());
+          break;
+        case 2:
+          msg.setRawPublicKey(reader.readBytes());
+          break;
+        default:
+          reader.skipField();
       }
     }
     return msg;
@@ -144,44 +176,90 @@ export class HiveSignTx extends jspb.Message {
     jspb.Message.initialize(this, opt_data || [], 0, -1, HiveSignTx.repeatedFields_, null);
   }
 
-  getAddressNList(): number[] { return Msg.getRepeatedField(this, 1) as number[]; }
-  setAddressNList(value: number[]): void { jspb.Message.setField(this, 1, value || []); }
-  addAddressN(value: number): void { jspb.Message.addToRepeatedField(this, 1, value); }
+  getAddressNList(): number[] {
+    return Msg.getRepeatedField(this, 1) as number[];
+  }
+  setAddressNList(value: number[]): void {
+    jspb.Message.setField(this, 1, value || []);
+  }
+  addAddressN(value: number): void {
+    jspb.Message.addToRepeatedField(this, 1, value);
+  }
 
-  getChainId(): Uint8Array | string { return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string; }
+  getChainId(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string;
+  }
   getChainId_asU8(): Uint8Array {
     const val = this.getChainId();
     if (val instanceof Uint8Array) return val;
     return jspb.Message.bytesAsU8(val as string);
   }
-  setChainId(value: Uint8Array | string): void { jspb.Message.setField(this, 2, value); }
+  setChainId(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
 
-  getRefBlockNum(): number { return jspb.Message.getFieldWithDefault(this, 3, 0) as number; }
-  setRefBlockNum(value: number): void { jspb.Message.setField(this, 3, value); }
+  getRefBlockNum(): number {
+    return jspb.Message.getFieldWithDefault(this, 3, 0) as number;
+  }
+  setRefBlockNum(value: number): void {
+    jspb.Message.setField(this, 3, value);
+  }
 
-  getRefBlockPrefix(): number { return jspb.Message.getFieldWithDefault(this, 4, 0) as number; }
-  setRefBlockPrefix(value: number): void { jspb.Message.setField(this, 4, value); }
+  getRefBlockPrefix(): number {
+    return jspb.Message.getFieldWithDefault(this, 4, 0) as number;
+  }
+  setRefBlockPrefix(value: number): void {
+    jspb.Message.setField(this, 4, value);
+  }
 
-  getExpiration(): number { return jspb.Message.getFieldWithDefault(this, 5, 0) as number; }
-  setExpiration(value: number): void { jspb.Message.setField(this, 5, value); }
+  getExpiration(): number {
+    return jspb.Message.getFieldWithDefault(this, 5, 0) as number;
+  }
+  setExpiration(value: number): void {
+    jspb.Message.setField(this, 5, value);
+  }
 
-  getFrom(): string { return jspb.Message.getFieldWithDefault(this, 6, "") as string; }
-  setFrom(value: string): void { jspb.Message.setField(this, 6, value); }
+  getFrom(): string {
+    return jspb.Message.getFieldWithDefault(this, 6, "") as string;
+  }
+  setFrom(value: string): void {
+    jspb.Message.setField(this, 6, value);
+  }
 
-  getTo(): string { return jspb.Message.getFieldWithDefault(this, 7, "") as string; }
-  setTo(value: string): void { jspb.Message.setField(this, 7, value); }
+  getTo(): string {
+    return jspb.Message.getFieldWithDefault(this, 7, "") as string;
+  }
+  setTo(value: string): void {
+    jspb.Message.setField(this, 7, value);
+  }
 
-  getAmount(): number { return jspb.Message.getFieldWithDefault(this, 8, 0) as number; }
-  setAmount(value: number): void { jspb.Message.setField(this, 8, value); }
+  getAmount(): number {
+    return jspb.Message.getFieldWithDefault(this, 8, 0) as number;
+  }
+  setAmount(value: number): void {
+    jspb.Message.setField(this, 8, value);
+  }
 
-  getDecimals(): number { return jspb.Message.getFieldWithDefault(this, 9, 3) as number; }
-  setDecimals(value: number): void { jspb.Message.setField(this, 9, value); }
+  getDecimals(): number {
+    return jspb.Message.getFieldWithDefault(this, 9, 3) as number;
+  }
+  setDecimals(value: number): void {
+    jspb.Message.setField(this, 9, value);
+  }
 
-  getAssetSymbol(): string { return jspb.Message.getFieldWithDefault(this, 10, "") as string; }
-  setAssetSymbol(value: string): void { jspb.Message.setField(this, 10, value); }
+  getAssetSymbol(): string {
+    return jspb.Message.getFieldWithDefault(this, 10, "") as string;
+  }
+  setAssetSymbol(value: string): void {
+    jspb.Message.setField(this, 10, value);
+  }
 
-  getMemo(): string | undefined { return jspb.Message.getFieldWithDefault(this, 11, "") as string; }
-  setMemo(value: string): void { jspb.Message.setField(this, 11, value); }
+  getMemo(): string | undefined {
+    return jspb.Message.getFieldWithDefault(this, 11, "") as string;
+  }
+  setMemo(value: string): void {
+    jspb.Message.setField(this, 11, value);
+  }
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -191,14 +269,22 @@ export class HiveSignTx extends jspb.Message {
 
   toObject(): object {
     return {
-      addressNList: this.getAddressNList(), chainId: this.getChainId(),
-      refBlockNum: this.getRefBlockNum(), refBlockPrefix: this.getRefBlockPrefix(),
-      expiration: this.getExpiration(), from: this.getFrom(), to: this.getTo(),
-      amount: this.getAmount(), decimals: this.getDecimals(),
-      assetSymbol: this.getAssetSymbol(), memo: this.getMemo(),
+      addressNList: this.getAddressNList(),
+      chainId: this.getChainId(),
+      refBlockNum: this.getRefBlockNum(),
+      refBlockPrefix: this.getRefBlockPrefix(),
+      expiration: this.getExpiration(),
+      from: this.getFrom(),
+      to: this.getTo(),
+      amount: this.getAmount(),
+      decimals: this.getDecimals(),
+      assetSymbol: this.getAssetSymbol(),
+      memo: this.getMemo(),
     };
   }
-  static toObject(_: boolean, msg: HiveSignTx): object { return msg.toObject(); }
+  static toObject(_: boolean, msg: HiveSignTx): object {
+    return msg.toObject();
+  }
 
   static deserializeBinary(bytes: Uint8Array): HiveSignTx {
     const reader = new jspb.BinaryReader(bytes);
@@ -215,17 +301,38 @@ export class HiveSignTx extends jspb.Message {
           for (const v of values) msg.addAddressN(v);
           break;
         }
-        case 2: msg.setChainId(reader.readBytes()); break;
-        case 3: msg.setRefBlockNum(reader.readUint32()); break;
-        case 4: msg.setRefBlockPrefix(reader.readUint32()); break;
-        case 5: msg.setExpiration(reader.readUint32()); break;
-        case 6: msg.setFrom(reader.readString()); break;
-        case 7: msg.setTo(reader.readString()); break;
-        case 8: msg.setAmount(reader.readUint64()); break;
-        case 9: msg.setDecimals(reader.readUint32()); break;
-        case 10: msg.setAssetSymbol(reader.readString()); break;
-        case 11: msg.setMemo(reader.readString()); break;
-        default: reader.skipField();
+        case 2:
+          msg.setChainId(reader.readBytes());
+          break;
+        case 3:
+          msg.setRefBlockNum(reader.readUint32());
+          break;
+        case 4:
+          msg.setRefBlockPrefix(reader.readUint32());
+          break;
+        case 5:
+          msg.setExpiration(reader.readUint32());
+          break;
+        case 6:
+          msg.setFrom(reader.readString());
+          break;
+        case 7:
+          msg.setTo(reader.readString());
+          break;
+        case 8:
+          msg.setAmount(reader.readUint64());
+          break;
+        case 9:
+          msg.setDecimals(reader.readUint32());
+          break;
+        case 10:
+          msg.setAssetSymbol(reader.readString());
+          break;
+        case 11:
+          msg.setMemo(reader.readString());
+          break;
+        default:
+          reader.skipField();
       }
     }
     return msg;
@@ -266,21 +373,29 @@ export class HiveSignedTx extends jspb.Message {
     jspb.Message.initialize(this, opt_data || [], 0, -1, null, null);
   }
 
-  getSignature(): Uint8Array | string { return jspb.Message.getFieldWithDefault(this, 1, "") as Uint8Array | string; }
+  getSignature(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 1, "") as Uint8Array | string;
+  }
   getSignature_asU8(): Uint8Array {
     const val = this.getSignature();
     if (val instanceof Uint8Array) return val;
     return jspb.Message.bytesAsU8(val as string);
   }
-  setSignature(value: Uint8Array | string): void { jspb.Message.setField(this, 1, value); }
+  setSignature(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 1, value);
+  }
 
-  getSerializedTx(): Uint8Array | string { return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string; }
+  getSerializedTx(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string;
+  }
   getSerializedTx_asU8(): Uint8Array {
     const val = this.getSerializedTx();
     if (val instanceof Uint8Array) return val;
     return jspb.Message.bytesAsU8(val as string);
   }
-  setSerializedTx(value: Uint8Array | string): void { jspb.Message.setField(this, 2, value); }
+  setSerializedTx(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -288,8 +403,12 @@ export class HiveSignedTx extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  toObject(): object { return { signature: this.getSignature(), serializedTx: this.getSerializedTx() }; }
-  static toObject(_: boolean, msg: HiveSignedTx): object { return msg.toObject(); }
+  toObject(): object {
+    return { signature: this.getSignature(), serializedTx: this.getSerializedTx() };
+  }
+  static toObject(_: boolean, msg: HiveSignedTx): object {
+    return msg.toObject();
+  }
 
   static deserializeBinary(bytes: Uint8Array): HiveSignedTx {
     const reader = new jspb.BinaryReader(bytes);
@@ -301,9 +420,14 @@ export class HiveSignedTx extends jspb.Message {
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
       switch (reader.getFieldNumber()) {
-        case 1: msg.setSignature(reader.readBytes()); break;
-        case 2: msg.setSerializedTx(reader.readBytes()); break;
-        default: reader.skipField();
+        case 1:
+          msg.setSignature(reader.readBytes());
+          break;
+        case 2:
+          msg.setSerializedTx(reader.readBytes());
+          break;
+        default:
+          reader.skipField();
       }
     }
     return msg;
@@ -322,29 +446,26 @@ export class HiveSignedTx extends jspb.Message {
 function registerHiveMessages() {
   const mt = Messages.MessageType as unknown as Record<string, number>;
   mt["MESSAGETYPE_HIVEGETPUBLICKEY"] = MESSAGETYPE_HIVEGETPUBLICKEY;
-  mt["MESSAGETYPE_HIVEPUBLICKEY"]    = MESSAGETYPE_HIVEPUBLICKEY;
-  mt["MESSAGETYPE_HIVESIGNTX"]       = MESSAGETYPE_HIVESIGNTX;
-  mt["MESSAGETYPE_HIVESIGNEDTX"]     = MESSAGETYPE_HIVESIGNEDTX;
+  mt["MESSAGETYPE_HIVEPUBLICKEY"] = MESSAGETYPE_HIVEPUBLICKEY;
+  mt["MESSAGETYPE_HIVESIGNTX"] = MESSAGETYPE_HIVESIGNTX;
+  mt["MESSAGETYPE_HIVESIGNEDTX"] = MESSAGETYPE_HIVESIGNEDTX;
 
   messageNameRegistry[MESSAGETYPE_HIVEGETPUBLICKEY] = "HiveGetPublicKey";
-  messageNameRegistry[MESSAGETYPE_HIVEPUBLICKEY]    = "HivePublicKey";
-  messageNameRegistry[MESSAGETYPE_HIVESIGNTX]       = "HiveSignTx";
-  messageNameRegistry[MESSAGETYPE_HIVESIGNEDTX]     = "HiveSignedTx";
+  messageNameRegistry[MESSAGETYPE_HIVEPUBLICKEY] = "HivePublicKey";
+  messageNameRegistry[MESSAGETYPE_HIVESIGNTX] = "HiveSignTx";
+  messageNameRegistry[MESSAGETYPE_HIVESIGNEDTX] = "HiveSignedTx";
 
   messageTypeRegistry[MESSAGETYPE_HIVEGETPUBLICKEY] = HiveGetPublicKey as any;
-  messageTypeRegistry[MESSAGETYPE_HIVEPUBLICKEY]    = HivePublicKey as any;
-  messageTypeRegistry[MESSAGETYPE_HIVESIGNTX]       = HiveSignTx as any;
-  messageTypeRegistry[MESSAGETYPE_HIVESIGNEDTX]     = HiveSignedTx as any;
+  messageTypeRegistry[MESSAGETYPE_HIVEPUBLICKEY] = HivePublicKey as any;
+  messageTypeRegistry[MESSAGETYPE_HIVESIGNTX] = HiveSignTx as any;
+  messageTypeRegistry[MESSAGETYPE_HIVESIGNEDTX] = HiveSignedTx as any;
 }
 
 registerHiveMessages();
 
 // ── Wallet Methods ─────────────────────────────────────────────────────
 
-export async function hiveGetPublicKey(
-  transport: Transport,
-  msg: core.HiveGetPublicKey,
-): Promise<core.HivePublicKey> {
+export async function hiveGetPublicKey(transport: Transport, msg: core.HiveGetPublicKey): Promise<core.HivePublicKey> {
   const req = new HiveGetPublicKey();
   req.setAddressNList(msg.addressNList);
   if (msg.showDisplay !== undefined) req.setShowDisplay(msg.showDisplay);
@@ -360,10 +481,7 @@ export async function hiveGetPublicKey(
   };
 }
 
-export async function hiveSignTx(
-  transport: Transport,
-  msg: core.HiveSignTx,
-): Promise<core.HiveSignedTx> {
+export async function hiveSignTx(transport: Transport, msg: core.HiveSignTx): Promise<core.HiveSignedTx> {
   return transport.lockDuring(async () => {
     const req = new HiveSignTx();
     req.setAddressNList(msg.addressNList);
