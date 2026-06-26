@@ -71,7 +71,7 @@ export class TransportDelegate implements keepkey.TransportDelegate {
   async writeChunk(buf: Uint8Array, debugLink?: boolean): Promise<void> {
     const result = await this.usbDevice.transferOut(
       debugLink ? 2 : 1,
-      buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+      buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
     );
     if (result.status !== "ok" || result.bytesWritten !== buf.length) throw new Error("bad write");
   }
@@ -79,8 +79,11 @@ export class TransportDelegate implements keepkey.TransportDelegate {
   async readChunk(debugLink?: boolean): Promise<Uint8Array> {
     const result = await this.usbDevice.transferIn(debugLink ? 2 : 1, keepkey.SEGMENT_SIZE + 1);
 
-    if (result.status === "stall" && result.data !== undefined) {
-      await this.usbDevice.clearHalt("out", debugLink ? 2 : 1);
+    if (result.status === "stall") {
+      // Reset the halt on the IN pipe we just read (not OUT), then surface a
+      // retryable error -- a stalled transfer's buffer is not a valid packet.
+      await this.usbDevice.clearHalt("in", debugLink ? 2 : 1);
+      throw new Error("bad read");
     } else if (result.status !== "ok" || result.data === undefined) {
       throw new Error("bad read");
     }

@@ -7,14 +7,18 @@ import * as Btc from "./bitcoin";
 import * as Cosmos from "./cosmos";
 import * as Eos from "./eos";
 import * as Eth from "./ethereum";
+import * as Hive from "./hive";
 import * as Mayachain from "./mayachain";
 import * as Osmosis from "./osmosis";
 import * as Ripple from "./ripple";
 import * as Solana from "./solana";
 import * as Thorchain from "./thorchain";
+import * as Ton from "./ton";
 import { Transport } from "./transport";
+import * as Tron from "./tron";
 import { messageTypeRegistry } from "./typeRegistry";
 import { protoFieldToSetMethod, translateInputScriptType } from "./utils";
+import * as Zcash from "./zcash";
 
 export function isKeepKey(wallet: core.HDWallet): wallet is KeepKeyHDWallet {
   return typeof wallet === "object" && wallet !== null && (wallet as any)._isKeepKey;
@@ -386,6 +390,56 @@ function describeSolanaPath(path: core.BIP32Path): core.PathDescription {
     isPrefork: false,
   };
 }
+function describeTronPath(path: core.BIP32Path): core.PathDescription {
+  const pathStr = core.addressNListToBIP32(path);
+  const unknown: core.PathDescription = {
+    verbose: pathStr,
+    coin: "Tron",
+    isKnown: false,
+  };
+
+  if (path.length !== 5) return unknown;
+  if (path[0] !== 0x80000000 + 44) return unknown;
+  if (path[1] !== 0x80000000 + core.slip44ByCoin("Tron")) return unknown;
+  if ((path[2] & 0x80000000) >>> 0 !== 0x80000000) return unknown;
+  if (path[3] !== 0) return unknown;
+  if (path[4] !== 0) return unknown;
+
+  const index = path[2] & 0x7fffffff;
+  return {
+    verbose: `Tron Account #${index}`,
+    accountIdx: index,
+    wholeAccount: true,
+    coin: "Tron",
+    isKnown: true,
+    isPrefork: false,
+  };
+}
+
+function describeTonPath(path: core.BIP32Path): core.PathDescription {
+  const pathStr = core.addressNListToBIP32(path);
+  const unknown: core.PathDescription = {
+    verbose: pathStr,
+    coin: "Ton",
+    isKnown: false,
+  };
+
+  if (path.length !== 3) return unknown;
+  if (path[0] !== 0x80000000 + 44) return unknown;
+  if (path[1] !== 0x80000000 + core.slip44ByCoin("Ton")) return unknown;
+  if ((path[2] & 0x80000000) >>> 0 !== 0x80000000) return unknown;
+
+  const index = path[2] & 0x7fffffff;
+  return {
+    verbose: `Ton Account #${index}`,
+    accountIdx: index,
+    wholeAccount: true,
+    coin: "Ton",
+    isKnown: true,
+    isPrefork: false,
+  };
+}
+
 export class KeepKeyHDWalletInfo
   implements
     core.HDWalletInfo,
@@ -406,6 +460,9 @@ export class KeepKeyHDWalletInfo
   readonly _supportsThorchainInfo = true;
   readonly _supportsMayachainInfo = true;
   readonly _supportsSolanaInfo = true;
+  readonly _supportsTronInfo = true;
+  readonly _supportsTonInfo = true;
+  readonly _supportsHive = true;
 
   public getVendor(): string {
     return "KeepKey";
@@ -483,6 +540,14 @@ export class KeepKeyHDWalletInfo
     return Solana.solanaGetAccountPaths(msg);
   }
 
+  public tronGetAccountPaths(msg: core.TronGetAccountPaths): Array<core.TronAccountPath> {
+    return Tron.tronGetAccountPaths(msg);
+  }
+
+  public tonGetAccountPaths(msg: core.TonGetAccountPaths): Array<core.TonAccountPath> {
+    return Ton.tonGetAccountPaths(msg);
+  }
+
   public hasOnDevicePinEntry(): boolean {
     return false;
   }
@@ -530,6 +595,10 @@ export class KeepKeyHDWalletInfo
         return describeEosPath(msg.path);
       case "Solana":
         return describeSolanaPath(msg.path);
+      case "Tron":
+        return describeTronPath(msg.path);
+      case "Ton":
+        return describeTonPath(msg.path);
       default:
         return describeUTXOPath(msg.path, msg.coin, msg.scriptType);
     }
@@ -681,6 +750,36 @@ export class KeepKeyHDWalletInfo
       addressNList,
     };
   }
+
+  public tronNextAccountPath(msg: core.TronAccountPath): core.TronAccountPath | undefined {
+    const description = describeTronPath(msg.addressNList);
+    if (!description.isKnown) {
+      return undefined;
+    }
+
+    const addressNList = msg.addressNList;
+    addressNList[2] += 1;
+
+    return {
+      ...msg,
+      addressNList,
+    };
+  }
+
+  public tonNextAccountPath(msg: core.TonAccountPath): core.TonAccountPath | undefined {
+    const description = describeTonPath(msg.addressNList);
+    if (!description.isKnown) {
+      return undefined;
+    }
+
+    const addressNList = msg.addressNList;
+    addressNList[2] += 1;
+
+    return {
+      ...msg,
+      addressNList,
+    };
+  }
 }
 
 export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHWallet, core.DebugLinkWallet {
@@ -718,8 +817,14 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   readonly _supportsKavaInfo = false;
   readonly _supportsTerra = false;
   readonly _supportsTerraInfo = false;
+  readonly _supportsBip85 = true;
   readonly _supportsSolanaInfo = true;
   _supportsSolana = true;
+  readonly _supportsTronInfo = true;
+  _supportsTron = true;
+  readonly _supportsTonInfo = true;
+  _supportsTon = true;
+  readonly _supportsHive = true;
 
   transport: Transport;
   features?: Messages.Features.AsObject;
@@ -1019,8 +1124,22 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     cipherKeyValue.setAskOnDecrypt(v.askOnDecrypt || false);
     cipherKeyValue.setIv(v.iv || "");
     const response = await this.transport.call(Messages.MessageType.MESSAGETYPE_CIPHERKEYVALUE, cipherKeyValue);
-    const ckv = response.message as Messages.CipheredKeyValue;
+    const ckv = response.proto as Messages.CipheredKeyValue;
     return ckv.getValue();
+  }
+
+  // BIP-85: Derive a child mnemonic and display it on the device screen.
+  // The seed is never sent over USB — firmware replies with Success.
+  public async bip85GetMnemonic(msg: core.Bip85GetMnemonicMsg): Promise<core.Bip85DisplayResult> {
+    const getBip85 = new Messages.GetBip85Mnemonic();
+    getBip85.setWordCount(msg.wordCount);
+    getBip85.setIndex(msg.index);
+
+    await this.transport.call(Messages.MessageType.MESSAGETYPE_GETBIP85MNEMONIC, getBip85, {
+      msgTimeout: core.LONG_TIMEOUT,
+    });
+
+    return { displayed: true };
   }
 
   // ClearSession clears cached session values such as the pin and passphrase
@@ -1069,6 +1188,24 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     const transportDeviceID = await this.transport.getDeviceID();
     if (out.deviceId && transportDeviceID !== out.deviceId) {
       this.transport.keyring.addAlias(transportDeviceID, out.deviceId);
+    }
+
+    // Validate version fields BEFORE constructing the semver string. Without this,
+    // a Features response missing major/minor/patch (e.g. wrong message type cast,
+    // device in an unexpected state, or runtime decode mismatch) produces
+    // `vundefined.undefined.undefined`, which semver.gte() rejects with the opaque
+    // error "Invalid Version: vundefined.undefined.undefined". Surface a clear
+    // diagnostic instead so callers can recognize the failure mode.
+    if (
+      typeof out.majorVersion !== "number" ||
+      typeof out.minorVersion !== "number" ||
+      typeof out.patchVersion !== "number"
+    ) {
+      throw new Error(
+        `KeepKey Initialize returned Features without firmware version ` +
+          `(major=${out.majorVersion}, minor=${out.minorVersion}, patch=${out.patchVersion}). ` +
+          `Device may be in bootloader mode, mid-update, or returned an unexpected message type.`
+      );
     }
 
     const fwVersion = `v${out.majorVersion}.${out.minorVersion}.${out.patchVersion}`;
@@ -1355,12 +1492,90 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Solana.solanaSignTx(this.transport, msg);
   }
 
-  public solanaSignMessage(msg: { addressNList: number[]; message: Uint8Array | string; showDisplay?: boolean }): Promise<{ publicKey: Uint8Array; signature: Uint8Array }> {
+  public solanaSignOffchainMessage(msg: core.SolanaSignOffchainMessage): Promise<core.SolanaOffchainMessageSignature> {
+    return Solana.solanaSignOffchainMessage(this.transport, msg);
+  }
+
+  public solanaSignMessage(msg: {
+    addressNList: number[];
+    message: Uint8Array | string;
+    showDisplay?: boolean;
+  }): Promise<{ publicKey: Uint8Array; signature: Uint8Array }> {
     return Solana.solanaSignMessage(this.transport, msg);
   }
 
   public solanaNextAccountPath(msg: core.SolanaAccountPath): core.SolanaAccountPath | undefined {
     return this.info.solanaNextAccountPath(msg);
+  }
+
+  public tronGetAccountPaths(msg: core.TronGetAccountPaths): Array<core.TronAccountPath> {
+    return this.info.tronGetAccountPaths(msg);
+  }
+
+  public tronGetAddress(msg: core.TronGetAddress): Promise<string> {
+    return Tron.tronGetAddress(this.transport, msg);
+  }
+
+  public tronSignTx(msg: core.TronSignTx): Promise<core.TronSignedTx> {
+    return Tron.tronSignTx(this.transport, msg);
+  }
+
+  public tronSignMessage(msg: core.TronSignMessage): Promise<core.TronMessageSignature> {
+    return Tron.tronSignMessage(this.transport, msg);
+  }
+
+  public tronVerifyMessage(msg: core.TronVerifyMessage): Promise<boolean> {
+    return Tron.tronVerifyMessage(this.transport, msg);
+  }
+
+  public tronSignTypedHash(msg: core.TronSignTypedHash): Promise<core.TronTypedDataSignature> {
+    return Tron.tronSignTypedHash(this.transport, msg);
+  }
+
+  public tronNextAccountPath(msg: core.TronAccountPath): core.TronAccountPath | undefined {
+    return this.info.tronNextAccountPath(msg);
+  }
+
+  public tonGetAccountPaths(msg: core.TonGetAccountPaths): Array<core.TonAccountPath> {
+    return this.info.tonGetAccountPaths(msg);
+  }
+
+  public tonGetAddress(msg: core.TonGetAddress): Promise<string> {
+    return Ton.tonGetAddress(this.transport, msg);
+  }
+
+  public tonSignTx(msg: core.TonSignTx): Promise<core.TonSignedTx> {
+    return Ton.tonSignTx(this.transport, msg);
+  }
+
+  public tonSignMessage(msg: core.TonSignMessage): Promise<core.TonMessageSignature> {
+    return Ton.tonSignMessage(this.transport, msg);
+  }
+
+  public tonNextAccountPath(msg: core.TonAccountPath): core.TonAccountPath | undefined {
+    return this.info.tonNextAccountPath(msg);
+  }
+
+  public zcashGetOrchardFVK(account: number = 0): Promise<{ ak: Uint8Array; nk: Uint8Array; rivk: Uint8Array }> {
+    return Zcash.zcashGetOrchardFVK(this.transport, account);
+  }
+
+  public zcashDisplayAddress(
+    params: Parameters<typeof Zcash.zcashDisplayAddress>[1] = {}
+  ): Promise<{ address: string }> {
+    return Zcash.zcashDisplayAddress(this.transport, params);
+  }
+
+  public zcashSignPczt(signingRequest: Parameters<typeof Zcash.zcashSignPczt>[1], sighash: string): Promise<string[]> {
+    return Zcash.zcashSignPczt(this.transport, signingRequest, sighash);
+  }
+
+  public hiveGetPublicKey(msg: core.HiveGetPublicKey): Promise<core.HivePublicKey | null> {
+    return Hive.hiveGetPublicKey(this.transport, msg);
+  }
+
+  public hiveSignTx(msg: core.HiveSignTx): Promise<core.HiveSignedTx | null> {
+    return Hive.hiveSignTx(this.transport, msg);
   }
 
   public describePath(msg: core.DescribePath): core.PathDescription {

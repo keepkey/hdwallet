@@ -149,6 +149,8 @@ const slip44Table = Object.freeze({
   Mayachain: 931,
   Cacao: 931,
   Solana: 501,
+  Tron: 195,
+  Ton: 607,
 } as const);
 type Slip44ByCoin<T> = T extends keyof typeof slip44Table ? (typeof slip44Table)[T] : number | undefined;
 export function slip44ByCoin<T extends Coin>(coin: T): Slip44ByCoin<T> {
@@ -171,7 +173,7 @@ export function relativePath(path: BIP32Path): BIP32Path {
 
 export function toArrayBuffer(x: ArrayBuffer | ArrayBufferView): ArrayBuffer {
   if (x instanceof ArrayBuffer) return x;
-  return x.buffer.slice(x.byteOffset, x.byteOffset + x.byteLength);
+  return x.buffer.slice(x.byteOffset, x.byteOffset + x.byteLength) as ArrayBuffer;
 }
 
 export function mustBeDefined<T>(x: T): NonNullable<T> {
