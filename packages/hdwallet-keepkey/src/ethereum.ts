@@ -4,7 +4,7 @@ import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as Ethereum from "@keepkey/device-protocol/lib/messages-ethereum_pb";
 import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
-import { SignTypedDataVersion, TypedDataUtils } from "@metamask/eth-sig-util";
+import { getStructHash } from "eip-712";
 import * as eip55 from "eip55";
 import * as jspb from "google-protobuf";
 
@@ -453,10 +453,13 @@ export async function ethSignTypedData(
   msg: core.ETHSignTypedData
 ): Promise<core.ETHSignedTypedData> {
   try {
-    const version = SignTypedDataVersion.V4;
     const EIP_712_DOMAIN = "EIP712Domain";
-    const { types, primaryType, domain, message } = msg.typedData;
-    const domainSeparatorHash: Uint8Array = TypedDataUtils.hashStruct(EIP_712_DOMAIN, domain, types, version);
+    const { primaryType, domain, message } = msg.typedData;
+    // eip-712 getStructHash is a 1:1 byte-identical replacement for
+    // @metamask/eth-sig-util TypedDataUtils.hashStruct(..., V4) — verified across
+    // nested-struct, struct-array (V4) and Permit2 payloads — and drops the heavy
+    // @ethereumjs@4/@metamask-utils nested tree (Windows MAX_PATH risk).
+    const domainSeparatorHash: Uint8Array = getStructHash(msg.typedData, EIP_712_DOMAIN, domain);
 
     const ethereumSignTypedHash = new Ethereum.EthereumSignTypedHash();
     ethereumSignTypedHash.setAddressNList(msg.addressNList);
@@ -466,7 +469,7 @@ export async function ethSignTypedData(
     // If "EIP712Domain" is the primaryType, messageHash is not required - look at T1 connect impl ;)
     // todo: the firmware should define messageHash as an optional Uint8Array field for this case
     if (primaryType !== EIP_712_DOMAIN) {
-      messageHash = TypedDataUtils.hashStruct(primaryType, message, types, version);
+      messageHash = getStructHash(msg.typedData, primaryType, message);
       ethereumSignTypedHash.setMessageHash(messageHash);
     }
 
