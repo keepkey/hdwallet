@@ -76,14 +76,15 @@ export async function thorchainSignTx(transport: Transport, msg: core.ThorchainS
         }
 
         const denom = m.value.amount[0].denom;
-        if (denom !== "rune") {
-          throw new Error("THORChain: Unsupported denomination: " + denom);
-        }
 
         const send = new ThorchainMessages.ThorchainMsgSend();
         send.setFromAddress(m.value.from_address);
         send.setToAddress(m.value.to_address);
         send.setAmount(m.value.amount[0].amount);
+        // Firmware defaults an unset denom to "rune"; only set it for non-rune
+        // (TCY, RUJI/Rujira, secured assets like "btc-btc") so existing RUNE
+        // sends keep byte-identical proto/signatures.
+        if (denom && denom !== "rune") send.setDenom(denom);
 
         ack = new ThorchainMessages.ThorchainMsgAck();
         ack.setSend(send);
