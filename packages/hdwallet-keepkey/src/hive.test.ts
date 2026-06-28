@@ -22,7 +22,9 @@ import {
   HiveSignAccountCreate,
   hiveSignAccountCreate,
   HiveSignAccountUpdate,
+  hiveSignAccountUpdate,
   HiveSignedAccountCreate,
+  HiveSignedAccountUpdate,
 } from "./hive";
 import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 
@@ -77,7 +79,7 @@ describe("Hive jspb round-trip", () => {
     m.setShowDisplay(true);
     const decoded = HiveGetPublicKeys.deserializeBinaryFromReader(
       new HiveGetPublicKeys(),
-      new jspb.BinaryReader(m.serializeBinary()),
+      new jspb.BinaryReader(m.serializeBinary())
     );
     expect(decoded.getAccountIndex()).toBe(3);
     expect(decoded.getShowDisplay()).toBe(true);
@@ -91,7 +93,7 @@ describe("Hive jspb round-trip", () => {
     m.setPostingKey("STM_posting");
     const decoded = HivePublicKeys.deserializeBinaryFromReader(
       new HivePublicKeys(),
-      new jspb.BinaryReader(m.serializeBinary()),
+      new jspb.BinaryReader(m.serializeBinary())
     );
     expect(decoded.getOwnerKey()).toBe("STM_owner");
     expect(decoded.getActiveKey()).toBe("STM_active");
@@ -116,7 +118,7 @@ describe("Hive jspb round-trip", () => {
 
     const decoded = HiveSignAccountCreate.deserializeBinaryFromReader(
       new HiveSignAccountCreate(),
-      new jspb.BinaryReader(m.serializeBinary()),
+      new jspb.BinaryReader(m.serializeBinary())
     );
     expect(decoded.getAddressNList()).toEqual(OWNER_PATH);
     expect(Array.from(decoded.getChainId_asU8())).toEqual([0xbe, 0xea, 0xb0, 0xde]);
@@ -145,7 +147,7 @@ describe("Hive jspb round-trip", () => {
     m.setNewMemoKey("STM_nm");
     const decoded = HiveSignAccountUpdate.deserializeBinaryFromReader(
       new HiveSignAccountUpdate(),
-      new jspb.BinaryReader(m.serializeBinary()),
+      new jspb.BinaryReader(m.serializeBinary())
     );
     expect(decoded.getAccount()).toBe("alice");
     expect(decoded.getNewOwnerKey()).toBe("STM_no");
@@ -213,7 +215,50 @@ describe("Hive wrappers", () => {
         postingKey: "STM_p",
         memoKey: "STM_m",
         feeAmount: 3000,
-      }),
+      })
+    ).rejects.toThrow(/unexpected response/);
+  });
+
+  it("hiveSignAccountUpdate returns signature + serializedTx on success", async () => {
+    const signed = new HiveSignedAccountUpdate();
+    signed.setSignature(new Uint8Array([7, 8, 9]));
+    signed.setSerializedTx(new Uint8Array([10, 11, 12]));
+    const call = jest.fn().mockResolvedValue({
+      message_enum: MESSAGETYPE_HIVESIGNEDACCOUNTUPDATE,
+      message_type: "HiveSignedAccountUpdate",
+      proto: signed,
+    });
+    const out = await hiveSignAccountUpdate(makeMockTransport(call), {
+      addressNList: OWNER_PATH,
+      refBlockNum: 1,
+      refBlockPrefix: 2,
+      expiration: 3,
+      account: "alice",
+      newOwnerKey: "STM_no",
+      newActiveKey: "STM_na",
+      newPostingKey: "STM_np",
+      newMemoKey: "STM_nm",
+    });
+    expect(Array.from(out.signature)).toEqual([7, 8, 9]);
+    expect(Array.from(out.serializedTx)).toEqual([10, 11, 12]);
+    // Guards the request enum / response-class wiring for 1608/1609.
+    expect(call).toHaveBeenCalledWith(MESSAGETYPE_HIVESIGNACCOUNTUPDATE, expect.anything(), expect.anything());
+  });
+
+  it("hiveSignAccountUpdate throws on unexpected response", async () => {
+    const call = jest.fn().mockResolvedValue({ message_enum: 9999, message_type: "Other", proto: {} });
+    await expect(
+      hiveSignAccountUpdate(makeMockTransport(call), {
+        addressNList: OWNER_PATH,
+        refBlockNum: 1,
+        refBlockPrefix: 2,
+        expiration: 3,
+        account: "alice",
+        newOwnerKey: "STM_no",
+        newActiveKey: "STM_na",
+        newPostingKey: "STM_np",
+        newMemoKey: "STM_nm",
+      })
     ).rejects.toThrow(/unexpected response/);
   });
 });
