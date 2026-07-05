@@ -10,8 +10,15 @@
  *
  * Coverage spans the V3↔V4 divergence points: nested structs (Permit2, Mail),
  * a struct array (Group → Person[], V4-only), and atomic array + dynamic bytes.
+ *
+ * Also covers namespaced primaryType names containing a colon (e.g. Hyperliquid's
+ * "HyperliquidTransaction:ApproveAgent"). eip-712's dependency walker used to
+ * truncate type names at the first non-word character (`/^\w+/`), so a colon-bearing
+ * primaryType resolved to zero dependencies and crashed `encodeType` with
+ * `Cannot read properties of undefined`. Fixed in patches/eip-712+1.0.0.patch —
+ * this pins the fix so a future `yarn install` that drops the patch fails loudly.
  */
-import { getStructHash } from "eip-712";
+import { getDependencies, getStructHash } from "eip-712";
 
 const hex = (b: Uint8Array) => "0x" + Buffer.from(b).toString("hex");
 const PERSON = [
@@ -136,6 +143,76 @@ const VECTORS: Record<string, { typedData: any; domain: string; message: string 
     domain: "0x1f1a0521ee8101ffc6bbe7c3921c3850ba35af8a5806dfb5a3c36301c441854e",
     message: "0x1a1c1292140cb77ad00e71ab075674e1821444dc5eb5f4b5cc0b664ad35a37e8",
   },
+  // Hyperliquid's ApproveAgent dApp flow — primaryType contains a colon
+  hyperliquidApproveAgent: {
+    typedData: {
+      types: {
+        EIP712Domain: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+        "HyperliquidTransaction:ApproveAgent": [
+          { name: "hyperliquidChain", type: "string" },
+          { name: "agentAddress", type: "address" },
+          { name: "agentName", type: "string" },
+          { name: "nonce", type: "uint64" },
+        ],
+      },
+      primaryType: "HyperliquidTransaction:ApproveAgent",
+      domain: {
+        name: "HyperliquidSignTransaction",
+        version: "1",
+        chainId: 421614,
+        verifyingContract: "0x0000000000000000000000000000000000000000",
+      },
+      message: {
+        hyperliquidChain: "Mainnet",
+        agentAddress: "0x141d9959cae3853B035000490C03991Eb70Fc4AC",
+        agentName: "BasedApp",
+        nonce: "1783201736956",
+      },
+    },
+    domain: "0xfeb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+    message: "0xec6fab35f7f50d6033221926bbd0534179d89a17762e9cf505f65434a1dc4367",
+  },
+  // Confirms the fix is generic, not an ApproveAgent one-off — Hyperliquid has ~12
+  // colon-namespaced action types (UsdSend, Withdraw, SpotSend, TokenDelegate, ...)
+  // sharing this same primaryType convention; all go through the same code path.
+  hyperliquidUsdSend: {
+    typedData: {
+      types: {
+        EIP712Domain: [
+          { name: "name", type: "string" },
+          { name: "version", type: "string" },
+          { name: "chainId", type: "uint256" },
+          { name: "verifyingContract", type: "address" },
+        ],
+        "HyperliquidTransaction:UsdSend": [
+          { name: "hyperliquidChain", type: "string" },
+          { name: "destination", type: "string" },
+          { name: "amount", type: "string" },
+          { name: "time", type: "uint64" },
+        ],
+      },
+      primaryType: "HyperliquidTransaction:UsdSend",
+      domain: {
+        name: "HyperliquidSignTransaction",
+        version: "1",
+        chainId: 421614,
+        verifyingContract: "0x0000000000000000000000000000000000000000",
+      },
+      message: {
+        hyperliquidChain: "Mainnet",
+        destination: "0x5e9ee1089755c3435139848e47e6635505d5a13",
+        amount: "100.0",
+        time: 1783201736956,
+      },
+    },
+    domain: "0xfeb1393ca4412a4ca577bd51d04f0a77033514c602f4d0a11490fb95f7428df6",
+    message: "0x1d706a53a98310840ea64551dff5d9cae877e7fbabcde155eb70138df9e11716",
+  },
 };
 
 describe("eip-712 getStructHash (EIP-712 V4) — known-answer", () => {
@@ -145,4 +222,11 @@ describe("eip-712 getStructHash (EIP-712 V4) — known-answer", () => {
       expect(hex(getStructHash(v.typedData, v.typedData.primaryType, v.typedData.message))).toBe(v.message);
     });
   }
+});
+
+describe("eip-712 getDependencies — colon-namespaced type names", () => {
+  it("resolves a primaryType containing ':' instead of truncating at it", () => {
+    const typedData = VECTORS.hyperliquidApproveAgent.typedData;
+    expect(getDependencies(typedData, typedData.primaryType, {})).toEqual([typedData.primaryType]);
+  });
 });
