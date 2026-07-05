@@ -1,0 +1,70 @@
+diff --git a/node_modules/eip-712/lib/cjs/eip-712.js b/node_modules/eip-712/lib/cjs/eip-712.js
+index 9c002f6..1b392c6 100644
+--- a/node_modules/eip-712/lib/cjs/eip-712.js
++++ b/node_modules/eip-712/lib/cjs/eip-712.js
+@@ -18,8 +18,12 @@ const getDependencies = (typedData, type, options, dependencies = []) => {
+     throw new Error('Typed data does not match JSON schema');
+   }
+ 
+-  const match = type.match(_types.TYPE_REGEX);
+-  const actualType = match[0];
++  // ponytail: primaryType/field-type names are looked up verbatim in typedData.types;
++  // only strip a trailing array suffix (e.g. "Person[]" -> "Person"). The upstream
++  // /^\w+/ TYPE_REGEX truncated any type name at its first non-word char, breaking
++  // namespaced type names like Hyperliquid's "HyperliquidTransaction:ApproveAgent".
++  const arrayMatch = type.match(_types.ARRAY_REGEX);
++  const actualType = arrayMatch ? arrayMatch[1] : type;
+ 
+   if (dependencies.includes(actualType)) {
+     return dependencies;
+diff --git a/node_modules/eip-712/lib/cjs/types.js b/node_modules/eip-712/lib/cjs/types.js
+index 11d4e9e..3d2f731 100644
+--- a/node_modules/eip-712/lib/cjs/types.js
++++ b/node_modules/eip-712/lib/cjs/types.js
+@@ -55,10 +55,10 @@ const isValidType = (types, type) => {
+   }
+ 
+   if (type.match(ARRAY_REGEX)) {
+-    const match = type.match(TYPE_REGEX);
++    const match = type.match(ARRAY_REGEX);
+ 
+     if (match) {
+-      const innerType = match[0];
++      const innerType = match[1];
+       return isValidType(types, innerType);
+     }
+   }
+diff --git a/node_modules/eip-712/lib/es/eip-712.js b/node_modules/eip-712/lib/es/eip-712.js
+index 0b1f7ab..bf7b25c 100644
+--- a/node_modules/eip-712/lib/es/eip-712.js
++++ b/node_modules/eip-712/lib/es/eip-712.js
+@@ -7,8 +7,10 @@ export const getDependencies = (typedData, type, options, dependencies = []) =>
+     throw new Error('Typed data does not match JSON schema');
+   }
+ 
+-  const match = type.match(TYPE_REGEX);
+-  const actualType = match[0];
++  // ponytail: see cjs/eip-712.js — only strip a trailing array suffix, don't
++  // truncate namespaced type names (e.g. Hyperliquid's "Foo:Bar") at the colon.
++  const arrayMatch = type.match(ARRAY_REGEX);
++  const actualType = arrayMatch ? arrayMatch[1] : type;
+ 
+   if (dependencies.includes(actualType)) {
+     return dependencies;
+diff --git a/node_modules/eip-712/lib/es/types.js b/node_modules/eip-712/lib/es/types.js
+index 731b9e3..fe6c8a9 100644
+--- a/node_modules/eip-712/lib/es/types.js
++++ b/node_modules/eip-712/lib/es/types.js
+@@ -37,10 +37,10 @@ export const isValidType = (types, type) => {
+   }
+ 
+   if (type.match(ARRAY_REGEX)) {
+-    const match = type.match(TYPE_REGEX);
++    const match = type.match(ARRAY_REGEX);
+ 
+     if (match) {
+-      const innerType = match[0];
++      const innerType = match[1];
+       return isValidType(types, innerType);
+     }
+   }
