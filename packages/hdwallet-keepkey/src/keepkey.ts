@@ -1376,6 +1376,11 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Eth.ethSignTx(this.transport, msg);
   }
 
+  /** Load a runtime EVM clear-sign signer into a device key slot (RAM-only, user-confirmed). KeepKey-specific. */
+  public async loadClearsignSigner(msg: { keyId: number; pubkey: Uint8Array; alias: string }): Promise<{ ok: true }> {
+    return Eth.ethLoadClearsignSigner(this.transport, msg);
+  }
+
   public async ethGetAddress(msg: core.ETHGetAddress): Promise<string> {
     return Eth.ethGetAddress(this.transport, msg);
   }
