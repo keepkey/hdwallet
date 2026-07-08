@@ -16,6 +16,7 @@ import { toUTF8Array } from "./utils";
 // Message type IDs from device-protocol-clear-signing/messages.proto
 const MESSAGETYPE_ETHEREUMTXMETADATA = 115;
 const MESSAGETYPE_ETHEREUMMETADATAACK = 116;
+const MESSAGETYPE_LOADCLEARSIGNSIGNER = 117;
 
 // ── EVM Metadata Classification (from EthereumMetadataAck) ───────────
 /** Device could not verify the blob (unsigned or unknown key) */
@@ -185,17 +186,101 @@ class EthereumMetadataAck extends jspb.Message {
   }
 }
 
+/**
+ * LoadClearsignSigner: load a runtime clear-signing signer (compressed pubkey
+ * + alias) into a device key slot. Triggers a mandatory on-device confirmation;
+ * RAM-only, dropped on reboot/WipeDevice. Metadata verified by a loaded signer
+ * shows a warning screen naming the alias before every clear-sign page.
+ *
+ * Proto definition (device-protocol messages-ethereum.proto, msg type 117):
+ *   message LoadClearsignSigner {
+ *     optional uint32 key_id = 1;   // slot 1-3 (0 = built-in production, not loadable)
+ *     optional bytes  pubkey = 2;   // 33-byte compressed secp256k1
+ *     optional string alias  = 3;   // [A-Za-z0-9 _-], shown on the trust screen
+ *   }
+ * Host→device only; device replies Success (confirmed) or Failure (rejected).
+ */
+class LoadClearsignSigner extends jspb.Message {
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, null, null);
+  }
+
+  setKeyId(value: number): void {
+    jspb.Message.setField(this, 1, value);
+  }
+  setPubkey(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
+  setAlias(value: string): void {
+    jspb.Message.setField(this, 3, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    LoadClearsignSigner.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  static serializeBinaryToWriter(message: LoadClearsignSigner, writer: jspb.BinaryWriter): void {
+    writer.writeUint32(1, jspb.Message.getFieldWithDefault(message, 1, 0) as number);
+    const pubkey = jspb.Message.getFieldWithDefault(message, 2, "") as Uint8Array | string;
+    if (pubkey && (typeof pubkey === "string" ? pubkey.length > 0 : pubkey.length > 0)) {
+      writer.writeBytes(2, pubkey);
+    }
+    const alias = jspb.Message.getFieldWithDefault(message, 3, "") as string;
+    if (alias) writer.writeString(3, alias);
+  }
+
+  static deserializeBinary(bytes: Uint8Array): LoadClearsignSigner {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new LoadClearsignSigner();
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      switch (reader.getFieldNumber()) {
+        case 1:
+          jspb.Message.setField(msg, 1, reader.readUint32());
+          break;
+        case 2:
+          jspb.Message.setField(msg, 2, reader.readBytes());
+          break;
+        case 3:
+          jspb.Message.setField(msg, 3, reader.readString());
+          break;
+        default:
+          reader.skipField();
+          break;
+      }
+    }
+    return msg;
+  }
+
+  toObject(): { keyId: number; pubkey: Uint8Array | string; alias: string } {
+    return {
+      keyId: jspb.Message.getFieldWithDefault(this, 1, 0) as number,
+      pubkey: jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string,
+      alias: jspb.Message.getFieldWithDefault(this, 3, "") as string,
+    };
+  }
+  static toObject(_includeInstance: boolean, msg: LoadClearsignSigner) {
+    return msg.toObject();
+  }
+}
+
 // ── Register EVM clear-signing messages ──────────────────────────────
 function registerEthClearSignMessages() {
   const mt = Messages.MessageType as unknown as Record<string, number>;
   mt["MESSAGETYPE_ETHEREUMTXMETADATA"] = MESSAGETYPE_ETHEREUMTXMETADATA;
   mt["MESSAGETYPE_ETHEREUMMETADATAACK"] = MESSAGETYPE_ETHEREUMMETADATAACK;
+  mt["MESSAGETYPE_LOADCLEARSIGNSIGNER"] = MESSAGETYPE_LOADCLEARSIGNSIGNER;
 
   messageNameRegistry[MESSAGETYPE_ETHEREUMTXMETADATA] = "EthereumTxMetadata";
   messageNameRegistry[MESSAGETYPE_ETHEREUMMETADATAACK] = "EthereumMetadataAck";
+  messageNameRegistry[MESSAGETYPE_LOADCLEARSIGNSIGNER] = "LoadClearsignSigner";
 
   messageTypeRegistry[MESSAGETYPE_ETHEREUMTXMETADATA] = EthereumTxMetadata as any;
   messageTypeRegistry[MESSAGETYPE_ETHEREUMMETADATAACK] = EthereumMetadataAck as any;
+  messageTypeRegistry[MESSAGETYPE_LOADCLEARSIGNSIGNER] = LoadClearsignSigner as any;
 }
 registerEthClearSignMessages();
 
@@ -404,6 +489,29 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
       v,
       serialized: "0x" + core.toHexString(tx.serialize()),
     };
+  });
+}
+
+/**
+ * Load a runtime clear-sign signer into a device key slot (RAM-only). Sends
+ * LoadClearsignSigner (msg 117); the device shows a mandatory trust-confirm
+ * screen naming the alias + the pubkey fingerprint. Resolves on Success,
+ * rejects (via transport.call throwing) on device Failure/cancel.
+ */
+export async function ethLoadClearsignSigner(
+  transport: Transport,
+  msg: { keyId: number; pubkey: Uint8Array; alias: string }
+): Promise<{ ok: true }> {
+  return transport.lockDuring(async () => {
+    const m = new LoadClearsignSigner();
+    m.setKeyId(msg.keyId);
+    m.setPubkey(msg.pubkey);
+    m.setAlias(msg.alias);
+    await transport.call(MESSAGETYPE_LOADCLEARSIGNSIGNER, m, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+    return { ok: true };
   });
 }
 
