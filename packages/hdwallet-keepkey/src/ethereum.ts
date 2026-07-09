@@ -215,6 +215,18 @@ class LoadClearsignSigner extends jspb.Message {
   setAlias(value: string): void {
     jspb.Message.setField(this, 3, value);
   }
+  setIcon(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 4, value);
+  }
+  setIconWidth(value: number): void {
+    jspb.Message.setField(this, 5, value);
+  }
+  setIconHeight(value: number): void {
+    jspb.Message.setField(this, 6, value);
+  }
+  setPersist(value: boolean): void {
+    jspb.Message.setField(this, 7, value);
+  }
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -230,6 +242,14 @@ class LoadClearsignSigner extends jspb.Message {
     }
     const alias = jspb.Message.getFieldWithDefault(message, 3, "") as string;
     if (alias) writer.writeString(3, alias);
+    const icon = jspb.Message.getFieldWithDefault(message, 4, "") as Uint8Array | string;
+    if (icon && (typeof icon === "string" ? icon.length > 0 : icon.length > 0)) {
+      writer.writeBytes(4, icon);
+      writer.writeUint32(5, jspb.Message.getFieldWithDefault(message, 5, 0) as number);
+      writer.writeUint32(6, jspb.Message.getFieldWithDefault(message, 6, 0) as number);
+    }
+    const persist = jspb.Message.getFieldWithDefault(message, 7, false) as boolean;
+    if (persist) writer.writeBool(7, persist);
   }
 
   static deserializeBinary(bytes: Uint8Array): LoadClearsignSigner {
@@ -246,6 +266,18 @@ class LoadClearsignSigner extends jspb.Message {
           break;
         case 3:
           jspb.Message.setField(msg, 3, reader.readString());
+          break;
+        case 4:
+          jspb.Message.setField(msg, 4, reader.readBytes());
+          break;
+        case 5:
+          jspb.Message.setField(msg, 5, reader.readUint32());
+          break;
+        case 6:
+          jspb.Message.setField(msg, 6, reader.readUint32());
+          break;
+        case 7:
+          jspb.Message.setField(msg, 7, reader.readBool());
           break;
         default:
           reader.skipField();
@@ -500,13 +532,29 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
  */
 export async function ethLoadClearsignSigner(
   transport: Transport,
-  msg: { keyId: number; pubkey: Uint8Array; alias: string }
+  msg: {
+    keyId: number;
+    pubkey: Uint8Array;
+    alias: string;
+    /** Optional identity logo: 1bpp mono RLE bitmap, <= 384 bytes. */
+    icon?: Uint8Array;
+    iconWidth?: number;
+    iconHeight?: number;
+    /** Keep the identity in device flash across reboots (until WipeDevice). */
+    persist?: boolean;
+  }
 ): Promise<{ ok: true }> {
   return transport.lockDuring(async () => {
     const m = new LoadClearsignSigner();
     m.setKeyId(msg.keyId);
     m.setPubkey(msg.pubkey);
     m.setAlias(msg.alias);
+    if (msg.icon && msg.icon.length > 0) {
+      m.setIcon(msg.icon);
+      m.setIconWidth(msg.iconWidth ?? 0);
+      m.setIconHeight(msg.iconHeight ?? 0);
+    }
+    if (msg.persist) m.setPersist(true);
     await transport.call(MESSAGETYPE_LOADCLEARSIGNSIGNER, m, {
       msgTimeout: core.LONG_TIMEOUT,
       omitLock: true,
