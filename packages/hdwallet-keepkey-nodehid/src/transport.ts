@@ -37,8 +37,14 @@ export class TransportDelegate implements keepkey.TransportDelegate {
 
   async readChunk(): Promise<Uint8Array> {
     if (!(await this.isOpened())) throw new Error("cannot read from a closed connection");
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const result = await this.hidRef!.readSync();
+    // node-hid's async read() runs on a background thread, unlike readSync() which
+    // blocks the JS event loop for the entire time the device waits for a button
+    // press — that freeze prevented the concurrent cancelDeviceSigning RPC from ever
+    // dispatching, so an on-device Cancel (e.g. from the swap flow) could never fire.
+    const result = await new Promise<number[]>((resolve, reject) => {
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      this.hidRef!.read((err, data) => (err ? reject(err) : resolve(data)));
+    });
     return new Uint8Array(result);
   }
 
