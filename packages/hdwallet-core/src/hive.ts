@@ -42,6 +42,18 @@ export interface HiveSignedMessage {
   publicKey: Uint8Array;
 }
 
+/** Generic parsed-op signing: host-serialized Graphene tx bytes; firmware
+ *  parses + clear-signs vote/comment/custom_json, rejects everything else. */
+export interface HiveSignOperations {
+  addressNList: BIP32Path;
+  chainId?: Uint8Array | string;
+  serializedTx: Uint8Array;
+}
+
+export interface HiveSignedOperations {
+  signature: Uint8Array;
+}
+
 // ── SLIP-0048 path helper ──────────────────────────────────────────────
 // Hive uses SLIP-0048: m/48'/13'/role'/account'/0' (all 5 hardened). Must match
 // firmware (hive.h HIVE_SLIP48_*), Ledger, and Hive Keychain.
@@ -111,6 +123,7 @@ export interface HiveWallet extends HDWallet {
   hiveGetPublicKeys(msg: HiveGetPublicKeys): Promise<HivePublicKeys | null>;
   hiveSignTx(msg: HiveSignTx): Promise<HiveSignedTx | null>;
   hiveSignMessage(msg: HiveSignMessage): Promise<HiveSignedMessage | null>;
+  hiveSignOperations(msg: HiveSignOperations): Promise<HiveSignedOperations | null>;
   hiveSignAccountCreate(msg: HiveSignAccountCreate): Promise<HiveSignedAccountCreate | null>;
   hiveSignAccountUpdate(msg: HiveSignAccountUpdate): Promise<HiveSignedAccountUpdate | null>;
 }
