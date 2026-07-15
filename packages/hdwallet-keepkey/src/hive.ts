@@ -18,6 +18,10 @@ const MESSAGETYPE_HIVESIGNACCOUNTCREATE = 1606;
 const MESSAGETYPE_HIVESIGNEDACCOUNTCREATE = 1607;
 const MESSAGETYPE_HIVESIGNACCOUNTUPDATE = 1608;
 const MESSAGETYPE_HIVESIGNEDACCOUNTUPDATE = 1609;
+const MESSAGETYPE_HIVESIGNMESSAGE = 1614;
+const MESSAGETYPE_HIVESIGNEDMESSAGE = 1615;
+const MESSAGETYPE_HIVESIGNOPERATIONS = 1616;
+const MESSAGETYPE_HIVESIGNEDOPERATIONS = 1617;
 
 // ── Protobuf Shims ─────────────────────────────────────────────────────
 
@@ -1103,6 +1107,311 @@ export class HiveSignedAccountUpdate extends jspb.Message {
   }
 }
 
+/**
+ * HiveSignMessage: address_n(1, repeated uint32), message(2, bytes max 1024).
+ * Keychain signBuffer contract: firmware signs SHA256(message) — no chain_id.
+ */
+export class HiveSignMessage extends jspb.Message {
+  static repeatedFields_ = [1];
+
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, HiveSignMessage.repeatedFields_, null);
+  }
+
+  getAddressNList(): number[] {
+    return Msg.getRepeatedField(this, 1) as number[];
+  }
+  setAddressNList(value: number[]): void {
+    jspb.Message.setField(this, 1, value || []);
+  }
+
+  getMessage(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string;
+  }
+  getMessage_asU8(): Uint8Array {
+    const val = this.getMessage();
+    if (val instanceof Uint8Array) return val;
+    return jspb.Message.bytesAsU8(val as string);
+  }
+  setMessage(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    HiveSignMessage.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(): object {
+    return { addressNList: this.getAddressNList(), message: this.getMessage() };
+  }
+  static toObject(_: boolean, msg: HiveSignMessage): object {
+    return msg.toObject();
+  }
+
+  static deserializeBinary(bytes: Uint8Array): HiveSignMessage {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new HiveSignMessage();
+    return HiveSignMessage.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(msg: HiveSignMessage, reader: jspb.BinaryReader): HiveSignMessage {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      switch (reader.getFieldNumber()) {
+        case 1:
+          msg.setAddressNList(reader.readPackedUint32());
+          break;
+        case 2:
+          msg.setMessage(reader.readBytes());
+          break;
+        default:
+          reader.skipField();
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: HiveSignMessage, writer: jspb.BinaryWriter): void {
+    const path = message.getAddressNList();
+    if (path.length > 0) writer.writeRepeatedUint32(1, path);
+    const m = message.getMessage_asU8();
+    if (m.length > 0) writer.writeBytes(2, m);
+  }
+}
+
+/**
+ * HiveSignedMessage: signature(1, bytes 65), public_key(2, bytes 33)
+ */
+export class HiveSignedMessage extends jspb.Message {
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, null, null);
+  }
+
+  getSignature(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 1, "") as Uint8Array | string;
+  }
+  getSignature_asU8(): Uint8Array {
+    const val = this.getSignature();
+    if (val instanceof Uint8Array) return val;
+    return jspb.Message.bytesAsU8(val as string);
+  }
+  setSignature(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 1, value);
+  }
+
+  getPublicKey(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string;
+  }
+  getPublicKey_asU8(): Uint8Array {
+    const val = this.getPublicKey();
+    if (val instanceof Uint8Array) return val;
+    return jspb.Message.bytesAsU8(val as string);
+  }
+  setPublicKey(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    HiveSignedMessage.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(): object {
+    return { signature: this.getSignature(), publicKey: this.getPublicKey() };
+  }
+  static toObject(_: boolean, msg: HiveSignedMessage): object {
+    return msg.toObject();
+  }
+
+  static deserializeBinary(bytes: Uint8Array): HiveSignedMessage {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new HiveSignedMessage();
+    return HiveSignedMessage.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(msg: HiveSignedMessage, reader: jspb.BinaryReader): HiveSignedMessage {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      switch (reader.getFieldNumber()) {
+        case 1:
+          msg.setSignature(reader.readBytes());
+          break;
+        case 2:
+          msg.setPublicKey(reader.readBytes());
+          break;
+        default:
+          reader.skipField();
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: HiveSignedMessage, writer: jspb.BinaryWriter): void {
+    const sig = message.getSignature_asU8();
+    if (sig.length > 0) writer.writeBytes(1, sig);
+    const pk = message.getPublicKey_asU8();
+    if (pk.length > 0) writer.writeBytes(2, pk);
+  }
+}
+
+/**
+ * HiveSignOperations: address_n(1, repeated uint32), chain_id(2, bytes 32),
+ * serialized_tx(3, bytes max 2048). Firmware parses the Graphene bytes and
+ * clear-signs recognized ops; digest = SHA256(chain_id || serialized_tx).
+ */
+export class HiveSignOperations extends jspb.Message {
+  static repeatedFields_ = [1];
+
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, HiveSignOperations.repeatedFields_, null);
+  }
+
+  getAddressNList(): number[] {
+    return Msg.getRepeatedField(this, 1) as number[];
+  }
+  setAddressNList(value: number[]): void {
+    jspb.Message.setField(this, 1, value || []);
+  }
+
+  getChainId(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string;
+  }
+  getChainId_asU8(): Uint8Array {
+    const val = this.getChainId();
+    if (val instanceof Uint8Array) return val;
+    return jspb.Message.bytesAsU8(val as string);
+  }
+  setChainId(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
+
+  getSerializedTx(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 3, "") as Uint8Array | string;
+  }
+  getSerializedTx_asU8(): Uint8Array {
+    const val = this.getSerializedTx();
+    if (val instanceof Uint8Array) return val;
+    return jspb.Message.bytesAsU8(val as string);
+  }
+  setSerializedTx(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 3, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    HiveSignOperations.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(): object {
+    return { addressNList: this.getAddressNList(), chainId: this.getChainId(), serializedTx: this.getSerializedTx() };
+  }
+  static toObject(_: boolean, msg: HiveSignOperations): object {
+    return msg.toObject();
+  }
+
+  static deserializeBinary(bytes: Uint8Array): HiveSignOperations {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new HiveSignOperations();
+    return HiveSignOperations.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(msg: HiveSignOperations, reader: jspb.BinaryReader): HiveSignOperations {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      switch (reader.getFieldNumber()) {
+        case 1:
+          msg.setAddressNList(reader.readPackedUint32());
+          break;
+        case 2:
+          msg.setChainId(reader.readBytes());
+          break;
+        case 3:
+          msg.setSerializedTx(reader.readBytes());
+          break;
+        default:
+          reader.skipField();
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: HiveSignOperations, writer: jspb.BinaryWriter): void {
+    const path = message.getAddressNList();
+    if (path.length > 0) writer.writeRepeatedUint32(1, path);
+    const cid = message.getChainId_asU8();
+    if (cid.length > 0) writer.writeBytes(2, cid);
+    const tx = message.getSerializedTx_asU8();
+    if (tx.length > 0) writer.writeBytes(3, tx);
+  }
+}
+
+/**
+ * HiveSignedOperations: signature(1, bytes 65)
+ */
+export class HiveSignedOperations extends jspb.Message {
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, null, null);
+  }
+
+  getSignature(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 1, "") as Uint8Array | string;
+  }
+  getSignature_asU8(): Uint8Array {
+    const val = this.getSignature();
+    if (val instanceof Uint8Array) return val;
+    return jspb.Message.bytesAsU8(val as string);
+  }
+  setSignature(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 1, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    HiveSignedOperations.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  toObject(): object {
+    return { signature: this.getSignature() };
+  }
+  static toObject(_: boolean, msg: HiveSignedOperations): object {
+    return msg.toObject();
+  }
+
+  static deserializeBinary(bytes: Uint8Array): HiveSignedOperations {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new HiveSignedOperations();
+    return HiveSignedOperations.deserializeBinaryFromReader(msg, reader);
+  }
+
+  static deserializeBinaryFromReader(msg: HiveSignedOperations, reader: jspb.BinaryReader): HiveSignedOperations {
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      switch (reader.getFieldNumber()) {
+        case 1:
+          msg.setSignature(reader.readBytes());
+          break;
+        default:
+          reader.skipField();
+      }
+    }
+    return msg;
+  }
+
+  static serializeBinaryToWriter(message: HiveSignedOperations, writer: jspb.BinaryWriter): void {
+    const sig = message.getSignature_asU8();
+    if (sig.length > 0) writer.writeBytes(1, sig);
+  }
+}
+
 // ── Runtime Registration ───────────────────────────────────────────────
 
 function registerHiveMessages() {
@@ -1117,6 +1426,10 @@ function registerHiveMessages() {
   mt["MESSAGETYPE_HIVESIGNEDACCOUNTCREATE"] = MESSAGETYPE_HIVESIGNEDACCOUNTCREATE;
   mt["MESSAGETYPE_HIVESIGNACCOUNTUPDATE"] = MESSAGETYPE_HIVESIGNACCOUNTUPDATE;
   mt["MESSAGETYPE_HIVESIGNEDACCOUNTUPDATE"] = MESSAGETYPE_HIVESIGNEDACCOUNTUPDATE;
+  mt["MESSAGETYPE_HIVESIGNMESSAGE"] = MESSAGETYPE_HIVESIGNMESSAGE;
+  mt["MESSAGETYPE_HIVESIGNEDMESSAGE"] = MESSAGETYPE_HIVESIGNEDMESSAGE;
+  mt["MESSAGETYPE_HIVESIGNOPERATIONS"] = MESSAGETYPE_HIVESIGNOPERATIONS;
+  mt["MESSAGETYPE_HIVESIGNEDOPERATIONS"] = MESSAGETYPE_HIVESIGNEDOPERATIONS;
 
   messageNameRegistry[MESSAGETYPE_HIVEGETPUBLICKEY] = "HiveGetPublicKey";
   messageNameRegistry[MESSAGETYPE_HIVEPUBLICKEY] = "HivePublicKey";
@@ -1128,6 +1441,10 @@ function registerHiveMessages() {
   messageNameRegistry[MESSAGETYPE_HIVESIGNEDACCOUNTCREATE] = "HiveSignedAccountCreate";
   messageNameRegistry[MESSAGETYPE_HIVESIGNACCOUNTUPDATE] = "HiveSignAccountUpdate";
   messageNameRegistry[MESSAGETYPE_HIVESIGNEDACCOUNTUPDATE] = "HiveSignedAccountUpdate";
+  messageNameRegistry[MESSAGETYPE_HIVESIGNMESSAGE] = "HiveSignMessage";
+  messageNameRegistry[MESSAGETYPE_HIVESIGNEDMESSAGE] = "HiveSignedMessage";
+  messageNameRegistry[MESSAGETYPE_HIVESIGNOPERATIONS] = "HiveSignOperations";
+  messageNameRegistry[MESSAGETYPE_HIVESIGNEDOPERATIONS] = "HiveSignedOperations";
 
   messageTypeRegistry[MESSAGETYPE_HIVEGETPUBLICKEY] = HiveGetPublicKey as any;
   messageTypeRegistry[MESSAGETYPE_HIVEPUBLICKEY] = HivePublicKey as any;
@@ -1139,6 +1456,10 @@ function registerHiveMessages() {
   messageTypeRegistry[MESSAGETYPE_HIVESIGNEDACCOUNTCREATE] = HiveSignedAccountCreate as any;
   messageTypeRegistry[MESSAGETYPE_HIVESIGNACCOUNTUPDATE] = HiveSignAccountUpdate as any;
   messageTypeRegistry[MESSAGETYPE_HIVESIGNEDACCOUNTUPDATE] = HiveSignedAccountUpdate as any;
+  messageTypeRegistry[MESSAGETYPE_HIVESIGNMESSAGE] = HiveSignMessage as any;
+  messageTypeRegistry[MESSAGETYPE_HIVESIGNEDMESSAGE] = HiveSignedMessage as any;
+  messageTypeRegistry[MESSAGETYPE_HIVESIGNOPERATIONS] = HiveSignOperations as any;
+  messageTypeRegistry[MESSAGETYPE_HIVESIGNEDOPERATIONS] = HiveSignedOperations as any;
 }
 
 registerHiveMessages();
@@ -1205,10 +1526,60 @@ export async function hiveSignTx(transport: Transport, msg: core.HiveSignTx): Pr
   });
 }
 
+export async function hiveSignMessage(
+  transport: Transport,
+  msg: core.HiveSignMessage
+): Promise<core.HiveSignedMessage> {
+  return transport.lockDuring(async () => {
+    const req = new HiveSignMessage();
+    req.setAddressNList(msg.addressNList);
+    req.setMessage(msg.message);
+
+    const resp = await transport.call(MESSAGETYPE_HIVESIGNMESSAGE, req, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+
+    if (resp.message_enum !== MESSAGETYPE_HIVESIGNEDMESSAGE) {
+      throw new Error(`hive: unexpected response ${resp.message_type}`);
+    }
+
+    const signed = resp.proto as HiveSignedMessage;
+    return {
+      signature: signed.getSignature_asU8(),
+      publicKey: signed.getPublicKey_asU8(),
+    };
+  });
+}
+
 function toChainIdBytes(chainId: Uint8Array | string): Uint8Array {
   if (chainId instanceof Uint8Array) return chainId;
   if (typeof chainId === "string") return core.fromHexString(chainId);
   return new Uint8Array(chainId as any);
+}
+
+export async function hiveSignOperations(
+  transport: Transport,
+  msg: core.HiveSignOperations
+): Promise<core.HiveSignedOperations> {
+  return transport.lockDuring(async () => {
+    const req = new HiveSignOperations();
+    req.setAddressNList(msg.addressNList);
+    if (msg.chainId !== undefined) req.setChainId(toChainIdBytes(msg.chainId));
+    req.setSerializedTx(msg.serializedTx);
+
+    const resp = await transport.call(MESSAGETYPE_HIVESIGNOPERATIONS, req, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+
+    if (resp.message_enum !== MESSAGETYPE_HIVESIGNEDOPERATIONS) {
+      throw new Error(`hive: unexpected response ${resp.message_type}`);
+    }
+
+    const signed = resp.proto as HiveSignedOperations;
+    return { signature: signed.getSignature_asU8() };
+  });
 }
 
 export async function hiveGetPublicKeys(
