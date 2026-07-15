@@ -1552,6 +1552,12 @@ export async function hiveSignMessage(
   });
 }
 
+function toChainIdBytes(chainId: Uint8Array | string): Uint8Array {
+  if (chainId instanceof Uint8Array) return chainId;
+  if (typeof chainId === "string") return core.fromHexString(chainId);
+  return new Uint8Array(chainId as any);
+}
+
 export async function hiveSignOperations(
   transport: Transport,
   msg: core.HiveSignOperations
@@ -1574,12 +1580,6 @@ export async function hiveSignOperations(
     const signed = resp.proto as HiveSignedOperations;
     return { signature: signed.getSignature_asU8() };
   });
-}
-
-function toChainIdBytes(chainId: Uint8Array | string): Uint8Array {
-  if (chainId instanceof Uint8Array) return chainId;
-  if (typeof chainId === "string") return core.fromHexString(chainId);
-  return new Uint8Array(chainId as any);
 }
 
 export async function hiveGetPublicKeys(
