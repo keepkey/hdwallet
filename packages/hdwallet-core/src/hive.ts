@@ -29,6 +29,19 @@ export interface HiveSignedTx {
   serializedTx: Uint8Array;
 }
 
+/** Keychain signBuffer contract: sign SHA256(message bytes) — no chain_id, no prefix. */
+export interface HiveSignMessage {
+  addressNList: BIP32Path;
+  message: Uint8Array;
+}
+
+export interface HiveSignedMessage {
+  /** 65-byte compact recoverable signature (27+recid+4, r, s) */
+  signature: Uint8Array;
+  /** 33-byte compressed public key of the signing key */
+  publicKey: Uint8Array;
+}
+
 // ── SLIP-0048 path helper ──────────────────────────────────────────────
 // Hive uses SLIP-0048: m/48'/13'/role'/account'/0' (all 5 hardened). Must match
 // firmware (hive.h HIVE_SLIP48_*), Ledger, and Hive Keychain.
@@ -97,6 +110,7 @@ export interface HiveWallet extends HDWallet {
   hiveGetPublicKey(msg: HiveGetPublicKey): Promise<HivePublicKey | null>;
   hiveGetPublicKeys(msg: HiveGetPublicKeys): Promise<HivePublicKeys | null>;
   hiveSignTx(msg: HiveSignTx): Promise<HiveSignedTx | null>;
+  hiveSignMessage(msg: HiveSignMessage): Promise<HiveSignedMessage | null>;
   hiveSignAccountCreate(msg: HiveSignAccountCreate): Promise<HiveSignedAccountCreate | null>;
   hiveSignAccountUpdate(msg: HiveSignAccountUpdate): Promise<HiveSignedAccountUpdate | null>;
 }

@@ -1593,6 +1593,10 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Hive.hiveGetPublicKeys(this.transport, msg);
   }
 
+  public hiveSignMessage(msg: core.HiveSignMessage): Promise<core.HiveSignedMessage | null> {
+    return Hive.hiveSignMessage(this.transport, msg);
+  }
+
   public hiveSignTx(msg: core.HiveSignTx): Promise<core.HiveSignedTx | null> {
     return Hive.hiveSignTx(this.transport, msg);
   }
