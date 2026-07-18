@@ -316,14 +316,24 @@ export async function zcashSignPczt(
             addressNList: input?.addressNList,
           });
 
+          // Firmware rejects an input without prevout/script as "Invalid
+          // transparent input data" — fail loudly host-side instead of
+          // silently sending a gutted message (a snake_case caller would
+          // otherwise pass every one of these as undefined).
+          if (!input.prevoutTxid || input.prevoutIndex === undefined || !input.scriptPubkey) {
+            throw new Error(
+              `zcash: transparent input ${input.index} missing prevoutTxid/prevoutIndex/scriptPubkey (camelCase required)`
+            );
+          }
+
           const inputMsg = new ZcashMessages.ZcashTransparentInput();
           inputMsg.setIndex(input.index);
           inputMsg.setAddressNList(input.addressNList);
           inputMsg.setAmount(input.amount);
-          if (input.prevoutTxid) inputMsg.setPrevoutTxid(hexToBytes(input.prevoutTxid));
-          if (input.prevoutIndex !== undefined) inputMsg.setPrevoutIndex(input.prevoutIndex);
+          inputMsg.setPrevoutTxid(hexToBytes(input.prevoutTxid));
+          inputMsg.setPrevoutIndex(input.prevoutIndex);
           if (input.sequence !== undefined) inputMsg.setSequence(input.sequence);
-          if (input.scriptPubkey) inputMsg.setScriptPubkey(hexToBytes(input.scriptPubkey));
+          inputMsg.setScriptPubkey(hexToBytes(input.scriptPubkey));
 
           response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT, inputMsg, {
             msgTimeout: core.LONG_TIMEOUT,

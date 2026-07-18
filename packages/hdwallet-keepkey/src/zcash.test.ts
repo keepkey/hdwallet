@@ -293,6 +293,56 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(result._transparentSignatures).toHaveLength(1);
   });
 
+  it("rejects snake_case transparent input fields before sending to the device", async () => {
+    // A caller passing sidecar-shaped keys (prevout_txid/script_pubkey) must
+    // fail loudly host-side — the old behaviour silently omitted the fields
+    // and the device rejected with "Invalid transparent input data".
+    const calls: number[] = [];
+    const call = jest.fn().mockImplementation((mtype: number) => {
+      calls.push(mtype);
+      if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT) {
+        const ack = new ZcashMessages.ZcashTransparentAck();
+        ack.setNextOutputIndex(0);
+        return Promise.resolve({
+          message_enum: Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTACK,
+          message_type: "ZcashTransparentAck",
+          proto: ack,
+        });
+      }
+      if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTOUTPUT) {
+        const ack = new ZcashMessages.ZcashTransparentAck();
+        ack.setNextInputIndex(0);
+        return Promise.resolve({
+          message_enum: Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTACK,
+          message_type: "ZcashTransparentAck",
+          proto: ack,
+        });
+      }
+      throw new Error(`unexpected call: ${mtype}`);
+    });
+
+    const snakeCaseRequest = {
+      ...SHIELD_REQUEST,
+      transparent_inputs: [
+        {
+          index: 0,
+          addressNList: SHIELD_REQUEST.transparent_inputs[0].addressNList,
+          amount: 4008918,
+          prevout_txid: "ca3a5ef0323760c97406564a0eb51239ca1afa4944e968af78084d70982c13df",
+          prevout_index: 1,
+          sequence: 0xffffffff,
+          script_pubkey: "76a9149ef6ee0267fd387526020c265a470e2dad7f3b5e88ac",
+        } as any,
+      ],
+    };
+
+    await expect(zcashSignPczt(makeMockTransport(call), snakeCaseRequest, SIGHASH)).rejects.toThrow(
+      /missing prevoutTxid/
+    );
+    // The gutted ZcashTransparentInput must never have been sent
+    expect(calls).not.toContain(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT);
+  });
+
   it("shielded-only (no transparent) goes directly to ZcashPCZTActionAck", async () => {
     const calls: number[] = [];
     const call = jest.fn().mockImplementation((mtype: number) => {
