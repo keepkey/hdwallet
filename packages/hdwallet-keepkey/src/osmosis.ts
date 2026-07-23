@@ -79,11 +79,6 @@ export async function osmosisSignTx(transport: Transport, msg: core.OsmosisSignT
             throw new Error("osmosis: Multiple amounts per msg not supported");
           }
 
-          const denom = m.value.amount[0].denom;
-          if (denom !== "uosmo") {
-            throw new Error("osmosis: Unsupported denomination: " + denom);
-          }
-
           const send = new OsmosisMessages.OsmosisMsgSend();
           send.setFromAddress(m.value.from_address);
           send.setToAddress(m.value.to_address);
@@ -96,11 +91,6 @@ export async function osmosisSignTx(transport: Transport, msg: core.OsmosisSignT
         }
         case "cosmos-sdk/MsgDelegate": {
           // Delegate
-          const denom = m.value.amount.denom;
-          if (denom !== "uosmo") {
-            throw new Error("osmosis: Unsupported denomination: " + denom);
-          }
-
           const delegate = new OsmosisMessages.OsmosisMsgDelegate();
           delegate.setDelegatorAddress(m.value.delegator_address);
           delegate.setValidatorAddress(m.value.validator_address);
@@ -113,11 +103,6 @@ export async function osmosisSignTx(transport: Transport, msg: core.OsmosisSignT
         }
         case "cosmos-sdk/MsgUndelegate": {
           // Undelegate
-          const denom = m.value.amount.denom;
-          if (denom !== "uosmo") {
-            throw new Error("osmosis: Unsupported denomination: " + denom);
-          }
-
           const undelegate = new OsmosisMessages.OsmosisMsgUndelegate();
           undelegate.setDelegatorAddress(m.value.delegator_address);
           undelegate.setValidatorAddress(m.value.validator_address);
@@ -130,11 +115,6 @@ export async function osmosisSignTx(transport: Transport, msg: core.OsmosisSignT
         }
         case "cosmos-sdk/MsgBeginRedelegate": {
           // Redelegate
-          const denom = m.value.amount.denom;
-          if (denom !== "uosmo") {
-            throw new Error("osmosis: Unsupported denomination: " + denom);
-          }
-
           const redelegate = new OsmosisMessages.OsmosisMsgRedelegate();
           redelegate.setDelegatorAddress(m.value.delegator_address);
           redelegate.setValidatorSrcAddress(m.value.validator_src_address);
