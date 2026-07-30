@@ -540,11 +540,12 @@ export async function ethLoadClearsignSigner(
     icon?: Uint8Array;
     iconWidth?: number;
     iconHeight?: number;
-    /** Keep the identity in device flash across reboots (until WipeDevice). */
+    /** @deprecated ClearSign identities are intentionally RAM-only. */
     persist?: boolean;
   }
 ): Promise<{ ok: true }> {
   return transport.lockDuring(async () => {
+    if (msg.persist) throw new Error("Persistent ClearSign signers are not supported; use a RAM-only session signer");
     const m = new LoadClearsignSigner();
     m.setKeyId(msg.keyId);
     m.setPubkey(msg.pubkey);
@@ -554,7 +555,6 @@ export async function ethLoadClearsignSigner(
       m.setIconWidth(msg.iconWidth ?? 0);
       m.setIconHeight(msg.iconHeight ?? 0);
     }
-    if (msg.persist) m.setPersist(true);
     await transport.call(MESSAGETYPE_LOADCLEARSIGNSIGNER, m, {
       msgTimeout: core.LONG_TIMEOUT,
       omitLock: true,

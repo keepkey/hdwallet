@@ -4,6 +4,7 @@ import * as core from "@keepkey/hdwallet-core";
 import semver from "semver";
 
 import * as Btc from "./bitcoin";
+import * as Clearsign from "./clearsign";
 import * as Cosmos from "./cosmos";
 import * as Eos from "./eos";
 import * as Eth from "./ethereum";
@@ -1376,9 +1377,7 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Eth.ethSignTx(this.transport, msg);
   }
 
-  /** Load a runtime EVM clear-sign signer into a device key slot (user-confirmed). KeepKey-specific.
-   *  Optionally carries an identity logo (icon, 1bpp mono RLE <=384B) and persist=true to keep the
-   *  identity in device flash across reboots (firmware 7.15+). */
+  /** Load an Advanced-mode ClearSign signer into a RAM-only device slot. */
   public async loadClearsignSigner(msg: {
     keyId: number;
     pubkey: Uint8Array;
@@ -1389,6 +1388,16 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     persist?: boolean;
   }): Promise<{ ok: true }> {
     return Eth.ethLoadClearsignSigner(this.transport, msg);
+  }
+
+  /** Return this device's dedicated ClearSign attestation public key. */
+  public async clearsignAttestorGetPublicKey(): Promise<Uint8Array> {
+    return Clearsign.getAttestorPublicKey(this.transport);
+  }
+
+  /** Validate, review, and attest a canonical ClearSign descriptor. */
+  public async clearsignAttestorSign(payload: Uint8Array): Promise<{ signature: Uint8Array; publicKey: Uint8Array }> {
+    return Clearsign.attestPayload(this.transport, payload);
   }
 
   public async ethGetAddress(msg: core.ETHGetAddress): Promise<string> {

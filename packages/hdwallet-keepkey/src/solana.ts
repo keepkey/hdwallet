@@ -43,11 +43,7 @@ function encodeVarintField(fieldNumber: number, value: number): Uint8Array {
 
 /** field << 3 | 2 (length-delimited) */
 function encodeLengthDelimited(fieldNumber: number, bytes: Uint8Array): Uint8Array {
-  return Uint8Array.from([
-    ...encodeVarint((fieldNumber << 3) | 2),
-    ...encodeVarint(bytes.length),
-    ...bytes,
-  ]);
+  return Uint8Array.from([...encodeVarint((fieldNumber << 3) | 2), ...encodeVarint(bytes.length), ...bytes]);
 }
 
 function concatBytes(...chunks: Uint8Array[]): Uint8Array {
@@ -1117,12 +1113,14 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
     }
     signTx.setRawTx(rawBytes);
     if (msg.swapMetadata) {
-      const payload = msg.swapMetadata.payload instanceof Uint8Array
-        ? msg.swapMetadata.payload
-        : Uint8Array.from(Buffer.from(msg.swapMetadata.payload, "base64"));
-      const signature = msg.swapMetadata.signature instanceof Uint8Array
-        ? msg.swapMetadata.signature
-        : Uint8Array.from(Buffer.from(msg.swapMetadata.signature, "base64"));
+      const payload =
+        msg.swapMetadata.payload instanceof Uint8Array
+          ? msg.swapMetadata.payload
+          : Uint8Array.from(Buffer.from(msg.swapMetadata.payload, "base64"));
+      const signature =
+        msg.swapMetadata.signature instanceof Uint8Array
+          ? msg.swapMetadata.signature
+          : Uint8Array.from(Buffer.from(msg.swapMetadata.signature, "base64"));
       signTx.setSwapMetadataPayload(payload);
       signTx.setSwapMetadataSignature(signature);
       signTx.setSwapMetadataSignerKeyId(msg.swapMetadata.signerKeyId);
@@ -1132,7 +1130,7 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
     }
 
     /*
-     * KKSOLSC1 schema fields (SolanaSignTx 5/6/7) are appended at the wire
+     * KKSOLSC1 schema fields (SolanaSignTx 9/10/11) are appended at the wire
      * level rather than through generated setters: the published
      * @keepkey/device-protocol build predates them, so setSchemaPayload() and
      * friends do not exist. Protobuf makes this safe and lossless — encoded
@@ -1146,9 +1144,9 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
       const payload = toBytes(msg.schema.payload);
       const signature = toBytes(msg.schema.signature);
       const extra = concatBytes(
-        encodeLengthDelimited(5, payload),
-        encodeLengthDelimited(6, signature),
-        encodeVarintField(7, msg.schema.signerKeyId)
+        encodeLengthDelimited(9, payload),
+        encodeLengthDelimited(10, signature),
+        encodeVarintField(11, msg.schema.signerKeyId)
       );
       outbound = withAppendedFields(signTx, extra);
     }
