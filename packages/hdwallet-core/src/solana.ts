@@ -12,6 +12,25 @@ export interface SolanaAddress {
 export interface SolanaSignTx {
   addressNList: BIP32Path;
   rawTx: Uint8Array | string;
+  /** One-request opaque-signing authorization; does not mutate AdvancedMode. */
+  allowBlindSigning?: boolean;
+  /** Transaction-bound, signer-attested KKSOLSW1 swap descriptor. */
+  swapMetadata?: {
+    payload: Uint8Array | string;
+    signature: Uint8Array | string;
+    signerKeyId: number;
+  };
+  /**
+   * Signer-attested KKSOLSC1 instruction schema. Unlike swapMetadata this is
+   * NOT bound to one transaction: it describes how to read a program's
+   * instruction, so a single signature is reused for every transaction to
+   * that program and the device decodes values from the bytes it signs.
+   */
+  schema?: {
+    payload: Uint8Array | string;
+    signature: Uint8Array | string;
+    signerKeyId: number;
+  };
 }
 
 export interface SolanaSignedTx {
