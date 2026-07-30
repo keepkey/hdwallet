@@ -15,14 +15,16 @@ import * as ZcashMessages from "@keepkey/device-protocol/lib/messages-zcash_pb";
 import { zcashSignPczt } from "./zcash";
 
 // Realistic signing request that mirrors what the Rust sidecar returns for a
-// shield transaction: 1 transparent input, 1 transparent output, 2 Orchard actions.
+// NU6.3 shield transaction: 1 transparent input, 1 transparent output,
+// 2 Ironwood actions.
 const SHIELD_REQUEST = {
   n_actions: 2,
+  pool: "ironwood" as const,
   account: 0,
-  branch_id: 0x4dec4df0,
+  branch_id: 0x37a5165b,
   header_fields: {
-    tx_version: 5,
-    version_group_id: 0x26a7270a,
+    tx_version: 6,
+    version_group_id: 0xd884b698,
     lock_time: 0,
     expiry_height: 0,
   },
@@ -31,6 +33,7 @@ const SHIELD_REQUEST = {
     transparent: "f6424c87af931906154bc15c40fa50b9323fc99271e5c1a98c2d9cc214eb9f94",
     // sapling intentionally absent — firmware rejects it if set
     orchard: "a8554ee3a53af330a6b6cf56112a203d3d028f2e421cb494a3f590161d27414a",
+    ironwood: "d3a4b955c966b1bb59ebb541584c5e8fb51b5d10d76308b63767db4fefc01e59",
   },
   bundle_meta: {
     flags: 3,
@@ -126,11 +129,11 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     const msg = capturedMsg[0];
 
     // Transaction header fields (firmware recomputes header_digest from these)
-    expect(msg.getTxVersion()).toBe(5);
-    expect(msg.getVersionGroupId()).toBe(0x26a7270a);
+    expect(msg.getTxVersion()).toBe(6);
+    expect(msg.getVersionGroupId()).toBe(0xd884b698);
     expect(msg.getLockTime()).toBe(0);
     expect(msg.getExpiryHeight()).toBe(0);
-    expect(msg.getBranchId()).toBe(0x4dec4df0);
+    expect(msg.getBranchId()).toBe(0x37a5165b);
 
     // Sub-digests
     expect(Buffer.from(msg.getHeaderDigest_asU8()).toString("hex")).toBe(
@@ -143,24 +146,28 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(Buffer.from(msg.getOrchardDigest_asU8()).toString("hex")).toBe(
       "a8554ee3a53af330a6b6cf56112a203d3d028f2e421cb494a3f590161d27414a"
     );
+    expect(Buffer.from(msg.getIronwoodDigest_asU8()).toString("hex")).toBe(
+      "d3a4b955c966b1bb59ebb541584c5e8fb51b5d10d76308b63767db4fefc01e59"
+    );
+    expect(msg.getShieldedPool()).toBe(1);
 
     // Transparent counts
     expect(msg.getNTransparentOutputs()).toBe(1);
     expect(msg.getNTransparentInputs()).toBe(1);
 
-    // Orchard
+    // Ironwood reuses the Orchard-family bundle metadata fields.
     expect(msg.getNActions()).toBe(2);
     expect(msg.getOrchardFlags()).toBe(3);
   });
 
-  it("follows full output→input→Orchard protocol sequence", async () => {
+  it("follows full output→input→Ironwood protocol sequence", async () => {
     const calls: number[] = [];
     const capturedOutputMsg: ZcashMessages.ZcashTransparentOutput[] = [];
     const capturedInputMsg: ZcashMessages.ZcashTransparentInput[] = [];
     const capturedActionMsg: ZcashMessages.ZcashPCZTAction[] = [];
 
     // Firmware 7.15+ sends ZcashTransparentSigned + ZcashSignedPCZT back-to-back after
-    // the last Orchard action. readResponse is called without sending to drain the second.
+    // the last Ironwood action. readResponse is called without sending to drain the second.
     const transparentSigned = new ZcashMessages.ZcashTransparentSigned();
     transparentSigned.addSignatures(new Uint8Array(71).fill(0x30));
 
@@ -288,7 +295,7 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(capturedActionMsg[1].getValue()).toBe(0);
     expect(capturedActionMsg[1].getRecipient_asU8()).toHaveLength(0);
 
-    // Orchard sigs returned, transparent sigs attached (from ZcashTransparentSigned)
+    // Ironwood sigs returned, transparent sigs attached (from ZcashTransparentSigned)
     expect(result).toHaveLength(2);
     expect(result._transparentSignatures).toHaveLength(1);
   });
@@ -402,18 +409,20 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
   });
 });
 
-// Deshield (Z→T): 1 transparent output, 0 transparent inputs, 2 Orchard actions.
+// Deshield (Z→T): 1 transparent output, 0 transparent inputs, 2 Ironwood actions.
 // After the last transparent output firmware sends ZcashPCZTActionAck (not TransparentAck)
-// because there are no inputs — it finalises the transparent digest and opens Orchard directly.
+// because there are no inputs — it finalises the transparent digest and opens Ironwood directly.
 const DESHIELD_REQUEST = {
   n_actions: 2,
+  pool: "ironwood" as const,
   account: 0,
-  branch_id: 0x4dec4df0,
-  header_fields: { tx_version: 5, version_group_id: 0x26a7270a, lock_time: 0, expiry_height: 0 },
+  branch_id: 0x37a5165b,
+  header_fields: { tx_version: 6, version_group_id: 0xd884b698, lock_time: 0, expiry_height: 0 },
   digests: {
     header: "59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d",
     transparent: "0a259ca3000000000000000000000000000000000000000000000000000000ff",
     orchard: "d0f62785000000000000000000000000000000000000000000000000000000ff",
+    ironwood: "d3a4b955c966b1bb59ebb541584c5e8fb51b5d10d76308b63767db4fefc01e59",
   },
   bundle_meta: {
     flags: 3,
@@ -427,7 +436,7 @@ const DESHIELD_REQUEST = {
   transparent_inputs: [],
   actions: [
     {
-      // Change output back to Orchard — is_spend=false, value is the OUTPUT note value (change amount)
+      // Change output back to Ironwood — is_spend=false, value is the OUTPUT note value.
       index: 0,
       alpha: "aa".repeat(32),
       cv_net: "bb".repeat(32),
@@ -467,7 +476,7 @@ const DESHIELD_REQUEST = {
 };
 
 describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => {
-  it("follows output→ZcashPCZTActionAck→Orchard protocol (no TransparentAck after last output)", async () => {
+  it("follows output→ZcashPCZTActionAck→Ironwood protocol (no TransparentAck after last output)", async () => {
     const calls: number[] = [];
     const capturedOutputMsg: ZcashMessages.ZcashTransparentOutput[] = [];
     const capturedActionMsg: ZcashMessages.ZcashPCZTAction[] = [];
@@ -492,7 +501,7 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
       }
 
       // Step 2: ZcashTransparentOutput → ZcashPCZTActionAck(0)
-      // No inputs → firmware finalises transparent digest and opens Orchard directly.
+      // No inputs → firmware finalises transparent digest and opens Ironwood directly.
       // Regression: previously threw "expected TransparentAck after output 0, got ZCASHPCZTACTIONACK"
       if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTOUTPUT) {
         capturedOutputMsg.push(msg);

@@ -116,9 +116,10 @@ export async function zcashSignPczt(
   transport: Transport,
   signingRequest: {
     n_actions: number;
+    pool?: "orchard" | "ironwood";
     account?: number;
     branch_id?: number;
-    digests?: { header?: string; transparent?: string; sapling?: string; orchard?: string };
+    digests?: { header?: string; transparent?: string; sapling?: string; orchard?: string; ironwood?: string };
     bundle_meta?: { flags: number; value_balance: number; anchor: string };
     header_fields?: { tx_version: number; version_group_id: number; lock_time: number; expiry_height: number };
     actions: Array<{
@@ -157,6 +158,7 @@ export async function zcashSignPczt(
     signMsg.setBranchId(signingRequest.branch_id ?? 0x37519621);
     signMsg.setAddressNList([0x80000000 + 32, 0x80000000 + 133, 0x80000000 + account]);
     signMsg.setAccount(account);
+    signMsg.setShieldedPool(signingRequest.pool === "ironwood" ? 1 : 0);
 
     const totalZat = Math.round(parseFloat(signingRequest.display.amount.replace(" ZEC", "")) * 1e8);
     const feeZat = Math.round(parseFloat(signingRequest.display.fee.replace(" ZEC", "")) * 1e8);
@@ -179,9 +181,10 @@ export async function zcashSignPczt(
       if (d.transparent) signMsg.setTransparentDigest(hexToBytes(d.transparent));
       if (d.sapling) signMsg.setSaplingDigest(hexToBytes(d.sapling));
       if (d.orchard) signMsg.setOrchardDigest(hexToBytes(d.orchard));
+      if (d.ironwood) signMsg.setIronwoodDigest(hexToBytes(d.ironwood));
     }
 
-    // Orchard bundle metadata
+    // Orchard-family bundle metadata (field names are shared with Ironwood)
     const bm = signingRequest.bundle_meta;
     if (bm) {
       signMsg.setOrchardFlags(bm.flags);
@@ -204,6 +207,8 @@ export async function zcashSignPczt(
       transparent_digest: d?.transparent ? d.transparent.slice(0, 8) + "..." : undefined,
       sapling_digest: d?.sapling ?? "(absent)",
       orchard_digest: d?.orchard ? d.orchard.slice(0, 8) + "..." : undefined,
+      ironwood_digest: d?.ironwood ? d.ironwood.slice(0, 8) + "..." : undefined,
+      shielded_pool: signingRequest.pool ?? "orchard",
       orchard_flags: bm?.flags,
       orchard_value_balance: bm?.value_balance,
       n_transparent_outputs: nTransparentOutputs,
@@ -272,7 +277,7 @@ export async function zcashSignPczt(
           console.info(`[zcash-pczt] ← output[${i}] response:`, response.message_type, response.message_enum);
 
           // After the last output with no transparent inputs, firmware skips straight
-          // to Orchard and sends ZcashPCZTActionAck(0) instead of TransparentAck.
+          // to the shielded action stream and sends ZcashPCZTActionAck(0).
           if (response.message_enum === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK) {
             break;
           }
@@ -344,7 +349,7 @@ export async function zcashSignPczt(
 
           // Firmware 7.15+: after last input, sends ZcashPCZTActionAck(0) and buffers
           // transparent ECDSA sigs internally — they come out with ZcashTransparentSigned
-          // BEFORE ZcashSignedPCZT after the last Orchard action.
+          // BEFORE ZcashSignedPCZT after the last shielded action.
           if (response.message_enum === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK) {
             break;
           }
@@ -368,7 +373,7 @@ export async function zcashSignPczt(
       }
     }
 
-    // Step 3: Stream Orchard actions to device.
+    // Step 3: Stream Orchard/Ironwood actions to device.
     // Firmware always sends ZcashPCZTActionAck before each action (including the first —
     // the ack after the last transparent input doubles as action[0] ack).
     const orchardSignatures: string[] = [];
@@ -377,7 +382,7 @@ export async function zcashSignPczt(
         if (response.message_enum === Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT) {
           break;
         }
-        throw new Error(`zcash: unexpected response during Orchard signing: ${response.message_type}`);
+        throw new Error(`zcash: unexpected response during shielded signing: ${response.message_type}`);
       }
 
       const action = signingRequest.actions[i];
@@ -440,7 +445,7 @@ export async function zcashSignPczt(
       console.info(`[zcash-pczt] ← readResponse:`, response.message_type, response.message_enum);
     }
 
-    // Step 5: Collect Orchard signatures
+    // Step 5: Collect active-pool signatures
     if (response.message_enum !== Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT) {
       throw new Error(`zcash: expected ZcashSignedPCZT, got ${response.message_type}`);
     }
@@ -451,7 +456,7 @@ export async function zcashSignPczt(
     }
 
     console.info(
-      `[zcash-pczt] DONE: ${orchardSignatures.length} Orchard sig(s), ${transparentSignatures.length} transparent sig(s)`
+      `[zcash-pczt] DONE: ${orchardSignatures.length} ${signingRequest.pool ?? "orchard"} sig(s), ${transparentSignatures.length} transparent sig(s)`
     );
 
     if (!hasTransparentPhase) {
