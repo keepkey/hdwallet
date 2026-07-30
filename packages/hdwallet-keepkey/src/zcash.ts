@@ -456,7 +456,9 @@ export async function zcashSignPczt(
     }
 
     console.info(
-      `[zcash-pczt] DONE: ${orchardSignatures.length} ${signingRequest.pool ?? "orchard"} sig(s), ${transparentSignatures.length} transparent sig(s)`
+      `[zcash-pczt] DONE: ${orchardSignatures.length} ${signingRequest.pool ?? "orchard"} sig(s), ${
+        transparentSignatures.length
+      } transparent sig(s)`
     );
 
     if (!hasTransparentPhase) {

@@ -87,7 +87,7 @@ const SHIELD_REQUEST = {
       rk: "dd".repeat(32),
       out_ciphertext: "ee".repeat(80),
       value: 0,
-      is_spend: true,
+      is_spend: false,
     },
   ],
 };
@@ -172,8 +172,6 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     transparentSigned.addSignatures(new Uint8Array(71).fill(0x30));
 
     const signedPczt = new ZcashMessages.ZcashSignedPCZT();
-    signedPczt.addSignatures(new Uint8Array(64).fill(0x42));
-    signedPczt.addSignatures(new Uint8Array(64).fill(0x43));
 
     const readResponse = jest.fn().mockResolvedValue({
       message_enum: Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT,
@@ -290,13 +288,13 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(Buffer.from(capturedActionMsg[0].getRecipient_asU8()).toString("hex")).toBe("ab".repeat(43));
     expect(capturedActionMsg[0].getRseed_asU8()).toHaveLength(32);
     expect(Buffer.from(capturedActionMsg[0].getRseed_asU8()).toString("hex")).toBe("cd".repeat(32));
-    // action[1] is the dummy spend (is_spend=true) — value 0, no recipient/rseed
-    expect(capturedActionMsg[1].getIsSpend()).toBe(true);
+    // action[1] is also a dummy spend — transparent shielding has no Ironwood spend authorization.
+    expect(capturedActionMsg[1].getIsSpend()).toBe(false);
     expect(capturedActionMsg[1].getValue()).toBe(0);
     expect(capturedActionMsg[1].getRecipient_asU8()).toHaveLength(0);
 
     // Ironwood sigs returned, transparent sigs attached (from ZcashTransparentSigned)
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(0);
     expect(result._transparentSignatures).toHaveLength(1);
   });
 
@@ -391,13 +389,15 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
       throw new Error(`unexpected call: ${mtype}`);
     });
 
-    const orchardOnlyRequest = {
+    const ironwoodOnlyRequest = {
       ...SHIELD_REQUEST,
+      bundle_meta: { ...SHIELD_REQUEST.bundle_meta, value_balance: 15000 },
+      actions: SHIELD_REQUEST.actions.map((action, index) => ({ ...action, is_spend: index === 1 })),
       transparent_inputs: [],
       transparent_outputs: [],
     };
 
-    const result = await zcashSignPczt(makeMockTransport(call), orchardOnlyRequest, SIGHASH);
+    const result = await zcashSignPczt(makeMockTransport(call), ironwoodOnlyRequest, SIGHASH);
 
     expect(calls).toEqual([
       Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT,
@@ -483,7 +483,6 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
 
     const signedPczt = new ZcashMessages.ZcashSignedPCZT();
     signedPczt.addSignatures(new Uint8Array(64).fill(0x42));
-    signedPczt.addSignatures(new Uint8Array(64).fill(0x43));
 
     const call = jest.fn().mockImplementation((mtype: number, msg: any) => {
       calls.push(mtype);
@@ -575,7 +574,7 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
     expect(capturedActionMsg[1].getRseed_asU8()).toHaveLength(32);
 
     // Deshield has a transparent phase (outputs) but no ECDSA sigs (no transparent inputs)
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(1);
     expect((result as any)._transparentSignatures).toEqual([]);
   });
 });

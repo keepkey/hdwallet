@@ -21,7 +21,7 @@ jobs:
           cache: yarn
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libudev-dev libusb-dev libusb-1.0-0-dev libtool
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev libusb-dev libusb-1.0-0-dev libtool protobuf-compiler
 
       - name: Install dependencies
         run: yarn --frozen-lockfile
