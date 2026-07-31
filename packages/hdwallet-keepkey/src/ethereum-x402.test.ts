@@ -15,8 +15,9 @@ function makeMockTransport(call: jest.Mock) {
 
 describe("x402 EVM structured signing", () => {
   it("sends the official EIP-3009 authorization as reviewed domain + message", async () => {
+    const streamed: Array<{ phase: number; data: any }> = [];
     const call = jest.fn().mockImplementation((_messageType: number, request: Ethereum.Ethereum712TypesValues) => {
-      const phase = request.getEip712typevals();
+      const phase = request.getEip712typevals() ?? 0;
       expect(_messageType).toBe(ETHEREUM_712_TYPES_VALUES);
       expect(JSON.parse(request.getEip712primetype() || "{}")).toEqual({
         primaryType: "TransferWithAuthorization",
@@ -29,24 +30,7 @@ describe("x402 EVM structured signing", () => {
         { name: "chainId", type: "uint256" },
         { name: "verifyingContract", type: "address" },
       ]);
-
-      if (phase === 1) {
-        expect(JSON.parse(request.getEip712data() || "{}").domain).toEqual({
-          name: "USDC",
-          version: "2",
-          chainId: 84532,
-          verifyingContract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        });
-      } else {
-        expect(JSON.parse(request.getEip712data() || "{}").message).toEqual({
-          from: "0x73d0385F4d8E00C5e6504C6030F47BF6212736A8",
-          to: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
-          value: "2000",
-          validAfter: "0",
-          validBefore: "2000000000",
-          nonce: "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
-        });
-      }
+      streamed.push({ phase, data: JSON.parse(request.getEip712data() || "{}") });
 
       const response = new Ethereum.EthereumTypedDataSignature();
       response.setAddress("0x73d0385F4d8E00C5e6504C6030F47BF6212736A8");
@@ -88,6 +72,32 @@ describe("x402 EVM structured signing", () => {
     });
 
     expect(call).toHaveBeenCalledTimes(2);
+    expect(streamed).toEqual([
+      {
+        phase: 1,
+        data: {
+          domain: {
+            name: "USDC",
+            version: "2",
+            chainId: 84532,
+            verifyingContract: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          },
+        },
+      },
+      {
+        phase: 2,
+        data: {
+          message: {
+            from: "0x73d0385F4d8E00C5e6504C6030F47BF6212736A8",
+            to: "0x209693Bc6afc0C5328bA36FaF03C514EF312287C",
+            value: "2000",
+            validAfter: "0",
+            validBefore: "2000000000",
+            nonce: "0xf3746613c2d920b5fdabc0856f2aeb2d4f88ee6037b8cc5d04a71a4462f13480",
+          },
+        },
+      },
+    ]);
     expect(result.address).toBe("0x73d0385F4d8E00C5e6504C6030F47BF6212736A8");
     expect(result.signature).toBe("0x" + "42".repeat(65));
   });

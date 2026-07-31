@@ -624,7 +624,7 @@ const EIP3009_TRANSFER_WITH_AUTHORIZATION = [
 ] as const;
 
 function typedDataJson(value: unknown): string {
-  return JSON.stringify(value, (_key, item) => typeof item === "bigint" ? item.toString() : item);
+  return JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
 }
 
 function withEip712DomainType(typedData: any): any {
@@ -684,11 +684,9 @@ async function signStructuredEip712(
 
   // Firmware computes and retains the domain separator, then combines it with
   // the independently reviewed message hash in the second request.
-  await transport.call(
-    Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES,
-    request(domainJson, 1),
-    { msgTimeout: core.LONG_TIMEOUT }
-  );
+  await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES, request(domainJson, 1), {
+    msgTimeout: core.LONG_TIMEOUT,
+  });
   const response = await transport.call(
     Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES,
     request(messageJson, 2),
