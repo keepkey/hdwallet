@@ -16,9 +16,7 @@ export const NodeWebUSBAdapterDelegate = {
     // before the caller's HID fallback. Old (PID 0x0001) devices now skip WebUSB
     // cleanly and pair over HID. (getDevices() still lists 0x0001 for detection.)
     const out = await webusb.requestDevice({
-      filters: [
-        { vendorId: VENDOR_ID, productId: WEBUSB_PRODUCT_ID, serialNumber },
-      ],
+      filters: [{ vendorId: VENDOR_ID, productId: WEBUSB_PRODUCT_ID, serialNumber }],
     });
     if (out.serialNumber === undefined) throw new Error("expected serial number");
     return out as Device;
