@@ -1151,9 +1151,10 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@keepkey/device-protocol@https://github.com/keepkey/device-protocol.git#f2246cebea8f96fcd7ec2883588a784a60b430ae":
-  version "7.14.1"
-  resolved "https://github.com/keepkey/device-protocol.git#f2246cebea8f96fcd7ec2883588a784a60b430ae"
+"@keepkey/device-protocol@npm:@bithighlander/device-protocol@7.17.0":
+  version "7.17.0"
+  resolved "https://registry.yarnpkg.com/@bithighlander/device-protocol/-/device-protocol-7.17.0.tgz#23450420224f25475b336687504594d67496b120"
+  integrity sha512-Nw7hb5ZTqEHyOWvrdb8o7rvT+H79X9EJHR9O7VIv0xQ2711o0Q3Dga8YSYW21MWU7wBoNQ87NcJ9XLEKW+gdJQ==
   dependencies:
     google-protobuf "^3.7.0-rc.2"
     pbjs "^0.0.5"
