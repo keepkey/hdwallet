@@ -1151,12 +1151,11 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@keepkey/device-protocol@npm:@bithighlander/device-protocol@7.17.0":
-  version "7.17.0"
-  resolved "https://registry.yarnpkg.com/@bithighlander/device-protocol/-/device-protocol-7.17.0.tgz#23450420224f25475b336687504594d67496b120"
-  integrity sha512-Nw7hb5ZTqEHyOWvrdb8o7rvT+H79X9EJHR9O7VIv0xQ2711o0Q3Dga8YSYW21MWU7wBoNQ87NcJ9XLEKW+gdJQ==
+"@keepkey/device-protocol@https://github.com/keepkey/device-protocol.git#b13391c772e3d46011f9ada8606c770b196e93d8":
+  version "7.14.1"
+  resolved "https://github.com/keepkey/device-protocol.git#b13391c772e3d46011f9ada8606c770b196e93d8"
   dependencies:
-    google-protobuf "^3.7.0-rc.2"
+    google-protobuf "3.21.4"
     pbjs "^0.0.5"
 
 "@keepkey/proto-tx-builder@^0.9.1":
@@ -7000,7 +6999,7 @@ globby@^11.0.2, globby@^11.1.0:
     merge2 "^1.4.1"
     slash "^3.0.0"
 
-google-protobuf@^3.15.8, google-protobuf@^3.17.0, google-protobuf@^3.7.0-rc.2:
+google-protobuf@3.21.4, google-protobuf@^3.15.8, google-protobuf@^3.17.0:
   version "3.21.4"
   resolved "https://registry.yarnpkg.com/google-protobuf/-/google-protobuf-3.21.4.tgz#2f933e8b6e5e9f8edde66b7be0024b68f77da6c9"
   integrity sha512-MnG7N936zcKTco4Jd2PX2U96Kf9PxygAPKBug+74LHzmHXmceN16MmRcdgZv+DGef/S9YvQAfRsNCn4cjf9yyQ==
