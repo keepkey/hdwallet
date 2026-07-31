@@ -27,7 +27,7 @@ export async function rippleSignTx(transport: Transport, msg: core.RippleSignTx)
     signTx.setPayment(payment);
 
     const memo = msg.tx.value.memo;
-    if (memo && memo.trim() && memo.trim() !== ' ') signTx.setMemo(memo.trim());
+    if (memo && memo.trim() && memo.trim() !== " ") signTx.setMemo(memo.trim());
 
     const resp = await transport.call(Messages.MessageType.MESSAGETYPE_RIPPLESIGNTX, signTx, {
       msgTimeout: core.LONG_TIMEOUT,
