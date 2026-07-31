@@ -686,11 +686,12 @@ async function signStructuredEip712(
   // the independently reviewed message hash in the second request.
   await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES, request(domainJson, 1), {
     msgTimeout: core.LONG_TIMEOUT,
+    omitLock: true,
   });
   const response = await transport.call(
     Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES,
     request(messageJson, 2),
-    { msgTimeout: core.LONG_TIMEOUT }
+    { msgTimeout: core.LONG_TIMEOUT, omitLock: true }
   );
   const result = response.proto as Ethereum.EthereumTypedDataSignature;
   return {
@@ -712,46 +713,47 @@ export async function ethSignTypedData(
   msg: core.ETHSignTypedData
 ): Promise<core.ETHSignedTypedData> {
   try {
-    const EIP_712_DOMAIN = "EIP712Domain";
-    const typedData = withEip712DomainType(msg.typedData);
-    const { primaryType, domain, message } = typedData;
+    return await transport.lockDuring(async () => {
+      const EIP_712_DOMAIN = "EIP712Domain";
+      const typedData = withEip712DomainType(msg.typedData);
+      const { primaryType, domain, message } = typedData;
 
-    if (isX402Eip3009(typedData)) {
-      return await signStructuredEip712(transport, msg.addressNList, typedData);
-    }
-    // eip-712 getStructHash is a 1:1 byte-identical replacement for
-    // @metamask/eth-sig-util TypedDataUtils.hashStruct(..., V4) — verified across
-    // nested-struct, struct-array (V4) and Permit2 payloads — and drops the heavy
-    // @ethereumjs@4/@metamask-utils nested tree (Windows MAX_PATH risk).
-    const domainSeparatorHash: Uint8Array = getStructHash(typedData, EIP_712_DOMAIN, domain);
-
-    const ethereumSignTypedHash = new Ethereum.EthereumSignTypedHash();
-    ethereumSignTypedHash.setAddressNList(msg.addressNList);
-    ethereumSignTypedHash.setDomainSeparatorHash(domainSeparatorHash);
-
-    let messageHash: Uint8Array | undefined = undefined;
-    // If "EIP712Domain" is the primaryType, messageHash is not required - look at T1 connect impl ;)
-    // todo: the firmware should define messageHash as an optional Uint8Array field for this case
-    if (primaryType !== EIP_712_DOMAIN) {
-      messageHash = getStructHash(typedData, primaryType, message);
-      ethereumSignTypedHash.setMessageHash(messageHash);
-    }
-
-    const response = await transport.call(
-      Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH,
-      ethereumSignTypedHash,
-      {
-        msgTimeout: core.LONG_TIMEOUT,
+      if (isX402Eip3009(typedData)) {
+        return signStructuredEip712(transport, msg.addressNList, typedData);
       }
-    );
+      // eip-712 getStructHash is a 1:1 byte-identical replacement for
+      // @metamask/eth-sig-util TypedDataUtils.hashStruct(..., V4) — verified across
+      // nested-struct, struct-array (V4) and Permit2 payloads — and drops the heavy
+      // @ethereumjs@4/@metamask-utils nested tree (Windows MAX_PATH risk).
+      const domainSeparatorHash: Uint8Array = getStructHash(typedData, EIP_712_DOMAIN, domain);
 
-    const result = response.proto as Ethereum.EthereumTypedDataSignature;
-    const res: core.ETHSignedTypedData = {
-      address: result.getAddress() || "",
-      signature: "0x" + core.toHexString(result.getSignature_asU8()),
-    };
+      const ethereumSignTypedHash = new Ethereum.EthereumSignTypedHash();
+      ethereumSignTypedHash.setAddressNList(msg.addressNList);
+      ethereumSignTypedHash.setDomainSeparatorHash(domainSeparatorHash);
 
-    return res;
+      let messageHash: Uint8Array | undefined = undefined;
+      // If "EIP712Domain" is the primaryType, messageHash is not required - look at T1 connect impl ;)
+      // todo: the firmware should define messageHash as an optional Uint8Array field for this case
+      if (primaryType !== EIP_712_DOMAIN) {
+        messageHash = getStructHash(typedData, primaryType, message);
+        ethereumSignTypedHash.setMessageHash(messageHash);
+      }
+
+      const response = await transport.call(
+        Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH,
+        ethereumSignTypedHash,
+        {
+          msgTimeout: core.LONG_TIMEOUT,
+          omitLock: true,
+        }
+      );
+
+      const result = response.proto as Ethereum.EthereumTypedDataSignature;
+      return {
+        address: result.getAddress() || "",
+        signature: "0x" + core.toHexString(result.getSignature_asU8()),
+      };
+    });
   } catch (error) {
     console.error({ error });
     throw new Error("Failed to sign typed ETH message");

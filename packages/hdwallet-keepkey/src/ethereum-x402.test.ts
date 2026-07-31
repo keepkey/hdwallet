@@ -9,7 +9,7 @@ function makeMockTransport(call: jest.Mock) {
   return {
     debugLink: false,
     call,
-    lockDuring: <T>(fn: () => Promise<T>) => fn(),
+    lockDuring: jest.fn(<T>(fn: () => Promise<T>) => fn()),
   } as any;
 }
 
@@ -38,7 +38,8 @@ describe("x402 EVM structured signing", () => {
       return Promise.resolve({ proto: response });
     });
 
-    const result = await ethSignTypedData(makeMockTransport(call), {
+    const transport = makeMockTransport(call);
+    const result = await ethSignTypedData(transport, {
       addressNList: PATH,
       typedData: {
         // The official x402 client supplies only the authorization type; the
@@ -72,6 +73,11 @@ describe("x402 EVM structured signing", () => {
     });
 
     expect(call).toHaveBeenCalledTimes(2);
+    expect(transport.lockDuring).toHaveBeenCalledTimes(1);
+    expect(call.mock.calls.map(([, , options]) => options)).toEqual([
+      { msgTimeout: expect.any(Number), omitLock: true },
+      { msgTimeout: expect.any(Number), omitLock: true },
+    ]);
     expect(streamed).toEqual([
       {
         phase: 1,
