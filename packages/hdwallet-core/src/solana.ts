@@ -9,9 +9,25 @@ export interface SolanaAddress {
   address: string;
 }
 
+export interface SolanaTokenInfo {
+  /** 32-byte SPL mint, encoded as bytes, hex, base64, or base58. */
+  mint: Uint8Array | string;
+  symbol?: string;
+  decimals?: number;
+  signature?: Uint8Array | string;
+  signerKeyId?: number;
+}
+
 export interface SolanaSignTx {
   addressNList: BIP32Path;
   rawTx: Uint8Array | string;
+  /** Optional token definitions used by firmware display policy. */
+  tokenInfo?: SolanaTokenInfo[];
+  /**
+   * Candidate owners for signed SPL token destinations (for example x402
+   * payTo). Firmware displays one only after deriving and matching its ATA.
+   */
+  tokenRecipientOwners?: Array<Uint8Array | string>;
   /** One-request opaque-signing authorization; does not mutate AdvancedMode. */
   allowBlindSigning?: boolean;
   /** Transaction-bound, signer-attested KKSOLSW1 swap descriptor. */
