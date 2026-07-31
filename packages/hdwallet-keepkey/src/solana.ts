@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-namespace */
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as core from "@keepkey/hdwallet-core";
+import * as bs58 from "bs58";
 import * as jspb from "google-protobuf";
 
 import { Transport } from "./transport";
@@ -19,6 +20,26 @@ function toBytes(value: Uint8Array | string): Uint8Array {
   return /^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0
     ? core.fromHexString(value)
     : Uint8Array.from(Buffer.from(value, "base64"));
+}
+
+function toSolanaPubkey(value: Uint8Array | string, label: string): Uint8Array {
+  let bytes: Uint8Array;
+  if (value instanceof Uint8Array) {
+    bytes = value;
+  } else if (/^[0-9a-fA-F]{64}$/.test(value)) {
+    bytes = core.fromHexString(value);
+  } else {
+    try {
+      const decoded = bs58.decode(value);
+      bytes = Uint8Array.from(decoded);
+    } catch (_e) {
+      bytes = Uint8Array.from(Buffer.from(value, "base64"));
+    }
+  }
+  if (bytes.length !== 32) {
+    throw new Error(`${label} must decode to exactly 32 bytes, got ${bytes.length}`);
+  }
+  return bytes;
 }
 
 function encodeVarint(value: number): number[] {
@@ -55,6 +76,31 @@ function concatBytes(...chunks: Uint8Array[]): Uint8Array {
     off += c.length;
   }
   return out;
+}
+
+function encodeSolanaTokenInfo(info: core.SolanaTokenInfo): Uint8Array {
+  const fields: Uint8Array[] = [encodeLengthDelimited(1, toSolanaPubkey(info.mint, "token mint"))];
+  if (info.symbol !== undefined) {
+    const symbol = Uint8Array.from(Buffer.from(info.symbol, "utf8"));
+    if (symbol.length === 0 || symbol.length > 12) {
+      throw new Error(`token symbol must contain 1-12 UTF-8 bytes, got ${symbol.length}`);
+    }
+    fields.push(encodeLengthDelimited(2, symbol));
+  }
+  if (info.decimals !== undefined) {
+    fields.push(encodeVarintField(3, info.decimals));
+  }
+  if (info.signature !== undefined) {
+    const signature = toBytes(info.signature);
+    if (signature.length !== 64) {
+      throw new Error(`token metadata signature must be 64 bytes, got ${signature.length}`);
+    }
+    fields.push(encodeLengthDelimited(4, signature));
+  }
+  if (info.signerKeyId !== undefined) {
+    fields.push(encodeVarintField(5, info.signerKeyId));
+  }
+  return concatBytes(...fields);
 }
 
 /**
@@ -1130,26 +1176,29 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
     }
 
     /*
-     * KKSOLSC1 schema fields (SolanaSignTx 9/10/11) are appended at the wire
-     * level rather than through generated setters: the published
-     * @keepkey/device-protocol build predates them, so setSchemaPayload() and
-     * friends do not exist. Protobuf makes this safe and lossless — encoded
-     * fields are order-independent and simply concatenate, and firmware's
-     * nanopb decoder reads them by field number exactly as if the generator
-     * had emitted them. Drop this shim once a device-protocol release carries
-     * the fields and the setters appear.
+     * Additive SolanaSignTx fields are appended at the wire level because this
+     * file intentionally carries a small jspb compatibility shim. Protobuf
+     * fields are order-independent, and firmware's nanopb decoder reads the
+     * same canonical field numbers emitted by device-protocol.
      */
-    let outbound: jspb.Message = signTx;
+    const extraFields: Uint8Array[] = [];
+    for (const tokenInfo of msg.tokenInfo || []) {
+      extraFields.push(encodeLengthDelimited(4, encodeSolanaTokenInfo(tokenInfo)));
+    }
     if (msg.schema) {
       const payload = toBytes(msg.schema.payload);
       const signature = toBytes(msg.schema.signature);
-      const extra = concatBytes(
+      extraFields.push(
         encodeLengthDelimited(9, payload),
         encodeLengthDelimited(10, signature),
         encodeVarintField(11, msg.schema.signerKeyId)
       );
-      outbound = withAppendedFields(signTx, extra);
     }
+    for (const owner of msg.tokenRecipientOwners || []) {
+      extraFields.push(encodeLengthDelimited(12, toSolanaPubkey(owner, "token recipient owner")));
+    }
+    const outbound: jspb.Message =
+      extraFields.length > 0 ? withAppendedFields(signTx, concatBytes(...extraFields)) : signTx;
 
     const resp = await transport.call(MESSAGETYPE_SOLANASIGNTX, outbound, {
       msgTimeout: core.LONG_TIMEOUT,
