@@ -80,13 +80,15 @@ function describeUTXOPath(
 
   const purpose = path[0] & 0x7fffffff;
 
-  if (![44, 49, 84].includes(purpose)) return unknown;
+  if (![44, 49, 84, 86].includes(purpose)) return unknown;
 
   if (purpose === 44 && scriptType !== core.BTCInputScriptType.SpendAddress) return unknown;
 
   if (purpose === 49 && scriptType !== core.BTCInputScriptType.SpendP2SHWitness) return unknown;
 
   if (purpose === 84 && scriptType !== core.BTCInputScriptType.SpendWitness) return unknown;
+
+  if (purpose === 86 && scriptType !== core.BTCInputScriptType.SpendTaproot) return unknown;
 
   const wholeAccount = path.length === 3;
 
@@ -96,6 +98,7 @@ function describeUTXOPath(
           [core.BTCInputScriptType.SpendAddress]: ["Legacy"],
           [core.BTCInputScriptType.SpendP2SHWitness]: [],
           [core.BTCInputScriptType.SpendWitness]: ["Segwit Native"],
+          [core.BTCInputScriptType.SpendTaproot]: ["Taproot"],
         } as Partial<Record<core.BTCInputScriptType, string[]>>
       )[scriptType] ?? []
     : [];
@@ -1328,7 +1331,11 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   }
 
   public async btcSupportsScriptType(coin: core.Coin, scriptType: core.BTCInputScriptType): Promise<boolean> {
-    return this.info.btcSupportsScriptType(coin, scriptType);
+    const supportedByAdapter = await this.info.btcSupportsScriptType(coin, scriptType);
+    if (!supportedByAdapter || scriptType !== core.BTCInputScriptType.SpendTaproot) return supportedByAdapter;
+
+    const features = await this.getFeatures(/*cached=*/ true);
+    return features.supportsTaproot === true;
   }
 
   public async btcGetAddress(msg: core.BTCGetAddress): Promise<string> {

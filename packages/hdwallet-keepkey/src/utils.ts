@@ -45,6 +45,8 @@ export function translateInputScriptType(scriptType: core.BTCInputScriptType): a
       return Types.InputScriptType.SPENDP2SHWITNESS;
     case core.BTCInputScriptType.SpendWitness:
       return Types.InputScriptType.SPENDWITNESS;
+    case core.BTCInputScriptType.SpendTaproot:
+      return Types.InputScriptType.SPENDTAPROOT;
   }
   throw new Error("unhandled InputSriptType enum: " + scriptType);
 }
@@ -59,6 +61,8 @@ export function translateOutputScriptType(scriptType: core.BTCOutputScriptType):
       return Types.OutputScriptType.PAYTOP2SHWITNESS;
     case core.BTCOutputScriptType.PayToWitness:
       return Types.OutputScriptType.PAYTOWITNESS;
+    case core.BTCOutputScriptType.PayToTaproot:
+      return Types.OutputScriptType.PAYTOTAPROOT;
   }
   throw new Error("unhandled OutputScriptType enum: " + scriptType);
 }
