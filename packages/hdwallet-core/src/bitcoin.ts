@@ -76,7 +76,7 @@ type BTCSignTxInputNativeBase = BTCSignTxInputBase & {
 };
 
 type BTCSignTxInputNativeSegwitBase = BTCSignTxInputNativeBase & {
-  scriptType: BTCInputScriptType.SpendWitness | BTCInputScriptType.SpendP2SHWitness;
+  scriptType: BTCInputScriptType.SpendWitness | BTCInputScriptType.SpendP2SHWitness | BTCInputScriptType.SpendTaproot;
 };
 
 type BTCSignTxInputNativeSegwitWithHex = BTCSignTxInputNativeSegwitBase & {
@@ -106,7 +106,11 @@ type BTCSignTxInputKKBase = BTCSignTxInputBase & {
 };
 
 type BTCSignTxInputKKSegwit = BTCSignTxInputKKBase & {
-  scriptType: BTCInputScriptType.SpendWitness | BTCInputScriptType.SpendP2SHWitness | BTCInputScriptType.External;
+  scriptType:
+    | BTCInputScriptType.SpendWitness
+    | BTCInputScriptType.SpendP2SHWitness
+    | BTCInputScriptType.SpendTaproot
+    | BTCInputScriptType.External;
   hex?: string;
 };
 
@@ -231,6 +235,7 @@ export enum BTCInputScriptType {
   External = "external",
   SpendWitness = "p2wpkh",
   SpendP2SHWitness = "p2sh-p2wpkh",
+  SpendTaproot = "p2tr",
 }
 
 export enum BTCOutputScriptType {
@@ -239,6 +244,7 @@ export enum BTCOutputScriptType {
   Bech32 = "bech32",
   PayToWitness = "p2wpkh",
   PayToP2SHWitness = "p2sh-p2wpkh",
+  PayToTaproot = "p2tr", // device-derived change only
 }
 
 export enum BTCOutputAddressType {
@@ -362,11 +368,15 @@ export function describeUTXOPath(path: BIP32Path, coin: Coin, scriptType: BTCInp
 
   const purpose = path[0] & 0x7fffffff;
 
-  if (![44, 49, 84].includes(purpose)) return unknown;
+  if (![44, 49, 84, 86].includes(purpose)) return unknown;
 
   if (purpose === 44 && scriptType !== BTCInputScriptType.SpendAddress) return unknown;
 
   if (purpose === 49 && scriptType !== BTCInputScriptType.SpendP2SHWitness) return unknown;
+
+  if (purpose === 84 && scriptType !== BTCInputScriptType.SpendWitness) return unknown;
+
+  if (purpose === 86 && scriptType !== BTCInputScriptType.SpendTaproot) return unknown;
 
   const wholeAccount = path.length === 3;
 
@@ -376,6 +386,7 @@ export function describeUTXOPath(path: BIP32Path, coin: Coin, scriptType: BTCInp
       [BTCInputScriptType.SpendP2SHWitness]: [],
       [BTCInputScriptType.SpendWitness]: ["Segwit"],
       [BTCInputScriptType.Bech32]: ["Segwit Native"],
+      [BTCInputScriptType.SpendTaproot]: ["Taproot"],
     } as Partial<Record<BTCInputScriptType, string[]>>
   )[scriptType];
 
@@ -469,5 +480,13 @@ export function segwitNativeAccount(coin: Coin, slip44: number, accountIdx: numb
     coin,
     scriptType: BTCInputScriptType.SpendWitness,
     addressNList: [0x80000000 + 84, 0x80000000 + slip44, 0x80000000 + accountIdx],
+  };
+}
+
+export function taprootAccount(coin: Coin, slip44: number, accountIdx: number): BTCAccountPath {
+  return {
+    coin,
+    scriptType: BTCInputScriptType.SpendTaproot,
+    addressNList: [0x80000000 + 86, 0x80000000 + slip44, 0x80000000 + accountIdx],
   };
 }
