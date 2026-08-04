@@ -63,6 +63,31 @@ describe("KeepKey Taproot host support", () => {
     ).resolves.toBe("bc1ptest");
   });
 
+  it("derives a BIP-86 account xpub with the firmware-compatible SPENDADDRESS wire type", async () => {
+    const call = jest.fn().mockImplementation((messageType: number, msg: Messages.GetPublicKey) => {
+      expect(messageType).toBe(Messages.MessageType.MESSAGETYPE_GETPUBLICKEY);
+      expect(msg.getAddressNList()).toEqual(BIP86_ACCOUNT);
+      expect(msg.getCoinName()).toBe("Bitcoin");
+      expect(msg.getScriptType()).toBe(Types.InputScriptType.SPENDADDRESS);
+
+      const response = new Messages.PublicKey();
+      response.setXpub("xpub-bip86");
+      return Promise.resolve({ proto: response });
+    });
+    const wallet = new KeepKeyHDWallet(makeMockTransport(call));
+
+    await expect(
+      wallet.getPublicKeys([
+        {
+          coin: "Bitcoin",
+          addressNList: BIP86_ACCOUNT,
+          curve: "secp256k1",
+          scriptType: core.BTCInputScriptType.SpendTaproot,
+        },
+      ])
+    ).resolves.toEqual([{ xpub: "xpub-bip86" }]);
+  });
+
   it("requires the firmware-reported supports_taproot capability", async () => {
     const supported = new KeepKeyHDWallet(
       makeMockTransport(jest.fn().mockResolvedValue({ message: { supportsTaproot: true } }))
