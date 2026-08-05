@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-namespace */
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as core from "@keepkey/hdwallet-core";
+import * as bs58 from "bs58";
 import * as jspb from "google-protobuf";
 
 import { Transport } from "./transport";
@@ -8,6 +9,116 @@ import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 
 // Cast to access methods that exist at runtime but not in @types/google-protobuf
 const Msg = jspb.Message as any;
+
+// ── Minimal protobuf wire encoding ────────────────────────────────────
+// Used to carry fields the installed @keepkey/device-protocol build predates.
+// Encoded fields concatenate in any order, so appending well-formed bytes to a
+// serialized message is valid protobuf, not a hack around it.
+
+function toBytes(value: Uint8Array | string): Uint8Array {
+  if (value instanceof Uint8Array) return value;
+  return /^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0
+    ? core.fromHexString(value)
+    : Uint8Array.from(Buffer.from(value, "base64"));
+}
+
+function toSolanaPubkey(value: Uint8Array | string, label: string): Uint8Array {
+  let bytes: Uint8Array;
+  if (value instanceof Uint8Array) {
+    bytes = value;
+  } else if (/^[0-9a-fA-F]{64}$/.test(value)) {
+    bytes = core.fromHexString(value);
+  } else {
+    try {
+      const decoded = bs58.decode(value);
+      bytes = Uint8Array.from(decoded);
+    } catch (_e) {
+      bytes = Uint8Array.from(Buffer.from(value, "base64"));
+    }
+  }
+  if (bytes.length !== 32) {
+    throw new Error(`${label} must decode to exactly 32 bytes, got ${bytes.length}`);
+  }
+  return bytes;
+}
+
+function encodeVarint(value: number): number[] {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`varint must be a non-negative integer, got ${value}`);
+  }
+  const out: number[] = [];
+  let v = value;
+  do {
+    let byte = v & 0x7f;
+    v >>>= 7;
+    if (v > 0) byte |= 0x80;
+    out.push(byte);
+  } while (v > 0);
+  return out;
+}
+
+/** field << 3 | 0 (varint) */
+function encodeVarintField(fieldNumber: number, value: number): Uint8Array {
+  return Uint8Array.from([...encodeVarint((fieldNumber << 3) | 0), ...encodeVarint(value)]);
+}
+
+/** field << 3 | 2 (length-delimited) */
+function encodeLengthDelimited(fieldNumber: number, bytes: Uint8Array): Uint8Array {
+  return Uint8Array.from([...encodeVarint((fieldNumber << 3) | 2), ...encodeVarint(bytes.length), ...bytes]);
+}
+
+function concatBytes(...chunks: Uint8Array[]): Uint8Array {
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const out = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.length;
+  }
+  return out;
+}
+
+function encodeSolanaTokenInfo(info: core.SolanaTokenInfo): Uint8Array {
+  const fields: Uint8Array[] = [encodeLengthDelimited(1, toSolanaPubkey(info.mint, "token mint"))];
+  if (info.symbol !== undefined) {
+    const symbol = Uint8Array.from(Buffer.from(info.symbol, "utf8"));
+    if (symbol.length === 0 || symbol.length > 12) {
+      throw new Error(`token symbol must contain 1-12 UTF-8 bytes, got ${symbol.length}`);
+    }
+    fields.push(encodeLengthDelimited(2, symbol));
+  }
+  if (info.decimals !== undefined) {
+    fields.push(encodeVarintField(3, info.decimals));
+  }
+  if (info.signature !== undefined) {
+    const signature = toBytes(info.signature);
+    if (signature.length !== 64) {
+      throw new Error(`token metadata signature must be 64 bytes, got ${signature.length}`);
+    }
+    fields.push(encodeLengthDelimited(4, signature));
+  }
+  if (info.signerKeyId !== undefined) {
+    fields.push(encodeVarintField(5, info.signerKeyId));
+  }
+  return concatBytes(...fields);
+}
+
+/**
+ * Wrap a jspb message so serializeBinary() yields the original encoding plus
+ * `extra`. Transport.call() only ever calls serializeBinary(), so a duck-typed
+ * wrapper is sufficient and leaves the original message untouched.
+ */
+function withAppendedFields(msg: jspb.Message, extra: Uint8Array): jspb.Message {
+  return new Proxy(msg, {
+    get(target, prop, receiver) {
+      if (prop === "serializeBinary") {
+        return () => concatBytes((target as any).serializeBinary(), extra);
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as jspb.Message;
+}
 
 // ── Solana Message Type IDs (from messages.proto) ─────────────────────
 const MESSAGETYPE_SOLANAGETADDRESS = 750;
@@ -198,7 +309,9 @@ export namespace SolanaAddress {
 }
 
 /**
- * SolanaSignTx: address_n(1, repeated uint32), coin_name(2, string), raw_tx(3, bytes)
+ * SolanaSignTx: address_n(1), coin_name(2), raw_tx(3), token_info(4),
+ * swap_metadata_payload(5), swap_metadata_signature(6),
+ * swap_metadata_signer_key_id(7), allow_opaque(8)
  */
 export class SolanaSignTx extends jspb.Message {
   static repeatedFields_ = [1];
@@ -242,6 +355,42 @@ export class SolanaSignTx extends jspb.Message {
     jspb.Message.setField(this, 3, value);
   }
 
+  getSwapMetadataPayload(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 5, "") as Uint8Array | string;
+  }
+  getSwapMetadataPayload_asU8(): Uint8Array {
+    const val = this.getSwapMetadataPayload();
+    return val instanceof Uint8Array ? val : jspb.Message.bytesAsU8(val as string);
+  }
+  setSwapMetadataPayload(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 5, value);
+  }
+
+  getSwapMetadataSignature(): Uint8Array | string {
+    return jspb.Message.getFieldWithDefault(this, 6, "") as Uint8Array | string;
+  }
+  getSwapMetadataSignature_asU8(): Uint8Array {
+    const val = this.getSwapMetadataSignature();
+    return val instanceof Uint8Array ? val : jspb.Message.bytesAsU8(val as string);
+  }
+  setSwapMetadataSignature(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 6, value);
+  }
+
+  getSwapMetadataSignerKeyId(): number {
+    return jspb.Message.getFieldWithDefault(this, 7, 0) as number;
+  }
+  setSwapMetadataSignerKeyId(value: number): void {
+    jspb.Message.setField(this, 7, value);
+  }
+
+  getAllowOpaque(): boolean {
+    return jspb.Message.getFieldWithDefault(this, 8, false) as boolean;
+  }
+  setAllowOpaque(value: boolean): void {
+    jspb.Message.setField(this, 8, value);
+  }
+
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
     SolanaSignTx.serializeBinaryToWriter(this, writer);
@@ -253,6 +402,10 @@ export class SolanaSignTx extends jspb.Message {
       addressNList: this.getAddressNList(),
       coinName: this.getCoinName(),
       rawTx: this.getRawTx(),
+      swapMetadataPayload: this.getSwapMetadataPayload(),
+      swapMetadataSignature: this.getSwapMetadataSignature(),
+      swapMetadataSignerKeyId: this.getSwapMetadataSignerKeyId(),
+      allowOpaque: this.getAllowOpaque(),
     };
   }
 
@@ -282,6 +435,18 @@ export class SolanaSignTx extends jspb.Message {
         case 3:
           msg.setRawTx(reader.readBytes());
           break;
+        case 5:
+          msg.setSwapMetadataPayload(reader.readBytes());
+          break;
+        case 6:
+          msg.setSwapMetadataSignature(reader.readBytes());
+          break;
+        case 7:
+          msg.setSwapMetadataSignerKeyId(reader.readUint32());
+          break;
+        case 8:
+          msg.setAllowOpaque(reader.readBool());
+          break;
         default:
           reader.skipField();
           break;
@@ -303,6 +468,22 @@ export class SolanaSignTx extends jspb.Message {
     if (rawTx.length > 0) {
       writer.writeBytes(3, rawTx);
     }
+    const metadataPayload = message.getSwapMetadataPayload_asU8();
+    if (metadataPayload.length > 0) {
+      writer.writeBytes(5, metadataPayload);
+    }
+    const metadataSignature = message.getSwapMetadataSignature_asU8();
+    if (metadataSignature.length > 0) {
+      writer.writeBytes(6, metadataSignature);
+    }
+    const metadataSignerKeyId = jspb.Message.getField(message, 7) as number | null;
+    if (metadataSignerKeyId != null) {
+      writer.writeUint32(7, metadataSignerKeyId);
+    }
+    const allowOpaque = jspb.Message.getField(message, 8) as boolean | null;
+    if (allowOpaque != null) {
+      writer.writeBool(8, allowOpaque);
+    }
   }
 }
 
@@ -311,6 +492,10 @@ export namespace SolanaSignTx {
     addressNList: number[];
     coinName?: string;
     rawTx: Uint8Array | string;
+    swapMetadataPayload?: Uint8Array | string;
+    swapMetadataSignature?: Uint8Array | string;
+    swapMetadataSignerKeyId?: number;
+    allowOpaque?: boolean;
   };
 }
 
@@ -973,8 +1158,49 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
       rawBytes = new Uint8Array(msg.rawTx as any);
     }
     signTx.setRawTx(rawBytes);
+    if (msg.swapMetadata) {
+      const payload =
+        msg.swapMetadata.payload instanceof Uint8Array
+          ? msg.swapMetadata.payload
+          : Uint8Array.from(Buffer.from(msg.swapMetadata.payload, "base64"));
+      const signature =
+        msg.swapMetadata.signature instanceof Uint8Array
+          ? msg.swapMetadata.signature
+          : Uint8Array.from(Buffer.from(msg.swapMetadata.signature, "base64"));
+      signTx.setSwapMetadataPayload(payload);
+      signTx.setSwapMetadataSignature(signature);
+      signTx.setSwapMetadataSignerKeyId(msg.swapMetadata.signerKeyId);
+    }
+    if (msg.allowBlindSigning === true) {
+      signTx.setAllowOpaque(true);
+    }
 
-    const resp = await transport.call(MESSAGETYPE_SOLANASIGNTX, signTx, {
+    /*
+     * Additive SolanaSignTx fields are appended at the wire level because this
+     * file intentionally carries a small jspb compatibility shim. Protobuf
+     * fields are order-independent, and firmware's nanopb decoder reads the
+     * same canonical field numbers emitted by device-protocol.
+     */
+    const extraFields: Uint8Array[] = [];
+    for (const tokenInfo of msg.tokenInfo || []) {
+      extraFields.push(encodeLengthDelimited(4, encodeSolanaTokenInfo(tokenInfo)));
+    }
+    if (msg.schema) {
+      const payload = toBytes(msg.schema.payload);
+      const signature = toBytes(msg.schema.signature);
+      extraFields.push(
+        encodeLengthDelimited(9, payload),
+        encodeLengthDelimited(10, signature),
+        encodeVarintField(11, msg.schema.signerKeyId)
+      );
+    }
+    for (const owner of msg.tokenRecipientOwners || []) {
+      extraFields.push(encodeLengthDelimited(12, toSolanaPubkey(owner, "token recipient owner")));
+    }
+    const outbound: jspb.Message =
+      extraFields.length > 0 ? withAppendedFields(signTx, concatBytes(...extraFields)) : signTx;
+
+    const resp = await transport.call(MESSAGETYPE_SOLANASIGNTX, outbound, {
       msgTimeout: core.LONG_TIMEOUT,
       omitLock: true,
     });

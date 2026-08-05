@@ -4,6 +4,7 @@ import * as core from "@keepkey/hdwallet-core";
 import semver from "semver";
 
 import * as Btc from "./bitcoin";
+import * as Clearsign from "./clearsign";
 import * as Cosmos from "./cosmos";
 import * as Eos from "./eos";
 import * as Eth from "./ethereum";
@@ -79,13 +80,15 @@ function describeUTXOPath(
 
   const purpose = path[0] & 0x7fffffff;
 
-  if (![44, 49, 84].includes(purpose)) return unknown;
+  if (![44, 49, 84, 86].includes(purpose)) return unknown;
 
   if (purpose === 44 && scriptType !== core.BTCInputScriptType.SpendAddress) return unknown;
 
   if (purpose === 49 && scriptType !== core.BTCInputScriptType.SpendP2SHWitness) return unknown;
 
   if (purpose === 84 && scriptType !== core.BTCInputScriptType.SpendWitness) return unknown;
+
+  if (purpose === 86 && scriptType !== core.BTCInputScriptType.SpendTaproot) return unknown;
 
   const wholeAccount = path.length === 3;
 
@@ -95,6 +98,7 @@ function describeUTXOPath(
           [core.BTCInputScriptType.SpendAddress]: ["Legacy"],
           [core.BTCInputScriptType.SpendP2SHWitness]: [],
           [core.BTCInputScriptType.SpendWitness]: ["Segwit Native"],
+          [core.BTCInputScriptType.SpendTaproot]: ["Taproot"],
         } as Partial<Record<core.BTCInputScriptType, string[]>>
       )[scriptType] ?? []
     : [];
@@ -1327,7 +1331,11 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   }
 
   public async btcSupportsScriptType(coin: core.Coin, scriptType: core.BTCInputScriptType): Promise<boolean> {
-    return this.info.btcSupportsScriptType(coin, scriptType);
+    const supportedByAdapter = await this.info.btcSupportsScriptType(coin, scriptType);
+    if (!supportedByAdapter || scriptType !== core.BTCInputScriptType.SpendTaproot) return supportedByAdapter;
+
+    const features = await this.getFeatures(/*cached=*/ true);
+    return features.supportsTaproot === true;
   }
 
   public async btcGetAddress(msg: core.BTCGetAddress): Promise<string> {
@@ -1376,9 +1384,7 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Eth.ethSignTx(this.transport, msg);
   }
 
-  /** Load a runtime EVM clear-sign signer into a device key slot (user-confirmed). KeepKey-specific.
-   *  Optionally carries an identity logo (icon, 1bpp mono RLE <=384B) and persist=true to keep the
-   *  identity in device flash across reboots (firmware 7.15+). */
+  /** Load an Advanced-mode ClearSign signer into a RAM-only device slot. */
   public async loadClearsignSigner(msg: {
     keyId: number;
     pubkey: Uint8Array;
@@ -1389,6 +1395,16 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     persist?: boolean;
   }): Promise<{ ok: true }> {
     return Eth.ethLoadClearsignSigner(this.transport, msg);
+  }
+
+  /** Return this device's dedicated ClearSign attestation public key. */
+  public async clearsignAttestorGetPublicKey(): Promise<Uint8Array> {
+    return Clearsign.getAttestorPublicKey(this.transport);
+  }
+
+  /** Validate, review, and attest a canonical ClearSign descriptor. */
+  public async clearsignAttestorSign(payload: Uint8Array): Promise<{ signature: Uint8Array; publicKey: Uint8Array }> {
+    return Clearsign.attestPayload(this.transport, payload);
   }
 
   public async ethGetAddress(msg: core.ETHGetAddress): Promise<string> {

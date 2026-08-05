@@ -26,6 +26,7 @@ const supportedCoins = [
 ];
 
 const segwitCoins = ["Bitcoin", "Testnet", "BitcoinGold", "Litecoin"];
+const taprootCoins = ["Bitcoin", "Testnet"];
 
 function legacyAccount(coin: core.Coin, slip44: number, accountIdx: number): core.BTCAccountPath {
   return {
@@ -48,6 +49,14 @@ function segwitNativeAccount(coin: core.Coin, slip44: number, accountIdx: number
     coin,
     scriptType: core.BTCInputScriptType.SpendWitness,
     addressNList: [0x80000000 + 84, 0x80000000 + slip44, 0x80000000 + accountIdx],
+  };
+}
+
+function taprootAccount(coin: core.Coin, slip44: number, accountIdx: number): core.BTCAccountPath {
+  return {
+    coin,
+    scriptType: core.BTCInputScriptType.SpendTaproot,
+    addressNList: [0x80000000 + 86, 0x80000000 + slip44, 0x80000000 + accountIdx],
   };
 }
 
@@ -120,6 +129,7 @@ function prepareSignTx(
     if (
       inputTx.scriptType === core.BTCInputScriptType.SpendP2SHWitness ||
       inputTx.scriptType === core.BTCInputScriptType.SpendWitness ||
+      inputTx.scriptType === core.BTCInputScriptType.SpendTaproot ||
       inputTx.scriptType === core.BTCInputScriptType.External
     )
       return;
@@ -248,6 +258,7 @@ export async function btcSupportsScriptType(coin: core.Coin, scriptType?: core.B
   if (!supportedCoins.includes(coin)) return false;
   if (!segwitCoins.includes(coin) && scriptType === core.BTCInputScriptType.SpendP2SHWitness) return false;
   if (!segwitCoins.includes(coin) && scriptType === core.BTCInputScriptType.SpendWitness) return false;
+  if (!taprootCoins.includes(coin) && scriptType === core.BTCInputScriptType.SpendTaproot) return false;
   return true;
 }
 
@@ -546,6 +557,7 @@ export function btcGetAccountPaths(msg: core.BTCGetAccountPaths): Array<core.BTC
   const bip44 = legacyAccount(msg.coin, slip44, msg.accountIdx);
   const bip49 = segwitAccount(msg.coin, slip44, msg.accountIdx);
   const bip84 = segwitNativeAccount(msg.coin, slip44, msg.accountIdx);
+  const bip86 = taprootAccount(msg.coin, slip44, msg.accountIdx);
 
   // For BTC Forks
   const btcLegacy = legacyAccount(msg.coin, core.slip44ByCoin("Bitcoin"), msg.accountIdx);
@@ -558,12 +570,12 @@ export function btcGetAccountPaths(msg: core.BTCGetAccountPaths): Array<core.BTC
   let paths: Array<core.BTCAccountPath> =
     (
       {
-        Bitcoin: [bip44, bip49, bip84],
+        Bitcoin: [bip44, bip49, bip84, bip86],
         Litecoin: [bip44, bip49, bip84],
         Dash: [bip44],
         DigiByte: [bip44, bip49, bip84],
         Dogecoin: [bip44],
-        Testnet: [bip44, bip49, bip84],
+        Testnet: [bip44, bip49, bip84, bip86],
         BitcoinCash: [bip44, btcLegacy],
         BitcoinSV: [bip44, bchLegacy, btcLegacy],
         BitcoinGold: [bip44, bip49, bip84, btcLegacy, btcSegwit, btcSegwitNative],
@@ -581,7 +593,7 @@ export function btcGetAccountPaths(msg: core.BTCGetAccountPaths): Array<core.BTC
 export function btcIsSameAccount(msg: Array<core.BTCAccountPath>): boolean {
   if (msg.length < 1) return false;
 
-  if (msg.length > 3) return false;
+  if (msg.length > 4) return false;
 
   const account0 = msg[0];
   if (account0.addressNList.length != 3) return false;
@@ -592,6 +604,7 @@ export function btcIsSameAccount(msg: Array<core.BTCAccountPath>): boolean {
     [core.BTCInputScriptType.SpendAddress]: 0x80000000 + 44,
     [core.BTCInputScriptType.SpendP2SHWitness]: 0x80000000 + 49,
     [core.BTCInputScriptType.SpendWitness]: 0x80000000 + 84,
+    [core.BTCInputScriptType.SpendTaproot]: 0x80000000 + 86,
   } as Partial<Record<core.BTCInputScriptType, number>>;
   if (purposeForScriptType[account0.scriptType] !== purpose) return false;
 
@@ -604,12 +617,13 @@ export function btcIsSameAccount(msg: Array<core.BTCAccountPath>): boolean {
   if (idx < 0x80000000) return false;
 
   // Accounts must have the same SLIP44 and Account Idx, but may have differing
-  // purpose fields (so long as they're BIP44/BIP49/BIP84)
+  // purpose fields (so long as they're BIP44/BIP49/BIP84/BIP86)
   if (
     msg.find((path) => {
       if (path.addressNList.length != 3) return true;
 
-      if (![0x80000000 + 44, 0x80000000 + 49, 0x80000000 + 84].includes(path.addressNList[0])) return true;
+      if (![0x80000000 + 44, 0x80000000 + 49, 0x80000000 + 84, 0x80000000 + 86].includes(path.addressNList[0]))
+        return true;
 
       if (purposeForScriptType[path.scriptType] !== path.addressNList[0]) return true;
 

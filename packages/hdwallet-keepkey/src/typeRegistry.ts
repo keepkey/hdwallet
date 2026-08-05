@@ -38,7 +38,7 @@ const AllMessages = ([] as Array<[string, core.Constructor<jspb.Message>]>)
   .concat(Object.entries(TonMessages))
   .concat(Object.entries(TronMessages))
   .concat(Object.entries(MayachainMessages))
-  .concat(Object.entries(ZcashMessages));
+  .concat(Object.entries(omit(ZcashMessages, "ZcashShieldedPool", "ZcashShieldedPoolMap")));
 
 const upperCasedMessageClasses = AllMessages.reduce((registry, entry: [string, core.Constructor<jspb.Message>]) => {
   registry[entry[0].toUpperCase()] = entry[1];

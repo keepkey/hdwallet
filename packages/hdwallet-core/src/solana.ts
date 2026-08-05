@@ -9,9 +9,44 @@ export interface SolanaAddress {
   address: string;
 }
 
+export interface SolanaTokenInfo {
+  /** 32-byte SPL mint, encoded as bytes, hex, base64, or base58. */
+  mint: Uint8Array | string;
+  symbol?: string;
+  decimals?: number;
+  signature?: Uint8Array | string;
+  signerKeyId?: number;
+}
+
 export interface SolanaSignTx {
   addressNList: BIP32Path;
   rawTx: Uint8Array | string;
+  /** Optional token definitions used by firmware display policy. */
+  tokenInfo?: SolanaTokenInfo[];
+  /**
+   * Candidate owners for signed SPL token destinations (for example x402
+   * payTo). Firmware displays one only after deriving and matching its ATA.
+   */
+  tokenRecipientOwners?: Array<Uint8Array | string>;
+  /** One-request opaque-signing authorization; does not mutate AdvancedMode. */
+  allowBlindSigning?: boolean;
+  /** Transaction-bound, signer-attested KKSOLSW1 swap descriptor. */
+  swapMetadata?: {
+    payload: Uint8Array | string;
+    signature: Uint8Array | string;
+    signerKeyId: number;
+  };
+  /**
+   * Signer-attested KKSOLSC1 instruction schema. Unlike swapMetadata this is
+   * NOT bound to one transaction: it describes how to read a program's
+   * instruction, so a single signature is reused for every transaction to
+   * that program and the device decodes values from the bytes it signs.
+   */
+  schema?: {
+    payload: Uint8Array | string;
+    signature: Uint8Array | string;
+    signerKeyId: number;
+  };
 }
 
 export interface SolanaSignedTx {
