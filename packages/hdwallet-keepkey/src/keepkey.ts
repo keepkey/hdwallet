@@ -937,6 +937,12 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
       resetDevice.setAutoLockDelayMs(msg.autoLockDelayMs);
     }
     resetDevice.setU2fCounter(msg.u2fCounter || Math.floor(+new Date() / 1000));
+    if (msg.diceEntropy) {
+      // Only set when requested. Firmware older than 7.15.0 has no such field
+      // and would reject an unknown one, so an unconditional set would break
+      // every existing device.
+      resetDevice.setDiceEntropy(true);
+    }
     // resetDevice.setWordsPerGape(wordsPerScreen) // Re-enable when patch gets in
     // Send
     await this.transport.call(Messages.MessageType.MESSAGETYPE_RESETDEVICE, resetDevice, {
