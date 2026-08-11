@@ -31,7 +31,9 @@ import { KeepKeyHDWallet } from "./keepkey";
 function makeMockTransport(opts: { major?: number; minor?: number; patch?: number; features?: null } = {}) {
   const { major = 7, minor = 15, patch = 0 } = opts;
   const featuresMessage =
-    opts.features === null ? { deviceId: "mock-device-id" } : { deviceId: "mock-device-id", majorVersion: major, minorVersion: minor, patchVersion: patch };
+    opts.features === null
+      ? { deviceId: "mock-device-id" }
+      : { deviceId: "mock-device-id", majorVersion: major, minorVersion: minor, patchVersion: patch };
 
   return {
     debugLink: false,
@@ -133,9 +135,7 @@ describe("KeepKeyHDWallet.reset() refuses a silent dice downgrade", () => {
 
   it("names the offending firmware version in the error", async () => {
     const transport = makeMockTransport({ major: 7, minor: 14, patch: 1 });
-    const err = await new KeepKeyHDWallet(transport)
-      .reset({ ...BASE_RESET, diceEntropy: true })
-      .catch((e: any) => e);
+    const err = await new KeepKeyHDWallet(transport).reset({ ...BASE_RESET, diceEntropy: true }).catch((e: any) => e);
 
     expect(String(err.message)).toContain("v7.14.1");
   });
