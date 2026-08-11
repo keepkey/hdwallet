@@ -1151,9 +1151,9 @@
     "@jridgewell/resolve-uri" "^3.1.0"
     "@jridgewell/sourcemap-codec" "^1.4.14"
 
-"@keepkey/device-protocol@https://github.com/BitHighlander/device-protocol.git#dice-entropy-v1":
+"@keepkey/device-protocol@https://github.com/keepkey/device-protocol.git#fbb483f1cadc6394d51566ca4be0cfe6daa40000":
   version "7.14.1"
-  resolved "https://github.com/BitHighlander/device-protocol.git#cf308fd5e76f3f2e02ba38347ceccaa382b08505"
+  resolved "https://github.com/keepkey/device-protocol.git#fbb483f1cadc6394d51566ca4be0cfe6daa40000"
   dependencies:
     google-protobuf "3.21.4"
     pbjs "^0.0.5"
