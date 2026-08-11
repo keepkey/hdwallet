@@ -938,9 +938,19 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     }
     resetDevice.setU2fCounter(msg.u2fCounter || Math.floor(+new Date() / 1000));
     if (msg.diceEntropy) {
-      // Only set when requested. Firmware older than 7.15.0 has no such field
-      // and would reject an unknown one, so an unconditional set would break
-      // every existing device.
+      // Refuse rather than send. Firmware before v7.15.0 has no dice_entropy
+      // field, and nanopb SKIPS unknown fields instead of rejecting them
+      // (lib/transport/pb_decode.c:904, "No match found, skip data" — same on
+      // v7.14.1). So sending the flag to old firmware SUCCEEDS and quietly
+      // produces an ordinary RNG-only seed while the caller believes dice
+      // entropy was folded in. A silent downgrade of a security property the
+      // caller explicitly asked for is worse than a failed reset.
+      if (!(await this.supportsDiceEntropy())) {
+        throw new Error(
+          `Dice entropy requires KeepKey firmware v7.15.0 or later; device reports ${await this.getFirmwareVersion()}. ` +
+            `Refusing to reset, because this firmware would ignore the request and create an ordinary RNG-only wallet.`
+        );
+      }
       resetDevice.setDiceEntropy(true);
     }
     // resetDevice.setWordsPerGape(wordsPerScreen) // Re-enable when patch gets in
@@ -1371,6 +1381,20 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   public async ethSupportsEIP1559(): Promise<boolean> {
     // EIP1559 support starts in v7.2.1
     return semver.gte(await this.getFirmwareVersion(), "v7.2.1");
+  }
+
+  /**
+   * Whether the device honours ResetDevice.dice_entropy (on-device dice rolls
+   * mixed into the seed entropy). Support starts in v7.15.0.
+   *
+   * Callers must check this before offering dice entropy: older firmware does
+   * not reject the unknown field, it silently ignores it, so an ungated
+   * request produces an ordinary RNG-only wallet with no error. Fails closed —
+   * an unreadable firmware version reports false rather than assuming support.
+   */
+  public async supportsDiceEntropy(): Promise<boolean> {
+    const version = await this.getFirmwareVersion();
+    return !!semver.valid(version) && semver.gte(version, "v7.15.0");
   }
 
   public async btcSignMessage(msg: core.BTCSignMessage): Promise<core.BTCSignedMessage> {
