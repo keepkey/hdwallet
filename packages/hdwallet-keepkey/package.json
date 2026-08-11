@@ -17,7 +17,7 @@
   "dependencies": {
     "@ethereumjs/common": "^2.4.0",
     "@ethereumjs/tx": "^3.3.0",
-    "@keepkey/device-protocol": "https://github.com/keepkey/device-protocol.git#674777f6d4dd16e2b8c4c2df10608976375ee879",
+    "@keepkey/device-protocol": "https://github.com/keepkey/device-protocol.git#fbb483f1cadc6394d51566ca4be0cfe6daa40000",
     "@keepkey/hdwallet-core": "1.53.16",
     "@keepkey/proto-tx-builder": "^0.9.1",
     "@shapeshiftoss/bitcoinjs-lib": "5.2.0-shapeshift.2",
