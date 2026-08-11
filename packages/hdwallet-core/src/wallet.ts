@@ -52,6 +52,15 @@ export interface ResetDevice {
   pin?: boolean;
   autoLockDelayMs?: number;
   u2fCounter?: number;
+  /**
+   * Collect dice rolls ON THE DEVICE and fold them into the internal entropy
+   * before it is committed. The rolls never reach the host, which is the
+   * whole point: desktop-entered dice only help while the device's own
+   * randomness stays secret, so they do not defend against a compromised
+   * host combined with a weak device RNG. Requires firmware >= 7.15.0;
+   * older firmware ignores the field.
+   */
+  diceEntropy?: boolean;
 }
 
 export interface RecoverDevice {

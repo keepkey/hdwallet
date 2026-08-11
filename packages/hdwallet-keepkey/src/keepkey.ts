@@ -893,7 +893,15 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
       GPK.setAddressNList(addressNList);
       GPK.setShowDisplay(showDisplay || false);
       GPK.setEcdsaCurveName(curve || "secp256k1");
-      GPK.setScriptType(translateInputScriptType(scriptType || core.BTCInputScriptType.SpendAddress));
+      // A BIP-86 account xpub uses the same serialization as a legacy account
+      // xpub. Current KeepKey firmware derives it from the BIP-86 path, but its
+      // GetPublicKey handler rejects SPENDTAPROOT. Keep P2TR on address/signing
+      // requests and use SPENDADDRESS only for this xpub-derivation message.
+      const publicKeyScriptType =
+        scriptType === core.BTCInputScriptType.SpendTaproot
+          ? core.BTCInputScriptType.SpendAddress
+          : scriptType || core.BTCInputScriptType.SpendAddress;
+      GPK.setScriptType(translateInputScriptType(publicKeyScriptType));
 
       const event = await this.transport.call(Messages.MessageType.MESSAGETYPE_GETPUBLICKEY, GPK, {
         msgTimeout: showDisplay ? core.LONG_TIMEOUT : core.DEFAULT_TIMEOUT,
@@ -929,6 +937,12 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
       resetDevice.setAutoLockDelayMs(msg.autoLockDelayMs);
     }
     resetDevice.setU2fCounter(msg.u2fCounter || Math.floor(+new Date() / 1000));
+    if (msg.diceEntropy) {
+      // Only set when requested. Firmware older than 7.15.0 has no such field
+      // and would reject an unknown one, so an unconditional set would break
+      // every existing device.
+      resetDevice.setDiceEntropy(true);
+    }
     // resetDevice.setWordsPerGape(wordsPerScreen) // Re-enable when patch gets in
     // Send
     await this.transport.call(Messages.MessageType.MESSAGETYPE_RESETDEVICE, resetDevice, {
