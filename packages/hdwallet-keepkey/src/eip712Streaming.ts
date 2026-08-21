@@ -51,6 +51,12 @@ const ONE = BigInt(1);
 const EIGHT = BigInt(8);
 const BYTE_MASK = BigInt(0xff);
 
+/** EthereumTypedDataValueAck.value max_size in messages-ethereum.options, and
+ *  EIP712_MAX_LEAF on the device. Encoding past it produces a value that
+ *  cannot be put on the wire, so catch it here where the error can name the
+ *  field rather than at the transport layer where it cannot. */
+export const MAX_LEAF_BYTES = 1024;
+
 /**
  * "uint256", "bytes32", "Person[3]", "int16[2][][4]" -> FieldType.
  * Throws rather than guessing: an unparseable type must not become a signature.
@@ -70,7 +76,18 @@ export function parseSolidityType(type: string): FieldType {
     let m: RegExpExecArray | null;
     while ((m = ARRAY_SUFFIX.exec(suffix)) !== null) {
       if (m.index !== consumed) throw new Error(`Malformed array type: ${type}`);
-      arrayLevels.push(m[1] === "" ? 0 : Number(m[1]));
+      if (m[1] === "") {
+        arrayLevels.push(0); // dynamic
+      } else {
+        // 0 is the wire's DYNAMIC sentinel: the device spells array_levels[i]
+        // == 0 as "[]". A fixed dimension of 0 therefore has no spelling of its
+        // own, and "uint256[0]" would be hashed as "uint256[]" -- a different
+        // type string from the one the document declares. Leading zeros
+        // re-spell the same way ("[01]" -> "[1]"). Neither is a legal EIP-712
+        // type, so refuse rather than silently rewrite.
+        if (!/^[1-9][0-9]*$/.test(m[1])) throw new Error(`Malformed array dimension: ${type}`);
+        arrayLevels.push(Number(m[1]));
+      }
       consumed = ARRAY_SUFFIX.lastIndex;
     }
     if (consumed !== suffix.length) throw new Error(`Malformed array type: ${type}`);
@@ -81,19 +98,26 @@ export function parseSolidityType(type: string): FieldType {
   if (base === "address") return { dataType: EthereumDataType.ADDRESS, arrayLevels };
   if (base === "bytes") return { dataType: EthereumDataType.BYTES, arrayLevels };
 
-  const bytesN = /^bytes(\d+)$/.exec(base);
+  const bytesN = /^bytes([0-9]*)$/.exec(base);
   if (bytesN) {
+    // "bytes032" parses to 32 and would be re-spelled "bytes32" -- a
+    // different type string from the document's.
+    if (!/^[1-9][0-9]*$/.test(bytesN[1])) throw new Error(`Non-canonical bytes width: ${base}`);
     const n = Number(bytesN[1]);
     if (n < 1 || n > 32) throw new Error(`Invalid fixed bytes width: ${base}`);
     return { dataType: EthereumDataType.BYTES, size: n, arrayLevels };
   }
 
-  const intN = /^(u?)int(\d*)$/.exec(base);
+  const intN = /^(u?)int([0-9]*)$/.exec(base);
   if (intN) {
     // A bare "uint"/"int" is not canonical EIP-712. The old firmware accepted
     // it and hashed it verbatim as 256 bits, which produced a type string no
     // verifier reproduces. Refuse it here rather than pass it on.
     if (intN[2] === "") throw new Error(`Integer type must state its width: ${base}`);
+    // Nor is "uint0256" canonical. It would normalise to 256 here and be
+    // hashed as "uint256" by the device, while the document a verifier reads
+    // says "uint0256". Same failure as the bare form, one spelling further on.
+    if (!/^[1-9][0-9]*$/.test(intN[2])) throw new Error(`Non-canonical integer width: ${base}`);
     const bits = Number(intN[2]);
     if (bits < 8 || bits > 256 || bits % 8 !== 0) {
       throw new Error(`Invalid integer width: ${base}`);
@@ -161,6 +185,13 @@ function toBigInt(value: unknown, what: string): bigint {
   throw new Error(`${what} is not an integer: ${String(value)}`);
 }
 
+function capLeaf(b: Uint8Array, what: string): Uint8Array {
+  if (b.length > MAX_LEAF_BYTES) {
+    throw new Error(`${what} value is ${b.length} bytes, over the ${MAX_LEAF_BYTES}-byte wire limit`);
+  }
+  return b;
+}
+
 /** One leaf, as the exact bytes the device will hash and display. */
 export function encodeValue(field: FieldType, value: unknown): Uint8Array {
   switch (field.dataType) {
@@ -187,11 +218,11 @@ export function encodeValue(field: FieldType, value: unknown): Uint8Array {
       if (field.size !== undefined && b.length !== field.size) {
         throw new Error(`bytes${field.size} must be ${field.size} bytes, got ${b.length}`);
       }
-      return b;
+      return field.size === undefined ? capLeaf(b, "bytes") : b;
     }
     case EthereumDataType.STRING: {
       if (typeof value !== "string") throw new Error("string field must be a string");
-      return new TextEncoder().encode(value);
+      return capLeaf(new TextEncoder().encode(value), "string");
     }
     default:
       throw new Error(`Cannot encode a ${EthereumDataType[field.dataType]} as a leaf value`);
@@ -247,7 +278,15 @@ export function resolveMemberPath(doc: TypedDataDoc, path: number[]): Resolved {
 
     if (levelsUsed < field.arrayLevels.length) {
       // Standing in an array: step into an element.
+      const declared = field.arrayLevels[levelsUsed];
       if (!Array.isArray(value)) throw new Error(`Expected an array at path ${path.slice(0, i).join(".")}`);
+      // A declared dimension is part of the TYPE STRING and therefore part of
+      // typeHash. Serving three elements for an address[2] signs a document
+      // whose type says two -- the device cannot notice, because it only ever
+      // sees the count we give it.
+      if (declared !== 0 && value.length !== declared) {
+        throw new Error(`Fixed array declares ${declared} elements, document has ${value.length}`);
+      }
       if (index >= value.length) throw new Error(`Array index ${index} out of range`);
       value = value[index];
       levelsUsed++;
@@ -275,7 +314,11 @@ export function resolveMemberPath(doc: TypedDataDoc, path: number[]): Resolved {
   }
 
   if (levelsUsed < field.arrayLevels.length) {
+    const declared = field.arrayLevels[levelsUsed];
     if (!Array.isArray(value)) throw new Error("Expected an array for a length request");
+    if (declared !== 0 && value.length !== declared) {
+      throw new Error(`Fixed array declares ${declared} elements, document has ${value.length}`);
+    }
     return { kind: "arrayLength", length: value.length };
   }
   if (field.dataType === EthereumDataType.STRUCT) {
