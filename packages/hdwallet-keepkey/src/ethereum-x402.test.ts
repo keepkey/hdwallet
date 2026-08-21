@@ -3,6 +3,26 @@ import * as Ethereum from "@keepkey/device-protocol/lib/messages-ethereum_pb";
 import { ethSignTypedData } from "./ethereum";
 
 const ETHEREUM_712_TYPES_VALUES = 114;
+const MESSAGETYPE_FAILURE = 3;
+const FAILURE_UNEXPECTEDMESSAGE = 1;
+
+/** Streaming EIP-712 message types, 1704-1708. */
+const STREAMING = new Set([1704, 1705, 1706, 1707, 1708]);
+
+/**
+ * What a device WITHOUT the streaming endpoint does: reject the unknown
+ * message type. ethSignTypedData now tries streaming first for every document,
+ * so a mock that answers every call as Ethereum712TypesValues is modelling a
+ * device that cannot exist. Rejecting 1704 the way 7.14.x firmware does makes
+ * this test cover the fallback as well as the old path.
+ */
+function rejectUnknownMessage() {
+  // eslint-disable-next-line no-throw-literal
+  throw {
+    message_enum: MESSAGETYPE_FAILURE,
+    message: { code: FAILURE_UNEXPECTEDMESSAGE, message: "Unexpected message" },
+  };
+}
 const PATH = [0x8000002c, 0x8000003c, 0x80000000, 0, 0];
 
 function makeMockTransport(call: jest.Mock) {
@@ -17,6 +37,7 @@ describe("x402 EVM structured signing", () => {
   it("sends the official EIP-3009 authorization as reviewed domain + message", async () => {
     const streamed: Array<{ phase: number; data: any }> = [];
     const call = jest.fn().mockImplementation((_messageType: number, request: Ethereum.Ethereum712TypesValues) => {
+      if (STREAMING.has(_messageType)) rejectUnknownMessage();
       const phase = request.getEip712typevals() ?? 0;
       expect(_messageType).toBe(ETHEREUM_712_TYPES_VALUES);
       expect(JSON.parse(request.getEip712primetype() || "{}")).toEqual({
@@ -72,9 +93,18 @@ describe("x402 EVM structured signing", () => {
       },
     });
 
-    expect(call).toHaveBeenCalledTimes(2);
+    // THREE calls now, not two: the streaming probe that this device rejects,
+    // then the two old-path calls. The probe is the fallback working -- every
+    // device in the field today answers 1704 with Failure_UnexpectedMessage,
+    // and asserting two calls would be asserting that we never tried.
+    expect(call).toHaveBeenCalledTimes(3);
     expect(transport.lockDuring).toHaveBeenCalledTimes(1);
-    expect(call.mock.calls.map(([, , options]) => options)).toEqual([
+    expect(call.mock.calls.map(([type]) => type)).toEqual([
+      1704, // EthereumSignTypedData -- rejected as unknown
+      ETHEREUM_712_TYPES_VALUES,
+      ETHEREUM_712_TYPES_VALUES,
+    ]);
+    expect(call.mock.calls.slice(1).map(([, , options]) => options)).toEqual([
       { msgTimeout: expect.any(Number), omitLock: true },
       { msgTimeout: expect.any(Number), omitLock: true },
     ]);
