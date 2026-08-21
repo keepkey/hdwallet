@@ -183,3 +183,102 @@ describe("structMembers", () => {
     expect(() => structMembers(PERMIT2, "Nope")).toThrow(/Unknown struct/);
   });
 });
+
+// ── regressions from the adversarial review ─────────────────────────
+// Every case below was a confirmed defect in the first version of this module.
+
+describe("non-canonical type spellings are refused, not normalised", () => {
+  it("refuses a fixed array dimension of zero", () => {
+    // 0 is the wire's DYNAMIC sentinel, so uint256[0] was being hashed as
+    // uint256[] -- a different type string from the document's. Confirmed
+    // against ethers 5.7.2: Foo(uint256[0] a) and Foo(uint256[] a) have
+    // different hashStructs.
+    expect(() => parseSolidityType("uint256[0]")).toThrow(/Malformed array dimension/);
+  });
+
+  it("refuses leading zeros in an array dimension", () => {
+    expect(() => parseSolidityType("uint256[01]")).toThrow(/Malformed array dimension/);
+  });
+
+  it("refuses a non-canonical integer width", () => {
+    // uint0256 normalised to 256 and was hashed as "uint256", while a verifier
+    // reading the document sees "uint0256".
+    expect(() => parseSolidityType("uint0256")).toThrow(/Non-canonical/);
+    expect(() => parseSolidityType("int008")).toThrow(/Non-canonical/);
+  });
+
+  it("refuses a non-canonical bytesN width", () => {
+    expect(() => parseSolidityType("bytes032")).toThrow(/Non-canonical/);
+  });
+
+  it("still accepts a struct whose name merely starts with int", () => {
+    // The integer regex is anchored to digits so this is not caught by it.
+    expect(parseSolidityType("interest")).toEqual({
+      dataType: EthereumDataType.STRUCT,
+      structName: "interest",
+      arrayLevels: [],
+    });
+  });
+});
+
+describe("a declared fixed dimension is enforced", () => {
+  const fixedDoc = (owners: string[]): TypedDataDoc => ({
+    types: {
+      EIP712Domain: [{ name: "name", type: "string" }],
+      Batch: [{ name: "owners", type: "address[2]" }],
+    },
+    primaryType: "Batch",
+    domain: { name: "B" },
+    message: { owners },
+  });
+
+  it("refuses a document whose array is longer than its type says", () => {
+    // The dimension is part of the type string and therefore part of typeHash.
+    // Serving three elements for an address[2] signs a document whose type
+    // declares two, and the device cannot notice -- it only sees the count we
+    // give it.
+    const doc = fixedDoc(["0x" + "aa".repeat(20), "0x" + "bb".repeat(20), "0x" + "cc".repeat(20)]);
+    expect(() => resolveMemberPath(doc, [1, 0])).toThrow(/declares 2 elements, document has 3/);
+    expect(() => resolveMemberPath(doc, [1, 0, 2])).toThrow(/declares 2 elements/);
+  });
+
+  it("refuses a document whose array is shorter than its type says", () => {
+    const doc = fixedDoc(["0x" + "aa".repeat(20)]);
+    expect(() => resolveMemberPath(doc, [1, 0])).toThrow(/declares 2 elements, document has 1/);
+  });
+
+  it("accepts the declared length", () => {
+    const doc = fixedDoc(["0x" + "aa".repeat(20), "0x" + "bb".repeat(20)]);
+    expect(resolveMemberPath(doc, [1, 0])).toEqual({ kind: "arrayLength", length: 2 });
+  });
+
+  it("leaves dynamic dimensions unchecked", () => {
+    const doc: TypedDataDoc = {
+      types: {
+        EIP712Domain: [{ name: "name", type: "string" }],
+        Batch: [{ name: "owners", type: "address[]" }],
+      },
+      primaryType: "Batch",
+      domain: { name: "B" },
+      message: { owners: ["0x" + "aa".repeat(20)] },
+    };
+    expect(resolveMemberPath(doc, [1, 0])).toEqual({ kind: "arrayLength", length: 1 });
+  });
+});
+
+describe("dynamic leaves are capped at the wire limit", () => {
+  it("refuses a string past MAX_LEAF_BYTES instead of building an unsendable value", () => {
+    // EthereumTypedDataValueAck.value is max_size:1024. Encoding 2000 bytes
+    // produced something that could not be sent, and the ceremony died at the
+    // transport layer where the error could not name the field.
+    expect(() => encodeValue(parseSolidityType("string"), "x".repeat(2000))).toThrow(/over the 1024-byte wire limit/);
+  });
+
+  it("refuses oversized dynamic bytes", () => {
+    expect(() => encodeValue(parseSolidityType("bytes"), "0x" + "ab".repeat(2000))).toThrow(/over the 1024-byte wire limit/);
+  });
+
+  it("accepts exactly the limit", () => {
+    expect(encodeValue(parseSolidityType("string"), "x".repeat(1024)).length).toEqual(1024);
+  });
+});
