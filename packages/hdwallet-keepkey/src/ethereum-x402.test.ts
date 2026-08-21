@@ -93,9 +93,18 @@ describe("x402 EVM structured signing", () => {
       },
     });
 
-    expect(call).toHaveBeenCalledTimes(2);
+    // THREE calls now, not two: the streaming probe that this device rejects,
+    // then the two old-path calls. The probe is the fallback working -- every
+    // device in the field today answers 1704 with Failure_UnexpectedMessage,
+    // and asserting two calls would be asserting that we never tried.
+    expect(call).toHaveBeenCalledTimes(3);
     expect(transport.lockDuring).toHaveBeenCalledTimes(1);
-    expect(call.mock.calls.map(([, , options]) => options)).toEqual([
+    expect(call.mock.calls.map(([type]) => type)).toEqual([
+      1704, // EthereumSignTypedData -- rejected as unknown
+      ETHEREUM_712_TYPES_VALUES,
+      ETHEREUM_712_TYPES_VALUES,
+    ]);
+    expect(call.mock.calls.slice(1).map(([, , options]) => options)).toEqual([
       { msgTimeout: expect.any(Number), omitLock: true },
       { msgTimeout: expect.any(Number), omitLock: true },
     ]);
