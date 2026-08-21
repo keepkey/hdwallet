@@ -8,6 +8,8 @@ import { getStructHash } from "eip-712";
 import * as eip55 from "eip55";
 import * as jspb from "google-protobuf";
 
+import { Eip712Call, Eip712Wire as Eip712WireShape, FieldType, runEip712Walk, TypedDataDoc } from "./eip712Streaming";
+import * as Eip712Wire from "./eip712Wire";
 import { Transport } from "./transport";
 import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 import { toUTF8Array } from "./utils";
@@ -693,7 +695,77 @@ function structuredEip712Unavailable(error: unknown): boolean {
   if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return false;
   const failure = error.message as { code?: number; message?: string } | undefined;
   if (failure?.code === Types.FailureType.FAILURE_UNEXPECTEDMESSAGE) return true;
-  return typeof failure?.message === "string" && failure.message.includes("Structured EIP-712 disabled");
+  const text = typeof failure?.message === "string" ? failure.message : "";
+  // Withdrawn in 7.14.2.
+  if (text.includes("Structured EIP-712 disabled")) return true;
+  // Present, but cannot walk THIS document. Arrays are the current gap:
+  // PermitBatch and Seaport nest them. Degrading costs the user the field
+  // display and keeps the payment working, which is the same deal every
+  // typed-data payload gets today -- a hard failure would be strictly worse
+  // and would look like a bug rather than a limitation.
+  if (text.includes("arrays are not supported")) return true;
+  return false;
+}
+
+/**
+ * Structured EIP-712 over the streaming protocol: the device walks the document
+ * and hashes each leaf in the same call that displays it.
+ *
+ * Fails to the hashed path on firmware that does not implement it, via the same
+ * structuredEip712Unavailable() test the x402 branch uses.
+ */
+async function signTypedDataStreaming(
+  transport: Transport,
+  addressNList: number[],
+  typedData: TypedDataDoc
+): Promise<core.ETHSignedTypedData> {
+  const wire: Eip712WireShape = {
+    SIGN: Eip712Wire.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA,
+    STRUCT_REQUEST: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTREQUEST,
+    STRUCT_ACK: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTACK,
+    VALUE_REQUEST: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEREQUEST,
+    VALUE_ACK: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEACK,
+    SIGNATURE: Messages.MessageType.MESSAGETYPE_ETHEREUMTYPEDDATASIGNATURE,
+
+    encodeSign: (n: number[], primaryType: string) => {
+      const m = new Eip712Wire.EthereumSignTypedData();
+      m.setAddressNList(n);
+      m.setPrimaryType(primaryType);
+      // v3 hashes arrays of structs differently. We speak v4 only, and the
+      // device refuses anything else rather than guessing.
+      m.setMetamaskV4Compat(true);
+      return m.serializeBinary();
+    },
+    decodeStructRequest: (b: Uint8Array) => Eip712Wire.EthereumTypedDataStructRequest.deserializeBinary(b).getName(),
+    encodeStructAck: (members: Array<{ name: string; type: FieldType }>) =>
+      new Eip712Wire.EthereumTypedDataStructAck(members).serializeBinary(),
+    decodeValueRequest: (b: Uint8Array) =>
+      Eip712Wire.EthereumTypedDataValueRequest.deserializeBinary(b).getMemberPathList(),
+    encodeValueAck: (v: Uint8Array) => {
+      const m = new Eip712Wire.EthereumTypedDataValueAck();
+      m.setValue(v);
+      return m.serializeBinary();
+    },
+    decodeSignature: (b: Uint8Array) => {
+      const r = Ethereum.EthereumTypedDataSignature.deserializeBinary(b);
+      return {
+        address: r.getAddress() || "",
+        signature: "0x" + core.toHexString(r.getSignature_asU8()),
+      };
+    },
+  };
+
+  const call: Eip712Call = async (messageType: number, payload: Uint8Array) => {
+    const event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+    const proto = event.proto as jspb.Message;
+    return { type: event.message_enum as number, payload: proto.serializeBinary() };
+  };
+
+  const out = await runEip712Walk(typedData, addressNList, wire, call);
+  return { address: out.address, signature: out.signature };
 }
 
 async function signStructuredEip712(
@@ -756,6 +828,17 @@ export async function ethSignTypedData(
       const EIP_712_DOMAIN = "EIP712Domain";
       const typedData = withEip712DomainType(msg.typedData);
       const { primaryType, domain, message } = typedData;
+
+      // Prefer the streaming path for EVERY document: the device parses and
+      // displays the fields itself, instead of signing two opaque hashes.
+      try {
+        return await signTypedDataStreaming(transport, msg.addressNList, typedData as unknown as TypedDataDoc);
+      } catch (e) {
+        // Only "this firmware has no structured endpoint" degrades. Anything
+        // else -- a refused screen, a malformed document, an array this
+        // firmware cannot walk -- is a real answer and must not be masked.
+        if (!structuredEip712Unavailable(e)) throw e;
+      }
 
       if (isX402Eip3009(typedData)) {
         try {
