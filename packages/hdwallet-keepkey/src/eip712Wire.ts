@@ -203,3 +203,26 @@ export class EthereumTypedDataStructAck extends jspb.Message {
 }
 
 export { EthereumDataType };
+
+/**
+ * A message that is already serialised. transport.call wants a jspb.Message,
+ * and the walk produces bytes, so this carries them across without a second
+ * encode that could differ from the first.
+ */
+export class RawPayload extends jspb.Message {
+  private raw: Uint8Array;
+  constructor(bytes: Uint8Array) {
+    super();
+    jspb.Message.initialize(this, [], 0, -1, null, null);
+    this.raw = bytes;
+  }
+  toObject(): Record<string, never> {
+    return {};
+  }
+  serializeBinary(): Uint8Array {
+    return this.raw;
+  }
+  static deserializeBinary(bytes: Uint8Array): RawPayload {
+    return new RawPayload(bytes);
+  }
+}

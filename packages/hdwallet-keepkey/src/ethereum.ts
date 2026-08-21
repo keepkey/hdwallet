@@ -8,6 +8,8 @@ import { SignTypedDataVersion, TypedDataUtils } from "@metamask/eth-sig-util";
 import * as eip55 from "eip55";
 import * as jspb from "google-protobuf";
 
+import { Eip712Call, Eip712Wire as Eip712WireShape, FieldType, runEip712Walk, TypedDataDoc } from "./eip712Streaming";
+import * as Eip712Wire from "./eip712Wire";
 import { Transport } from "./transport";
 import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 import { toUTF8Array } from "./utils";
@@ -442,51 +444,253 @@ export async function ethSignMessage(transport: Transport, msg: core.ETHSignMess
   };
 }
 
+const EIP3009_TRANSFER_WITH_AUTHORIZATION = [
+  { name: "from", type: "address" },
+  { name: "to", type: "address" },
+  { name: "value", type: "uint256" },
+  { name: "validAfter", type: "uint256" },
+  { name: "validBefore", type: "uint256" },
+  { name: "nonce", type: "bytes32" },
+] as const;
+
+function typedDataJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
+}
+
+function withEip712DomainType(typedData: any): any {
+  if (Array.isArray(typedData.types?.EIP712Domain)) return typedData;
+
+  const domain = typedData.domain || {};
+  const canonicalFields = [
+    ["name", "string"],
+    ["version", "string"],
+    ["chainId", "uint256"],
+    ["verifyingContract", "address"],
+    ["salt", "bytes32"],
+  ] as const;
+  const domainType = canonicalFields
+    .filter(([name]) => domain[name] !== undefined)
+    .map(([name, type]) => ({ name, type }));
+
+  return {
+    ...typedData,
+    types: { ...(typedData.types || {}), EIP712Domain: domainType },
+  };
+}
+
+function isX402Eip3009(typedData: any): boolean {
+  if (typedData.primaryType !== "TransferWithAuthorization") return false;
+  const fields = typedData.types?.TransferWithAuthorization;
+  if (!Array.isArray(fields) || fields.length !== EIP3009_TRANSFER_WITH_AUTHORIZATION.length) return false;
+  return EIP3009_TRANSFER_WITH_AUTHORIZATION.every(
+    (expected, index) => fields[index]?.name === expected.name && fields[index]?.type === expected.type
+  );
+}
+
+/** The firmware's own words when it refused.
+ *
+ * transport.call throws the raw failure event -- `{ message_enum:
+ * MESSAGETYPE_FAILURE, message: Failure.toObject() }` -- so the device's text
+ * is at `.message.message`. Every caller that flattens this to a generic string
+ * throws away the only explanation the user can act on.
+ */
+function firmwareFailureText(error: unknown): string | undefined {
+  if (!core.isIndexable(error)) return undefined;
+  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return undefined;
+  const failure = error.message as { message?: string } | undefined;
+  const text = failure?.message;
+  return typeof text === "string" && text.length > 0 ? text : undefined;
+}
+
+/** Did the device refuse because it has no structured EIP-712 endpoint?
+ *
+ * Firmware 7.14.2 withdrew the structured path -- its JSON parser could not
+ * guarantee the displayed value was the value being hashed -- and answers
+ * Ethereum712TypesValues with "Structured EIP-712 disabled pending canonical
+ * display hardening". Firmware that predates the message answers
+ * Failure_UnexpectedMessage.
+ *
+ * Both mean the same thing to us: this device cannot parse typed data, so use
+ * the hashed path. Detecting it by ATTEMPT rather than by version number is
+ * deliberate -- there is no capability bit for this, and a version table would
+ * need updating for every branch that toggles the flag.
+ *
+ * Safe to retry after: the firmware refuses at the top of the handler, before
+ * it touches any session state, so nothing partial is left behind.
+ */
+function structuredEip712Unavailable(error: unknown): boolean {
+  if (!core.isIndexable(error)) return false;
+  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return false;
+  const failure = error.message as { code?: number; message?: string } | undefined;
+  if (failure?.code === Types.FailureType.FAILURE_UNEXPECTEDMESSAGE) return true;
+  const text = typeof failure?.message === "string" ? failure.message : "";
+  // Withdrawn in 7.14.2.
+  if (text.includes("Structured EIP-712 disabled")) return true;
+  // Present, but cannot walk THIS document. Arrays are the current gap:
+  // PermitBatch and Seaport nest them. Degrading costs the user the field
+  // display and keeps the payment working, which is the same deal every
+  // typed-data payload gets today -- a hard failure would be strictly worse
+  // and would look like a bug rather than a limitation.
+  if (text.includes("arrays are not supported")) return true;
+  return false;
+}
+
 /**
- * Supports EIP-712 eth_signTypedData_v4
- * https://docs.metamask.io/wallet/how-to/sign-data/#use-eth_signtypeddata_v4
- * Due to lack of firmware support, a hashed version of the data is
- * displayed to the user on the device when signing
+ * Structured EIP-712 over the streaming protocol: the device walks the document
+ * and hashes each leaf in the same call that displays it.
+ *
+ * Fails to the hashed path on firmware that does not implement it, via the same
+ * structuredEip712Unavailable() test the x402 branch uses.
+ */
+async function signTypedDataStreaming(
+  transport: Transport,
+  addressNList: number[],
+  typedData: TypedDataDoc
+): Promise<core.ETHSignedTypedData> {
+  const wire: Eip712WireShape = {
+    SIGN: Eip712Wire.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA,
+    STRUCT_REQUEST: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTREQUEST,
+    STRUCT_ACK: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTACK,
+    VALUE_REQUEST: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEREQUEST,
+    VALUE_ACK: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEACK,
+    SIGNATURE: Messages.MessageType.MESSAGETYPE_ETHEREUMTYPEDDATASIGNATURE,
+
+    encodeSign: (n: number[], primaryType: string) => {
+      const m = new Eip712Wire.EthereumSignTypedData();
+      m.setAddressNList(n);
+      m.setPrimaryType(primaryType);
+      // v3 hashes arrays of structs differently. We speak v4 only, and the
+      // device refuses anything else rather than guessing.
+      m.setMetamaskV4Compat(true);
+      return m.serializeBinary();
+    },
+    decodeStructRequest: (b: Uint8Array) => Eip712Wire.EthereumTypedDataStructRequest.deserializeBinary(b).getName(),
+    encodeStructAck: (members: Array<{ name: string; type: FieldType }>) =>
+      new Eip712Wire.EthereumTypedDataStructAck(members).serializeBinary(),
+    decodeValueRequest: (b: Uint8Array) =>
+      Eip712Wire.EthereumTypedDataValueRequest.deserializeBinary(b).getMemberPathList(),
+    encodeValueAck: (v: Uint8Array) => {
+      const m = new Eip712Wire.EthereumTypedDataValueAck();
+      m.setValue(v);
+      return m.serializeBinary();
+    },
+    decodeSignature: (b: Uint8Array) => {
+      const r = Ethereum.EthereumTypedDataSignature.deserializeBinary(b);
+      return {
+        address: r.getAddress() || "",
+        signature: "0x" + core.toHexString(r.getSignature_asU8()),
+      };
+    },
+  };
+
+  const call: Eip712Call = async (messageType: number, payload: Uint8Array) => {
+    const event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+    const proto = event.proto as jspb.Message;
+    return { type: event.message_enum as number, payload: proto.serializeBinary() };
+  };
+
+  const out = await runEip712Walk(typedData, addressNList, wire, call);
+  return { address: out.address, signature: out.signature };
+}
+
+async function signStructuredEip712(
+  transport: Transport,
+  addressNList: number[],
+  typedData: any
+): Promise<core.ETHSignedTypedData> {
+  const typesJson = typedDataJson({ types: typedData.types });
+  const primaryTypeJson = typedDataJson({ primaryType: typedData.primaryType });
+  const domainJson = typedDataJson({ domain: typedData.domain || {} });
+  const messageJson = typedDataJson({ message: typedData.message || {} });
+
+  if (typesJson.length > 2048 || domainJson.length > 2048 || messageJson.length > 2048) {
+    throw new Error("Structured EIP-712 data exceeds firmware limits");
+  }
+  if (primaryTypeJson.length > 80) throw new Error("EIP-712 primary type exceeds firmware limits");
+
+  const request = (data: string, typeValues: number) => {
+    const value = new Ethereum.Ethereum712TypesValues();
+    value.setAddressNList(addressNList);
+    value.setEip712types(typesJson);
+    value.setEip712primetype(primaryTypeJson);
+    value.setEip712data(data);
+    value.setEip712typevals(typeValues);
+    return value;
+  };
+
+  // Firmware computes and retains the domain separator, then combines it with
+  // the independently reviewed message hash in the second request.
+  await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES, request(domainJson, 1), {
+    msgTimeout: core.LONG_TIMEOUT,
+    omitLock: true,
+  });
+  const response = await transport.call(
+    Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES,
+    request(messageJson, 2),
+    { msgTimeout: core.LONG_TIMEOUT, omitLock: true }
+  );
+  const result = response.proto as Ethereum.EthereumTypedDataSignature;
+  return {
+    address: result.getAddress() || "",
+    signature: "0x" + core.toHexString(result.getSignature_asU8()),
+  };
+}
+
+/**
+ * Supports EIP-712 eth_signTypedData_v4. New firmware uses the structured,
+ * device-driven stream. Older firmware may fall back to the explicit
+ * AdvancedMode typed-hash path; malformed documents and user refusals never
+ * downgrade.
  */
 export async function ethSignTypedData(
   transport: Transport,
   msg: core.ETHSignTypedData
 ): Promise<core.ETHSignedTypedData> {
   try {
-    const version = SignTypedDataVersion.V4;
-    const EIP_712_DOMAIN = "EIP712Domain";
-    const { types, primaryType, domain, message } = msg.typedData;
-    const domainSeparatorHash: Uint8Array = TypedDataUtils.hashStruct(EIP_712_DOMAIN, domain, types, version);
+    return await transport.lockDuring(async () => {
+      const version = SignTypedDataVersion.V4;
+      const EIP_712_DOMAIN = "EIP712Domain";
+      const typedData = withEip712DomainType(msg.typedData);
+      const { types, primaryType, domain, message } = typedData;
 
-    const ethereumSignTypedHash = new Ethereum.EthereumSignTypedHash();
-    ethereumSignTypedHash.setAddressNList(msg.addressNList);
-    ethereumSignTypedHash.setDomainSeparatorHash(domainSeparatorHash);
-
-    let messageHash: Uint8Array | undefined = undefined;
-    // If "EIP712Domain" is the primaryType, messageHash is not required - look at T1 connect impl ;)
-    // todo: the firmware should define messageHash as an optional Uint8Array field for this case
-    if (primaryType !== EIP_712_DOMAIN) {
-      messageHash = TypedDataUtils.hashStruct(primaryType, message, types, version);
-      ethereumSignTypedHash.setMessageHash(messageHash);
-    }
-
-    const response = await transport.call(
-      Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH,
-      ethereumSignTypedHash,
-      {
-        msgTimeout: core.LONG_TIMEOUT,
+      try {
+        return await signTypedDataStreaming(transport, msg.addressNList, typedData as unknown as TypedDataDoc);
+      } catch (error) {
+        if (!structuredEip712Unavailable(error)) throw error;
       }
-    );
 
-    const result = response.proto as Ethereum.EthereumTypedDataSignature;
-    const res: core.ETHSignedTypedData = {
-      address: result.getAddress() || "",
-      signature: "0x" + core.toHexString(result.getSignature_asU8()),
-    };
+      const domainSeparatorHash: Uint8Array = TypedDataUtils.hashStruct(
+        EIP_712_DOMAIN,
+        domain,
+        types,
+        version
+      );
+      const request = new Ethereum.EthereumSignTypedHash();
+      request.setAddressNList(msg.addressNList);
+      request.setDomainSeparatorHash(domainSeparatorHash);
+      if (primaryType !== EIP_712_DOMAIN) {
+        request.setMessageHash(TypedDataUtils.hashStruct(primaryType, message, types, version));
+      }
 
-    return res;
+      const response = await transport.call(
+        Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH,
+        request,
+        { msgTimeout: core.LONG_TIMEOUT, omitLock: true }
+      );
+      const result = response.proto as Ethereum.EthereumTypedDataSignature;
+      return {
+        address: result.getAddress() || "",
+        signature: "0x" + core.toHexString(result.getSignature_asU8()),
+      };
+    });
   } catch (error) {
     console.error({ error });
+    const detail = firmwareFailureText(error);
+    if (detail) throw new Error(detail);
+    if (error instanceof Error) throw error;
     throw new Error("Failed to sign typed ETH message");
   }
 }
