@@ -657,6 +657,45 @@ function isX402Eip3009(typedData: any): boolean {
   );
 }
 
+/** The firmware's own words when it refused.
+ *
+ * transport.call throws the raw failure event -- `{ message_enum:
+ * MESSAGETYPE_FAILURE, message: Failure.toObject() }` -- so the device's text
+ * is at `.message.message`. Every caller that flattens this to a generic string
+ * throws away the only explanation the user can act on.
+ */
+function firmwareFailureText(error: unknown): string | undefined {
+  if (!core.isIndexable(error)) return undefined;
+  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return undefined;
+  const failure = error.message as { message?: string } | undefined;
+  const text = failure?.message;
+  return typeof text === "string" && text.length > 0 ? text : undefined;
+}
+
+/** Did the device refuse because it has no structured EIP-712 endpoint?
+ *
+ * Firmware 7.14.2 withdrew the structured path -- its JSON parser could not
+ * guarantee the displayed value was the value being hashed -- and answers
+ * Ethereum712TypesValues with "Structured EIP-712 disabled pending canonical
+ * display hardening". Firmware that predates the message answers
+ * Failure_UnexpectedMessage.
+ *
+ * Both mean the same thing to us: this device cannot parse typed data, so use
+ * the hashed path. Detecting it by ATTEMPT rather than by version number is
+ * deliberate -- there is no capability bit for this, and a version table would
+ * need updating for every branch that toggles the flag.
+ *
+ * Safe to retry after: the firmware refuses at the top of the handler, before
+ * it touches any session state, so nothing partial is left behind.
+ */
+function structuredEip712Unavailable(error: unknown): boolean {
+  if (!core.isIndexable(error)) return false;
+  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return false;
+  const failure = error.message as { code?: number; message?: string } | undefined;
+  if (failure?.code === Types.FailureType.FAILURE_UNEXPECTEDMESSAGE) return true;
+  return typeof failure?.message === "string" && failure.message.includes("Structured EIP-712 disabled");
+}
+
 async function signStructuredEip712(
   transport: Transport,
   addressNList: number[],
@@ -719,7 +758,17 @@ export async function ethSignTypedData(
       const { primaryType, domain, message } = typedData;
 
       if (isX402Eip3009(typedData)) {
-        return signStructuredEip712(transport, msg.addressNList, typedData);
+        try {
+          return await signStructuredEip712(transport, msg.addressNList, typedData);
+        } catch (e) {
+          // Anything other than "this device has no structured endpoint" is a
+          // real error and must not be masked by a silent downgrade.
+          if (!structuredEip712Unavailable(e)) throw e;
+          // Fall through to the hashed path. The user still sees the device's
+          // blind-sign warning and still has to have AdvancedMode on, so this
+          // is not a silent loss of protection -- it is the same treatment
+          // every other typed-data payload already gets on this firmware.
+        }
       }
       // eip-712 getStructHash is a 1:1 byte-identical replacement for
       // @metamask/eth-sig-util TypedDataUtils.hashStruct(..., V4) — verified across
@@ -756,6 +805,13 @@ export async function ethSignTypedData(
     });
   } catch (error) {
     console.error({ error });
+    // Surface what the device actually said. "Failed to sign typed ETH message"
+    // is the same string whether the user needs to enable AdvancedMode, the
+    // firmware withdrew the structured endpoint, or the cable fell out -- and
+    // the one thing a user can act on is the difference between those.
+    const detail = firmwareFailureText(error);
+    if (detail) throw new Error(detail);
+    if (error instanceof Error) throw error;
     throw new Error("Failed to sign typed ETH message");
   }
 }
