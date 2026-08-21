@@ -333,3 +333,76 @@ export function structMembers(doc: TypedDataDoc, name: string): Array<{ name: st
   if (!members) throw new Error(`Unknown struct: ${name}`);
   return members.map((m) => ({ name: m.name, type: parseSolidityType(m.type) }));
 }
+
+/**
+ * Drive a full structured EIP-712 signature.
+ *
+ * The DEVICE leads. It asks for one struct definition, or one leaf value, at a
+ * time; this answers until it returns a signature. The host never decides the
+ * order, which is the point: the device hashes what it displays, in the order
+ * it chose, and a host that answered a different question would produce a
+ * digest that does not verify.
+ *
+ * `call` is injected rather than taking a Transport, so the loop is testable
+ * against a scripted device without USB.
+ */
+export interface Eip712Call {
+  (messageType: number, payload: Uint8Array): Promise<{ type: number; payload: Uint8Array }>;
+}
+
+export interface Eip712Wire {
+  SIGN: number;
+  STRUCT_REQUEST: number;
+  STRUCT_ACK: number;
+  VALUE_REQUEST: number;
+  VALUE_ACK: number;
+  SIGNATURE: number;
+  encodeSign(addressNList: number[], primaryType: string): Uint8Array;
+  decodeStructRequest(payload: Uint8Array): string;
+  encodeStructAck(members: Array<{ name: string; type: FieldType }>): Uint8Array;
+  decodeValueRequest(payload: Uint8Array): number[];
+  encodeValueAck(value: Uint8Array): Uint8Array;
+  decodeSignature(payload: Uint8Array): { address: string; signature: string };
+}
+
+/** Guards against a device that never terminates the walk. */
+const MAX_ROUND_TRIPS = 512;
+
+export async function runEip712Walk(
+  doc: TypedDataDoc,
+  addressNList: number[],
+  wire: Eip712Wire,
+  call: Eip712Call
+): Promise<{ address: string; signature: string }> {
+  let reply = await call(wire.SIGN, wire.encodeSign(addressNList, doc.primaryType));
+
+  for (let i = 0; i < MAX_ROUND_TRIPS; i++) {
+    if (reply.type === wire.SIGNATURE) {
+      return wire.decodeSignature(reply.payload);
+    }
+
+    if (reply.type === wire.STRUCT_REQUEST) {
+      const name = wire.decodeStructRequest(reply.payload);
+      // structMembers throws on an unknown struct rather than sending an empty
+      // member list, which the device would hash as a valid empty struct.
+      const members = structMembers(doc, name);
+      reply = await call(wire.STRUCT_ACK, wire.encodeStructAck(members));
+      continue;
+    }
+
+    if (reply.type === wire.VALUE_REQUEST) {
+      const path = wire.decodeValueRequest(reply.payload);
+      const resolved = resolveMemberPath(doc, path);
+      const bytes =
+        resolved.kind === "arrayLength"
+          ? encodeArrayLength(resolved.length)
+          : encodeValue(resolved.field, resolved.value);
+      reply = await call(wire.VALUE_ACK, wire.encodeValueAck(bytes));
+      continue;
+    }
+
+    throw new Error(`Unexpected message ${reply.type} during EIP-712 walk`);
+  }
+
+  throw new Error("EIP-712 walk did not terminate");
+}

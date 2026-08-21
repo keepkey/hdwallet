@@ -6,6 +6,7 @@ import {
   parseSolidityType,
   Resolved,
   resolveMemberPath,
+  runEip712Walk,
   structMembers,
   TypedDataDoc,
 } from "./eip712Streaming";
@@ -288,5 +289,103 @@ describe("dynamic leaves are capped at the wire limit", () => {
 
   it("accepts exactly the limit", () => {
     expect(encodeValue(parseSolidityType("string"), "x".repeat(1024)).length).toEqual(1024);
+  });
+});
+
+// ── the walk, driven against a scripted device ──────────────────────
+//
+// The device leads, so the only way to test the host half without hardware is
+// to script a device and assert what the host answers. This models the exact
+// sequence the firmware state machine produces for Permit2 PermitSingle:
+// domain first, then the message, walking into PermitDetails.
+
+describe("runEip712Walk", () => {
+  const WIRE = {
+    SIGN: 1704,
+    STRUCT_REQUEST: 1705,
+    STRUCT_ACK: 1706,
+    VALUE_REQUEST: 1707,
+    VALUE_ACK: 1708,
+    SIGNATURE: 113,
+    encodeSign: (n: number[], p: string) => new TextEncoder().encode(JSON.stringify({ n, p })),
+    decodeStructRequest: (b: Uint8Array) => new TextDecoder().decode(b),
+    encodeStructAck: (m: Array<{ name: string; type: FieldType }>) => new TextEncoder().encode(JSON.stringify(m)),
+    decodeValueRequest: (b: Uint8Array) => JSON.parse(new TextDecoder().decode(b)) as number[],
+    encodeValueAck: (v: Uint8Array) => v,
+    decodeSignature: () => ({ address: "0xabc", signature: "0xsig" }),
+  };
+
+  /** A device that asks for exactly what the firmware would, in order. */
+  function scriptedDevice(script: Array<{ type: number; payload: string }>) {
+    const answers: Array<{ type: number; payload: Uint8Array }> = [];
+    let i = 0;
+    const call = async (type: number, payload: Uint8Array) => {
+      answers.push({ type, payload });
+      const step = script[i++];
+      if (!step) return { type: WIRE.SIGNATURE, payload: new Uint8Array() };
+      return { type: step.type, payload: new TextEncoder().encode(step.payload) };
+    };
+    return { call, answers };
+  }
+
+  it("answers every struct and value the device asks for, in order", async () => {
+    const { call, answers } = scriptedDevice([
+      { type: WIRE.STRUCT_REQUEST, payload: "EIP712Domain" },
+      { type: WIRE.VALUE_REQUEST, payload: "[0,0]" }, // domain.name
+      { type: WIRE.VALUE_REQUEST, payload: "[0,1]" }, // domain.chainId
+      { type: WIRE.VALUE_REQUEST, payload: "[0,2]" }, // domain.verifyingContract
+      { type: WIRE.STRUCT_REQUEST, payload: "PermitSingle" },
+      { type: WIRE.STRUCT_REQUEST, payload: "PermitDetails" },
+      { type: WIRE.VALUE_REQUEST, payload: "[1,0,0]" }, // details.token
+      { type: WIRE.VALUE_REQUEST, payload: "[1,0,1]" }, // details.amount
+    ]);
+
+    const out = await runEip712Walk(PERMIT2, [44, 60, 0, 0, 0], WIRE, call);
+    expect(out).toEqual({ address: "0xabc", signature: "0xsig" });
+
+    // First message is the sign request, then one answer per device question.
+    expect(answers[0].type).toEqual(WIRE.SIGN);
+    expect(answers.slice(1).map((a) => a.type)).toEqual([
+      WIRE.STRUCT_ACK,
+      WIRE.VALUE_ACK,
+      WIRE.VALUE_ACK,
+      WIRE.VALUE_ACK,
+      WIRE.STRUCT_ACK,
+      WIRE.STRUCT_ACK,
+      WIRE.VALUE_ACK,
+      WIRE.VALUE_ACK,
+    ]);
+
+    // The nested uint160 came back as exactly 20 big-endian bytes of 0xff.
+    const amount = answers[answers.length - 1].payload;
+    expect(hex(amount)).toEqual("ff".repeat(20));
+  });
+
+  it("serves the declared member list for a nested struct", async () => {
+    const { call, answers } = scriptedDevice([{ type: WIRE.STRUCT_REQUEST, payload: "PermitDetails" }]);
+    await runEip712Walk(PERMIT2, [44], WIRE, call);
+    const ack = JSON.parse(new TextDecoder().decode(answers[1].payload));
+    expect(ack.map((m: { name: string }) => m.name)).toEqual(["token", "amount", "expiration", "nonce"]);
+    expect(ack[1].type.size).toEqual(20); // uint160 in BYTES
+  });
+
+  it("refuses a struct the document does not define rather than sending an empty list", async () => {
+    // An empty member list would hash as a valid empty struct, so the device
+    // would sign a document neither side meant.
+    const { call } = scriptedDevice([{ type: WIRE.STRUCT_REQUEST, payload: "Ghost" }]);
+    await expect(runEip712Walk(PERMIT2, [44], WIRE, call)).rejects.toThrow(/Unknown struct: Ghost/);
+  });
+
+  it("rejects an unexpected message instead of continuing blindly", async () => {
+    const { call } = scriptedDevice([{ type: 9999, payload: "" }]);
+    await expect(runEip712Walk(PERMIT2, [44], WIRE, call)).rejects.toThrow(/Unexpected message 9999/);
+  });
+
+  it("gives up rather than looping forever on a device that never finishes", async () => {
+    const call = async () => ({
+      type: WIRE.STRUCT_REQUEST,
+      payload: new TextEncoder().encode("PermitDetails"),
+    });
+    await expect(runEip712Walk(PERMIT2, [44], WIRE, call)).rejects.toThrow(/did not terminate/);
   });
 });
