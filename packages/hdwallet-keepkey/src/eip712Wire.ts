@@ -195,7 +195,9 @@ export class EthereumTypedDataStructAck extends jspb.Message {
     return writer.getResultBuffer();
   }
 
-  static deserializeBinary(bytes: Uint8Array): EthereumTypedDataStructAck {
+  /* Host to device only. The device never sends a StructAck, so there is
+   * nothing to parse -- but jspb's shape expects the static to exist. */
+  static deserializeBinary(_bytes: Uint8Array): EthereumTypedDataStructAck {
     return new EthereumTypedDataStructAck();
   }
 }
