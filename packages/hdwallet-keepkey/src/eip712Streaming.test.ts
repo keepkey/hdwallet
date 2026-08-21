@@ -1,14 +1,24 @@
 import {
-  EthereumDataType,
   encodeArrayLength,
   encodeValue,
+  EthereumDataType,
+  FieldType,
   parseSolidityType,
+  Resolved,
   resolveMemberPath,
   structMembers,
   TypedDataDoc,
 } from "./eip712Streaming";
 
 const hex = (b: Uint8Array) => Buffer.from(b).toString("hex");
+
+/** Narrow a Resolved to its value form, failing loudly if it is not one.
+ *  Keeps assertions unconditional -- a guarded expect that never runs proves
+ *  nothing and reads as if it did. */
+function asValue(r: Resolved): { field: FieldType; value: unknown } {
+  if (r.kind !== "value") throw new Error(`expected a leaf value, got ${r.kind}`);
+  return { field: r.field, value: r.value };
+}
 
 describe("parseSolidityType", () => {
   it("parses atomics with their widths in bytes", () => {
@@ -137,12 +147,9 @@ describe("resolveMemberPath", () => {
 
   it("walks into a nested struct", () => {
     // [1, 0, 1] = message -> details -> amount
-    const r = resolveMemberPath(PERMIT2, [1, 0, 1]);
-    expect(r.kind).toEqual("value");
-    if (r.kind === "value") {
-      expect(r.field.size).toEqual(20); // uint160
-      expect(hex(encodeValue(r.field, r.value))).toEqual("ff".repeat(20));
-    }
+    const r = asValue(resolveMemberPath(PERMIT2, [1, 0, 1]));
+    expect(r.field.size).toEqual(20); // uint160
+    expect(hex(encodeValue(r.field, r.value))).toEqual("ff".repeat(20));
   });
 
   it("refuses to hand back a struct as a value", () => {
@@ -161,9 +168,8 @@ describe("resolveMemberPath", () => {
       message: { owners: ["0x" + "aa".repeat(20), "0x" + "bb".repeat(20)] },
     };
     expect(resolveMemberPath(doc, [1, 0])).toEqual({ kind: "arrayLength", length: 2 });
-    const el = resolveMemberPath(doc, [1, 0, 1]);
-    expect(el.kind).toEqual("value");
-    if (el.kind === "value") expect(hex(encodeValue(el.field, el.value))).toEqual("bb".repeat(20));
+    const el = asValue(resolveMemberPath(doc, [1, 0, 1]));
+    expect(hex(encodeValue(el.field, el.value))).toEqual("bb".repeat(20));
   });
 
   it("rejects an out-of-range index rather than signing undefined", () => {
@@ -275,7 +281,9 @@ describe("dynamic leaves are capped at the wire limit", () => {
   });
 
   it("refuses oversized dynamic bytes", () => {
-    expect(() => encodeValue(parseSolidityType("bytes"), "0x" + "ab".repeat(2000))).toThrow(/over the 1024-byte wire limit/);
+    expect(() => encodeValue(parseSolidityType("bytes"), "0x" + "ab".repeat(2000))).toThrow(
+      /over the 1024-byte wire limit/
+    );
   });
 
   it("accepts exactly the limit", () => {
