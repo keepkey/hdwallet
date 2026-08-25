@@ -78,6 +78,90 @@ function concatBytes(...chunks: Uint8Array[]): Uint8Array {
   return out;
 }
 
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i++) diff |= left[i] ^ right[i];
+  return diff === 0;
+}
+
+type CertifiedWireEnvelope = {
+  schemaPayload: Uint8Array;
+  schemaSignature: Uint8Array;
+  schemaSignerKeyId: number;
+  certificate: Uint8Array;
+  lutAccounts: Uint8Array[];
+  lutSignature?: Uint8Array;
+  lutSignerKeyId?: number;
+};
+
+/**
+ * Decode the final serialized request and require byte-for-byte agreement with
+ * the certified material supplied by the caller. This checks the actual bytes
+ * Transport.call() will frame, so a jspb shim, bundler, or field-number
+ * regression fails on the host instead of becoming a misleading device-side
+ * certificate error.
+ */
+function assertCertifiedWireEnvelope(wire: Uint8Array, expected: CertifiedWireEnvelope): void {
+  const reader = new jspb.BinaryReader(wire);
+  const lutAccounts: Uint8Array[] = [];
+  let schemaPayload: Uint8Array | undefined;
+  let schemaSignature: Uint8Array | undefined;
+  let schemaSignerKeyId: number | undefined;
+  let certificate: Uint8Array | undefined;
+  let lutSignature: Uint8Array | undefined;
+  let lutSignerKeyId: number | undefined;
+
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) break;
+    switch (reader.getFieldNumber()) {
+      case 5:
+        lutAccounts.push(reader.readBytes());
+        break;
+      case 6:
+        if (lutSignature !== undefined) throw new Error("duplicate Solana LUT signature field");
+        lutSignature = reader.readBytes();
+        break;
+      case 7:
+        if (lutSignerKeyId !== undefined) throw new Error("duplicate Solana LUT signer field");
+        lutSignerKeyId = reader.readUint32();
+        break;
+      case 9:
+        if (schemaPayload !== undefined) throw new Error("duplicate Solana schema payload field");
+        schemaPayload = reader.readBytes();
+        break;
+      case 10:
+        if (schemaSignature !== undefined) throw new Error("duplicate Solana schema signature field");
+        schemaSignature = reader.readBytes();
+        break;
+      case 11:
+        if (schemaSignerKeyId !== undefined) throw new Error("duplicate Solana schema signer field");
+        schemaSignerKeyId = reader.readUint32();
+        break;
+      case 13:
+        if (certificate !== undefined) throw new Error("duplicate Solana certificate field");
+        certificate = reader.readBytes();
+        break;
+      default:
+        reader.skipField();
+        break;
+    }
+  }
+
+  const sameAccounts = lutAccounts.length === expected.lutAccounts.length &&
+    lutAccounts.every((account, i) => bytesEqual(account, expected.lutAccounts[i]));
+  if (!schemaPayload || !bytesEqual(schemaPayload, expected.schemaPayload) ||
+      !schemaSignature || !bytesEqual(schemaSignature, expected.schemaSignature) ||
+      schemaSignerKeyId !== expected.schemaSignerKeyId ||
+      !certificate || !bytesEqual(certificate, expected.certificate) ||
+      !sameAccounts ||
+      (lutSignature === undefined) !== (expected.lutSignature === undefined) ||
+      (lutSignature !== undefined && !bytesEqual(lutSignature, expected.lutSignature!)) ||
+      lutSignerKeyId !== expected.lutSignerKeyId) {
+    throw new Error("serialized certified Solana ClearSign envelope does not match its source material");
+  }
+}
+
 function encodeSolanaTokenInfo(info: core.SolanaTokenInfo): Uint8Array {
   const fields: Uint8Array[] = [encodeLengthDelimited(1, toSolanaPubkey(info.mint, "token mint"))];
   if (info.symbol !== undefined) {
@@ -1118,6 +1202,9 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
      * same canonical field numbers emitted by device-protocol.
      */
     const extraFields: Uint8Array[] = [];
+    const certifiedWire: Partial<CertifiedWireEnvelope> & { lutAccounts: Uint8Array[] } = {
+      lutAccounts: [],
+    };
     const certified = msg.certificate !== undefined;
     if (certified) {
       if (!msg.schema || msg.schema.signerKeyId !== 0x80) {
@@ -1137,7 +1224,9 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
         throw new Error("lutProof.accounts must contain 1-8 accounts");
       }
       for (const account of msg.lutProof.accounts) {
-        extraFields.push(encodeLengthDelimited(5, toSolanaPubkey(account, "lut account")));
+        const accountBytes = toSolanaPubkey(account, "lut account");
+        certifiedWire.lutAccounts.push(accountBytes);
+        extraFields.push(encodeLengthDelimited(5, accountBytes));
       }
       const lutSignature = toBytes(msg.lutProof.signature);
       if (lutSignature.length !== 64) {
@@ -1147,6 +1236,8 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
         encodeLengthDelimited(6, lutSignature),
         encodeVarintField(7, msg.lutProof.signerKeyId)
       );
+      certifiedWire.lutSignature = lutSignature;
+      certifiedWire.lutSignerKeyId = msg.lutProof.signerKeyId;
     }
     if (msg.schema) {
       const payload = toBytes(msg.schema.payload);
@@ -1162,6 +1253,9 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
         encodeLengthDelimited(10, signature),
         encodeVarintField(11, msg.schema.signerKeyId)
       );
+      certifiedWire.schemaPayload = payload;
+      certifiedWire.schemaSignature = signature;
+      certifiedWire.schemaSignerKeyId = msg.schema.signerKeyId;
     }
     for (const owner of msg.tokenRecipientOwners || []) {
       extraFields.push(encodeLengthDelimited(12, toSolanaPubkey(owner, "token recipient owner")));
@@ -1172,9 +1266,17 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
         throw new Error(`certificate must be exactly 139 bytes, got ${certificate.length}`);
       }
       extraFields.push(encodeLengthDelimited(13, certificate));
+      certifiedWire.certificate = certificate;
     }
     const outbound: jspb.Message =
       extraFields.length > 0 ? withAppendedFields(signTx, concatBytes(...extraFields)) : signTx;
+    if (certified) {
+      assertCertifiedWireEnvelope(outbound.serializeBinary(), certifiedWire as CertifiedWireEnvelope);
+      console.log(
+        `[solana] certified ClearSign wire verified: schema=${certifiedWire.schemaPayload!.length}B ` +
+        `certificate=${certifiedWire.certificate!.length}B lut=${certifiedWire.lutAccounts.length}`
+      );
+    }
 
     const resp = await transport.call(MESSAGETYPE_SOLANASIGNTX, outbound, {
       msgTimeout: core.LONG_TIMEOUT,
