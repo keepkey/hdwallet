@@ -8,6 +8,8 @@ import { SignTypedDataVersion, TypedDataUtils } from "@metamask/eth-sig-util";
 import * as eip55 from "eip55";
 import * as jspb from "google-protobuf";
 
+import { Eip712Call, Eip712Wire as Eip712WireShape, FieldType, runEip712Walk, TypedDataDoc } from "./eip712Streaming";
+import * as Eip712Wire from "./eip712Wire";
 import { Transport } from "./transport";
 import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 import { toUTF8Array } from "./utils";
@@ -16,6 +18,7 @@ import { toUTF8Array } from "./utils";
 // Message type IDs from device-protocol-clear-signing/messages.proto
 const MESSAGETYPE_ETHEREUMTXMETADATA = 115;
 const MESSAGETYPE_ETHEREUMMETADATAACK = 116;
+const MESSAGETYPE_LOADCLEARSIGNSIGNER = 117;
 
 // ── EVM Metadata Classification (from EthereumMetadataAck) ───────────
 /** Device could not verify the blob (unsigned or unknown key) */
@@ -185,17 +188,133 @@ class EthereumMetadataAck extends jspb.Message {
   }
 }
 
+/**
+ * LoadClearsignSigner: load a runtime clear-signing signer (compressed pubkey
+ * + alias) into a device key slot. Triggers a mandatory on-device confirmation;
+ * RAM-only, dropped on reboot/WipeDevice. Metadata verified by a loaded signer
+ * shows a warning screen naming the alias before every clear-sign page.
+ *
+ * Proto definition (device-protocol messages-ethereum.proto, msg type 117):
+ *   message LoadClearsignSigner {
+ *     optional uint32 key_id = 1;   // slot 1-3 (0 = built-in production, not loadable)
+ *     optional bytes  pubkey = 2;   // 33-byte compressed secp256k1
+ *     optional string alias  = 3;   // [A-Za-z0-9 _-], shown on the trust screen
+ *   }
+ * Host→device only; device replies Success (confirmed) or Failure (rejected).
+ */
+class LoadClearsignSigner extends jspb.Message {
+  constructor(opt_data?: any) {
+    super();
+    jspb.Message.initialize(this, opt_data || [], 0, -1, null, null);
+  }
+
+  setKeyId(value: number): void {
+    jspb.Message.setField(this, 1, value);
+  }
+  setPubkey(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 2, value);
+  }
+  setAlias(value: string): void {
+    jspb.Message.setField(this, 3, value);
+  }
+  setIcon(value: Uint8Array | string): void {
+    jspb.Message.setField(this, 4, value);
+  }
+  setIconWidth(value: number): void {
+    jspb.Message.setField(this, 5, value);
+  }
+  setIconHeight(value: number): void {
+    jspb.Message.setField(this, 6, value);
+  }
+  setPersist(value: boolean): void {
+    jspb.Message.setField(this, 7, value);
+  }
+
+  serializeBinary(): Uint8Array {
+    const writer = new jspb.BinaryWriter();
+    LoadClearsignSigner.serializeBinaryToWriter(this, writer);
+    return writer.getResultBuffer();
+  }
+
+  static serializeBinaryToWriter(message: LoadClearsignSigner, writer: jspb.BinaryWriter): void {
+    writer.writeUint32(1, jspb.Message.getFieldWithDefault(message, 1, 0) as number);
+    const pubkey = jspb.Message.getFieldWithDefault(message, 2, "") as Uint8Array | string;
+    if (pubkey && (typeof pubkey === "string" ? pubkey.length > 0 : pubkey.length > 0)) {
+      writer.writeBytes(2, pubkey);
+    }
+    const alias = jspb.Message.getFieldWithDefault(message, 3, "") as string;
+    if (alias) writer.writeString(3, alias);
+    const icon = jspb.Message.getFieldWithDefault(message, 4, "") as Uint8Array | string;
+    if (icon && (typeof icon === "string" ? icon.length > 0 : icon.length > 0)) {
+      writer.writeBytes(4, icon);
+      writer.writeUint32(5, jspb.Message.getFieldWithDefault(message, 5, 0) as number);
+      writer.writeUint32(6, jspb.Message.getFieldWithDefault(message, 6, 0) as number);
+    }
+    const persist = jspb.Message.getFieldWithDefault(message, 7, false) as boolean;
+    if (persist) writer.writeBool(7, persist);
+  }
+
+  static deserializeBinary(bytes: Uint8Array): LoadClearsignSigner {
+    const reader = new jspb.BinaryReader(bytes);
+    const msg = new LoadClearsignSigner();
+    while (reader.nextField()) {
+      if (reader.isEndGroup()) break;
+      switch (reader.getFieldNumber()) {
+        case 1:
+          jspb.Message.setField(msg, 1, reader.readUint32());
+          break;
+        case 2:
+          jspb.Message.setField(msg, 2, reader.readBytes());
+          break;
+        case 3:
+          jspb.Message.setField(msg, 3, reader.readString());
+          break;
+        case 4:
+          jspb.Message.setField(msg, 4, reader.readBytes());
+          break;
+        case 5:
+          jspb.Message.setField(msg, 5, reader.readUint32());
+          break;
+        case 6:
+          jspb.Message.setField(msg, 6, reader.readUint32());
+          break;
+        case 7:
+          jspb.Message.setField(msg, 7, reader.readBool());
+          break;
+        default:
+          reader.skipField();
+          break;
+      }
+    }
+    return msg;
+  }
+
+  toObject(): { keyId: number; pubkey: Uint8Array | string; alias: string } {
+    return {
+      keyId: jspb.Message.getFieldWithDefault(this, 1, 0) as number,
+      pubkey: jspb.Message.getFieldWithDefault(this, 2, "") as Uint8Array | string,
+      alias: jspb.Message.getFieldWithDefault(this, 3, "") as string,
+    };
+  }
+  static toObject(_includeInstance: boolean, msg: LoadClearsignSigner) {
+    return msg.toObject();
+  }
+}
+
 // ── Register EVM clear-signing messages ──────────────────────────────
 function registerEthClearSignMessages() {
   const mt = Messages.MessageType as unknown as Record<string, number>;
   mt["MESSAGETYPE_ETHEREUMTXMETADATA"] = MESSAGETYPE_ETHEREUMTXMETADATA;
   mt["MESSAGETYPE_ETHEREUMMETADATAACK"] = MESSAGETYPE_ETHEREUMMETADATAACK;
+  mt["MESSAGETYPE_LOADCLEARSIGNSIGNER"] = MESSAGETYPE_LOADCLEARSIGNSIGNER;
 
   messageNameRegistry[MESSAGETYPE_ETHEREUMTXMETADATA] = "EthereumTxMetadata";
   messageNameRegistry[MESSAGETYPE_ETHEREUMMETADATAACK] = "EthereumMetadataAck";
+  messageNameRegistry[MESSAGETYPE_LOADCLEARSIGNSIGNER] = "LoadClearsignSigner";
 
   messageTypeRegistry[MESSAGETYPE_ETHEREUMTXMETADATA] = EthereumTxMetadata as any;
   messageTypeRegistry[MESSAGETYPE_ETHEREUMMETADATAACK] = EthereumMetadataAck as any;
+  messageTypeRegistry[MESSAGETYPE_LOADCLEARSIGNSIGNER] = LoadClearsignSigner as any;
 }
 registerEthClearSignMessages();
 
@@ -407,6 +526,45 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
   });
 }
 
+/**
+ * Load a runtime clear-sign signer into a device key slot (RAM-only). Sends
+ * LoadClearsignSigner (msg 117); the device shows a mandatory trust-confirm
+ * screen naming the alias + the pubkey fingerprint. Resolves on Success,
+ * rejects (via transport.call throwing) on device Failure/cancel.
+ */
+export async function ethLoadClearsignSigner(
+  transport: Transport,
+  msg: {
+    keyId: number;
+    pubkey: Uint8Array;
+    alias: string;
+    /** Optional identity logo: 1bpp mono RLE bitmap, <= 384 bytes. */
+    icon?: Uint8Array;
+    iconWidth?: number;
+    iconHeight?: number;
+    /** Keep the identity in device flash across reboots (until WipeDevice). */
+    persist?: boolean;
+  }
+): Promise<{ ok: true }> {
+  return transport.lockDuring(async () => {
+    const m = new LoadClearsignSigner();
+    m.setKeyId(msg.keyId);
+    m.setPubkey(msg.pubkey);
+    m.setAlias(msg.alias);
+    if (msg.icon && msg.icon.length > 0) {
+      m.setIcon(msg.icon);
+      m.setIconWidth(msg.iconWidth ?? 0);
+      m.setIconHeight(msg.iconHeight ?? 0);
+    }
+    if (msg.persist) m.setPersist(true);
+    await transport.call(MESSAGETYPE_LOADCLEARSIGNSIGNER, m, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+    return { ok: true };
+  });
+}
+
 export async function ethGetAddress(transport: Transport, msg: core.ETHGetAddress): Promise<string> {
   const getAddr = new Ethereum.EthereumGetAddress();
   getAddr.setAddressNList(msg.addressNList);
@@ -442,51 +600,188 @@ export async function ethSignMessage(transport: Transport, msg: core.ETHSignMess
   };
 }
 
+function withEip712DomainType(typedData: any): any {
+  if (Array.isArray(typedData.types?.EIP712Domain)) return typedData;
+
+  const domain = typedData.domain || {};
+  const canonicalFields = [
+    ["name", "string"],
+    ["version", "string"],
+    ["chainId", "uint256"],
+    ["verifyingContract", "address"],
+    ["salt", "bytes32"],
+  ] as const;
+  const domainType = canonicalFields
+    .filter(([name]) => domain[name] !== undefined)
+    .map(([name, type]) => ({ name, type }));
+
+  return {
+    ...typedData,
+    types: { ...(typedData.types || {}), EIP712Domain: domainType },
+  };
+}
+
+/** The firmware's own words when it refused.
+ *
+ * transport.call throws the raw failure event -- `{ message_enum:
+ * MESSAGETYPE_FAILURE, message: Failure.toObject() }` -- so the device's text
+ * is at `.message.message`. Every caller that flattens this to a generic string
+ * throws away the only explanation the user can act on.
+ */
+function firmwareFailureText(error: unknown): string | undefined {
+  if (!core.isIndexable(error)) return undefined;
+  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return undefined;
+  const failure = error.message as { message?: string } | undefined;
+  const text = failure?.message;
+  return typeof text === "string" && text.length > 0 ? text : undefined;
+}
+
+/** Did the device refuse because it has no structured EIP-712 endpoint?
+ *
+ * Firmware 7.14.2 withdrew the structured path -- its JSON parser could not
+ * guarantee the displayed value was the value being hashed -- and answers
+ * Ethereum712TypesValues with "Structured EIP-712 disabled pending canonical
+ * display hardening". Firmware that predates the message answers
+ * Failure_UnexpectedMessage.
+ *
+ * Both mean the same thing to us: this device cannot parse typed data, so use
+ * the hashed path. Detecting it by ATTEMPT rather than by version number is
+ * deliberate -- there is no capability bit for this, and a version table would
+ * need updating for every branch that toggles the flag.
+ *
+ * Safe to retry after: the firmware refuses at the top of the handler, before
+ * it touches any session state, so nothing partial is left behind.
+ */
+function structuredEip712Unavailable(error: unknown): boolean {
+  if (!core.isIndexable(error)) return false;
+  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return false;
+  const failure = error.message as { code?: number; message?: string } | undefined;
+  if (failure?.code === Types.FailureType.FAILURE_UNEXPECTEDMESSAGE) return true;
+  const text = typeof failure?.message === "string" ? failure.message : "";
+  // Withdrawn in 7.14.2.
+  if (text.includes("Structured EIP-712 disabled")) return true;
+  // Present, but cannot walk THIS document. Arrays are the current gap:
+  // PermitBatch and Seaport nest them. Degrading costs the user the field
+  // display and keeps the payment working, which is the same deal every
+  // typed-data payload gets today -- a hard failure would be strictly worse
+  // and would look like a bug rather than a limitation.
+  if (text.includes("arrays are not supported")) return true;
+  return false;
+}
+
 /**
- * Supports EIP-712 eth_signTypedData_v4
- * https://docs.metamask.io/wallet/how-to/sign-data/#use-eth_signtypeddata_v4
- * Due to lack of firmware support, a hashed version of the data is
- * displayed to the user on the device when signing
+ * Structured EIP-712 over the streaming protocol: the device walks the document
+ * and hashes each leaf in the same call that displays it.
+ *
+ * Fails to the hashed path on firmware that does not implement it, via the same
+ * structuredEip712Unavailable() test the x402 branch uses.
+ */
+async function signTypedDataStreaming(
+  transport: Transport,
+  addressNList: number[],
+  typedData: TypedDataDoc
+): Promise<core.ETHSignedTypedData> {
+  const wire: Eip712WireShape = {
+    SIGN: Eip712Wire.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA,
+    STRUCT_REQUEST: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTREQUEST,
+    STRUCT_ACK: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTACK,
+    VALUE_REQUEST: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEREQUEST,
+    VALUE_ACK: Eip712Wire.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEACK,
+    SIGNATURE: Messages.MessageType.MESSAGETYPE_ETHEREUMTYPEDDATASIGNATURE,
+
+    encodeSign: (n: number[], primaryType: string) => {
+      const m = new Eip712Wire.EthereumSignTypedData();
+      m.setAddressNList(n);
+      m.setPrimaryType(primaryType);
+      // v3 hashes arrays of structs differently. We speak v4 only, and the
+      // device refuses anything else rather than guessing.
+      m.setMetamaskV4Compat(true);
+      return m.serializeBinary();
+    },
+    decodeStructRequest: (b: Uint8Array) => Eip712Wire.EthereumTypedDataStructRequest.deserializeBinary(b).getName(),
+    encodeStructAck: (members: Array<{ name: string; type: FieldType }>) =>
+      new Eip712Wire.EthereumTypedDataStructAck(members).serializeBinary(),
+    decodeValueRequest: (b: Uint8Array) =>
+      Eip712Wire.EthereumTypedDataValueRequest.deserializeBinary(b).getMemberPathList(),
+    encodeValueAck: (v: Uint8Array) => {
+      const m = new Eip712Wire.EthereumTypedDataValueAck();
+      m.setValue(v);
+      return m.serializeBinary();
+    },
+    decodeSignature: (b: Uint8Array) => {
+      const r = Ethereum.EthereumTypedDataSignature.deserializeBinary(b);
+      return {
+        address: r.getAddress() || "",
+        signature: "0x" + core.toHexString(r.getSignature_asU8()),
+      };
+    },
+  };
+
+  const call: Eip712Call = async (messageType: number, payload: Uint8Array) => {
+    const event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+    const proto = event.proto as jspb.Message;
+    return { type: event.message_enum as number, payload: proto.serializeBinary() };
+  };
+
+  const out = await runEip712Walk(typedData, addressNList, wire, call);
+  return { address: out.address, signature: out.signature };
+}
+
+/**
+ * Supports EIP-712 eth_signTypedData_v4. New firmware uses the structured,
+ * device-driven stream. Older firmware may fall back to the explicit
+ * AdvancedMode typed-hash path; malformed documents and user refusals never
+ * downgrade.
  */
 export async function ethSignTypedData(
   transport: Transport,
   msg: core.ETHSignTypedData
 ): Promise<core.ETHSignedTypedData> {
   try {
-    const version = SignTypedDataVersion.V4;
-    const EIP_712_DOMAIN = "EIP712Domain";
-    const { types, primaryType, domain, message } = msg.typedData;
-    const domainSeparatorHash: Uint8Array = TypedDataUtils.hashStruct(EIP_712_DOMAIN, domain, types, version);
+    return await transport.lockDuring(async () => {
+      const version = SignTypedDataVersion.V4;
+      const EIP_712_DOMAIN = "EIP712Domain";
+      const typedData = withEip712DomainType(msg.typedData);
+      const { types, primaryType, domain, message } = typedData;
 
-    const ethereumSignTypedHash = new Ethereum.EthereumSignTypedHash();
-    ethereumSignTypedHash.setAddressNList(msg.addressNList);
-    ethereumSignTypedHash.setDomainSeparatorHash(domainSeparatorHash);
-
-    let messageHash: Uint8Array | undefined = undefined;
-    // If "EIP712Domain" is the primaryType, messageHash is not required - look at T1 connect impl ;)
-    // todo: the firmware should define messageHash as an optional Uint8Array field for this case
-    if (primaryType !== EIP_712_DOMAIN) {
-      messageHash = TypedDataUtils.hashStruct(primaryType, message, types, version);
-      ethereumSignTypedHash.setMessageHash(messageHash);
-    }
-
-    const response = await transport.call(
-      Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH,
-      ethereumSignTypedHash,
-      {
-        msgTimeout: core.LONG_TIMEOUT,
+      try {
+        return await signTypedDataStreaming(transport, msg.addressNList, typedData as unknown as TypedDataDoc);
+      } catch (error) {
+        if (!structuredEip712Unavailable(error)) throw error;
       }
-    );
 
-    const result = response.proto as Ethereum.EthereumTypedDataSignature;
-    const res: core.ETHSignedTypedData = {
-      address: result.getAddress() || "",
-      signature: "0x" + core.toHexString(result.getSignature_asU8()),
-    };
+      const domainSeparatorHash: Uint8Array = TypedDataUtils.hashStruct(
+        EIP_712_DOMAIN,
+        domain,
+        types,
+        version
+      );
+      const request = new Ethereum.EthereumSignTypedHash();
+      request.setAddressNList(msg.addressNList);
+      request.setDomainSeparatorHash(domainSeparatorHash);
+      if (primaryType !== EIP_712_DOMAIN) {
+        request.setMessageHash(TypedDataUtils.hashStruct(primaryType, message, types, version));
+      }
 
-    return res;
+      const response = await transport.call(
+        Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH,
+        request,
+        { msgTimeout: core.LONG_TIMEOUT, omitLock: true }
+      );
+      const result = response.proto as Ethereum.EthereumTypedDataSignature;
+      return {
+        address: result.getAddress() || "",
+        signature: "0x" + core.toHexString(result.getSignature_asU8()),
+      };
+    });
   } catch (error) {
     console.error({ error });
+    const detail = firmwareFailureText(error);
+    if (detail) throw new Error(detail);
+    if (error instanceof Error) throw error;
     throw new Error("Failed to sign typed ETH message");
   }
 }

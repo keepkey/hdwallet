@@ -11,6 +11,10 @@ describe("protobuf type registry", () => {
     for (const constructor of constructors) {
       expect(typeof constructor).toBe("function");
       expect(constructor.prototype).toBeInstanceOf(jspb.Message);
+      // Transport.fromMessageBuffer uses the generated reader entry point,
+      // not deserializeBinary(). A hand-written response class that omits it
+      // compiles but fails the first time a device replies.
+      expect(typeof (constructor as any).deserializeBinaryFromReader).toBe("function");
     }
   });
 });
