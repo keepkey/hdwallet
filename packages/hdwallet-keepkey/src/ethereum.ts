@@ -444,19 +444,6 @@ export async function ethSignMessage(transport: Transport, msg: core.ETHSignMess
   };
 }
 
-const EIP3009_TRANSFER_WITH_AUTHORIZATION = [
-  { name: "from", type: "address" },
-  { name: "to", type: "address" },
-  { name: "value", type: "uint256" },
-  { name: "validAfter", type: "uint256" },
-  { name: "validBefore", type: "uint256" },
-  { name: "nonce", type: "bytes32" },
-] as const;
-
-function typedDataJson(value: unknown): string {
-  return JSON.stringify(value, (_key, item) => (typeof item === "bigint" ? item.toString() : item));
-}
-
 function withEip712DomainType(typedData: any): any {
   if (Array.isArray(typedData.types?.EIP712Domain)) return typedData;
 
@@ -476,15 +463,6 @@ function withEip712DomainType(typedData: any): any {
     ...typedData,
     types: { ...(typedData.types || {}), EIP712Domain: domainType },
   };
-}
-
-function isX402Eip3009(typedData: any): boolean {
-  if (typedData.primaryType !== "TransferWithAuthorization") return false;
-  const fields = typedData.types?.TransferWithAuthorization;
-  if (!Array.isArray(fields) || fields.length !== EIP3009_TRANSFER_WITH_AUTHORIZATION.length) return false;
-  return EIP3009_TRANSFER_WITH_AUTHORIZATION.every(
-    (expected, index) => fields[index]?.name === expected.name && fields[index]?.type === expected.type
-  );
 }
 
 /** The firmware's own words when it refused.
@@ -594,49 +572,6 @@ async function signTypedDataStreaming(
 
   const out = await runEip712Walk(typedData, addressNList, wire, call);
   return { address: out.address, signature: out.signature };
-}
-
-async function signStructuredEip712(
-  transport: Transport,
-  addressNList: number[],
-  typedData: any
-): Promise<core.ETHSignedTypedData> {
-  const typesJson = typedDataJson({ types: typedData.types });
-  const primaryTypeJson = typedDataJson({ primaryType: typedData.primaryType });
-  const domainJson = typedDataJson({ domain: typedData.domain || {} });
-  const messageJson = typedDataJson({ message: typedData.message || {} });
-
-  if (typesJson.length > 2048 || domainJson.length > 2048 || messageJson.length > 2048) {
-    throw new Error("Structured EIP-712 data exceeds firmware limits");
-  }
-  if (primaryTypeJson.length > 80) throw new Error("EIP-712 primary type exceeds firmware limits");
-
-  const request = (data: string, typeValues: number) => {
-    const value = new Ethereum.Ethereum712TypesValues();
-    value.setAddressNList(addressNList);
-    value.setEip712types(typesJson);
-    value.setEip712primetype(primaryTypeJson);
-    value.setEip712data(data);
-    value.setEip712typevals(typeValues);
-    return value;
-  };
-
-  // Firmware computes and retains the domain separator, then combines it with
-  // the independently reviewed message hash in the second request.
-  await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES, request(domainJson, 1), {
-    msgTimeout: core.LONG_TIMEOUT,
-    omitLock: true,
-  });
-  const response = await transport.call(
-    Messages.MessageType.MESSAGETYPE_ETHEREUM712TYPESVALUES,
-    request(messageJson, 2),
-    { msgTimeout: core.LONG_TIMEOUT, omitLock: true }
-  );
-  const result = response.proto as Ethereum.EthereumTypedDataSignature;
-  return {
-    address: result.getAddress() || "",
-    signature: "0x" + core.toHexString(result.getSignature_asU8()),
-  };
 }
 
 /**
