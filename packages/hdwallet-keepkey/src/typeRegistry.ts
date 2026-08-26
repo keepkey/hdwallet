@@ -67,6 +67,10 @@ export const messageTypeRegistry = Object.entries(Messages.MessageType).reduce((
  * request but cannot decode the device's reply, and the walk stalls on its
  * first StructRequest.
  *
+ * Only device-to-host response types belong in messageTypeRegistry. Outgoing
+ * Sign/Ack objects serialize themselves and are never decoded by transport;
+ * registering them would falsely require a generated response parser.
+ *
  * Delete this block when the package ships the generated classes -- the
  * reducers will then pick them up on their own. */
 messageNameRegistry[Eip712.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA] = "EthereumSignTypedData";
@@ -75,13 +79,7 @@ messageNameRegistry[Eip712.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTACK] = "EthereumTy
 messageNameRegistry[Eip712.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEREQUEST] = "EthereumTypedDataValueRequest";
 messageNameRegistry[Eip712.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEACK] = "EthereumTypedDataValueAck";
 
-messageTypeRegistry[Eip712.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA] =
-  Eip712.EthereumSignTypedData as unknown as core.Constructor<jspb.Message>;
 messageTypeRegistry[Eip712.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTREQUEST] =
   Eip712.EthereumTypedDataStructRequest as unknown as core.Constructor<jspb.Message>;
-messageTypeRegistry[Eip712.MESSAGETYPE_ETHEREUMTYPEDDATASTRUCTACK] =
-  Eip712.EthereumTypedDataStructAck as unknown as core.Constructor<jspb.Message>;
 messageTypeRegistry[Eip712.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEREQUEST] =
   Eip712.EthereumTypedDataValueRequest as unknown as core.Constructor<jspb.Message>;
-messageTypeRegistry[Eip712.MESSAGETYPE_ETHEREUMTYPEDDATAVALUEACK] =
-  Eip712.EthereumTypedDataValueAck as unknown as core.Constructor<jspb.Message>;

@@ -74,6 +74,12 @@ export class EthereumTypedDataStructRequest extends jspb.Message {
   static deserializeBinary(bytes: Uint8Array): EthereumTypedDataStructRequest {
     const reader = new jspb.BinaryReader(bytes);
     const msg = new EthereumTypedDataStructRequest();
+    return EthereumTypedDataStructRequest.deserializeBinaryFromReader(msg, reader);
+  }
+  static deserializeBinaryFromReader(
+    msg: EthereumTypedDataStructRequest,
+    reader: jspb.BinaryReader
+  ): EthereumTypedDataStructRequest {
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
       if (reader.getFieldNumber() === 1) jspb.Message.setField(msg, 1, reader.readString());
@@ -105,6 +111,12 @@ export class EthereumTypedDataValueRequest extends jspb.Message {
   static deserializeBinary(bytes: Uint8Array): EthereumTypedDataValueRequest {
     const reader = new jspb.BinaryReader(bytes);
     const msg = new EthereumTypedDataValueRequest();
+    return EthereumTypedDataValueRequest.deserializeBinaryFromReader(msg, reader);
+  }
+  static deserializeBinaryFromReader(
+    msg: EthereumTypedDataValueRequest,
+    reader: jspb.BinaryReader
+  ): EthereumTypedDataValueRequest {
     const path: number[] = [];
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
