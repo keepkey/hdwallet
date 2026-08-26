@@ -106,21 +106,25 @@ describe("certified Solana wire shapes", () => {
       call,
     } as any;
 
-    await expect(solanaSignTx(transport, {
-      addressNList: PATH,
-      rawTx: new Uint8Array([0x80, 0x00]),
-      certificate: new Uint8Array(139),
-    })).rejects.toThrow(/requires schema signerKeyId 0x80/);
+    await expect(
+      solanaSignTx(transport, {
+        addressNList: PATH,
+        rawTx: new Uint8Array([0x80, 0x00]),
+        certificate: new Uint8Array(139),
+      })
+    ).rejects.toThrow(/requires schema signerKeyId 0x80/);
 
-    await expect(solanaSignTx(transport, {
-      addressNList: PATH,
-      rawTx: new Uint8Array([0x80, 0x00]),
-      schema: {
-        payload: new Uint8Array([1]),
-        signature: new Uint8Array(64),
-        signerKeyId: 0x80,
-      },
-    })).rejects.toThrow(/requires a certificate/);
+    await expect(
+      solanaSignTx(transport, {
+        addressNList: PATH,
+        rawTx: new Uint8Array([0x80, 0x00]),
+        schema: {
+          payload: new Uint8Array([1]),
+          signature: new Uint8Array(64),
+          signerKeyId: 0x80,
+        },
+      })
+    ).rejects.toThrow(/requires a certificate/);
 
     expect(call).not.toHaveBeenCalled();
   });
