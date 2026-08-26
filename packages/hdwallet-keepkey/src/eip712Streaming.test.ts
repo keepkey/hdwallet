@@ -189,6 +189,20 @@ describe("structMembers", () => {
   it("throws on an unknown struct", () => {
     expect(() => structMembers(PERMIT2, "Nope")).toThrow(/Unknown struct/);
   });
+
+  it("refuses member names that cannot be displayed exactly", () => {
+    const doc = JSON.parse(JSON.stringify(PERMIT2)) as TypedDataDoc;
+    doc.types.PermitSingle[0].name = "identifier_that_would_be_truncated";
+    expect(() => structMembers(doc, "PermitSingle")).toThrow(/canonical EIP-712 identifier/);
+    doc.types.PermitSingle[0].name = "amount%08x";
+    expect(() => structMembers(doc, "PermitSingle")).toThrow(/canonical EIP-712 identifier/);
+  });
+
+  it("refuses duplicate members rather than hashing an ambiguous object", () => {
+    const doc = JSON.parse(JSON.stringify(PERMIT2)) as TypedDataDoc;
+    doc.types.PermitSingle[1].name = "details";
+    expect(() => structMembers(doc, "PermitSingle")).toThrow(/Duplicate EIP-712 member/);
+  });
 });
 
 // ── regressions from the adversarial review ─────────────────────────

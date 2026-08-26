@@ -57,6 +57,19 @@ const BYTE_MASK = BigInt(0xff);
  *  field rather than at the transport layer where it cannot. */
 export const MAX_LEAF_BYTES = 1024;
 
+// Firmware uses the same 32-byte buffer for encodeType and the review title.
+// Keeping identifiers to 31 ASCII bytes prevents either side from truncating
+// a member name while the other side hashes it in full.
+const MAX_IDENTIFIER_BYTES = 31;
+const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+
+function requireIdentifier(name: unknown, what: string): string {
+  if (typeof name !== "string" || !IDENTIFIER.test(name) || name.length > MAX_IDENTIFIER_BYTES) {
+    throw new Error(`${what} must be a canonical EIP-712 identifier of at most ${MAX_IDENTIFIER_BYTES} bytes`);
+  }
+  return name;
+}
+
 /**
  * "uint256", "bytes32", "Person[3]", "int16[2][][4]" -> FieldType.
  * Throws rather than guessing: an unparseable type must not become a signature.
@@ -130,7 +143,7 @@ export function parseSolidityType(type: string): FieldType {
   }
 
   // Anything else names a struct the device will ask us to define.
-  if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(base)) {
+  if (!IDENTIFIER.test(base) || base.length > MAX_IDENTIFIER_BYTES) {
     throw new Error(`Unparseable EIP-712 type: ${type}`);
   }
   return { dataType: EthereumDataType.STRUCT, structName: base, arrayLevels };
@@ -329,9 +342,16 @@ export function resolveMemberPath(doc: TypedDataDoc, path: number[]): Resolved {
 
 /** The member list for one struct, in the shape EthereumTypedDataStructAck wants. */
 export function structMembers(doc: TypedDataDoc, name: string): Array<{ name: string; type: FieldType }> {
+  requireIdentifier(name, "Struct name");
   const members = doc.types[name];
   if (!members) throw new Error(`Unknown struct: ${name}`);
-  return members.map((m) => ({ name: m.name, type: parseSolidityType(m.type) }));
+  const seen = new Set<string>();
+  return members.map((m) => {
+    const memberName = requireIdentifier(m.name, `Member name in ${name}`);
+    if (seen.has(memberName)) throw new Error(`Duplicate EIP-712 member ${name}.${memberName}`);
+    seen.add(memberName);
+    return { name: memberName, type: parseSolidityType(m.type) };
+  });
 }
 
 /**
@@ -374,7 +394,8 @@ export async function runEip712Walk(
   wire: Eip712Wire,
   call: Eip712Call
 ): Promise<{ address: string; signature: string }> {
-  let reply = await call(wire.SIGN, wire.encodeSign(addressNList, doc.primaryType));
+  const primaryType = requireIdentifier(doc.primaryType, "Primary type");
+  let reply = await call(wire.SIGN, wire.encodeSign(addressNList, primaryType));
 
   for (let i = 0; i < MAX_ROUND_TRIPS; i++) {
     if (reply.type === wire.SIGNATURE) {
