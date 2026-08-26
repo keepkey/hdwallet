@@ -148,16 +148,22 @@ function assertCertifiedWireEnvelope(wire: Uint8Array, expected: CertifiedWireEn
     }
   }
 
-  const sameAccounts = lutAccounts.length === expected.lutAccounts.length &&
+  const sameAccounts =
+    lutAccounts.length === expected.lutAccounts.length &&
     lutAccounts.every((account, i) => bytesEqual(account, expected.lutAccounts[i]));
-  if (!schemaPayload || !bytesEqual(schemaPayload, expected.schemaPayload) ||
-      !schemaSignature || !bytesEqual(schemaSignature, expected.schemaSignature) ||
-      schemaSignerKeyId !== expected.schemaSignerKeyId ||
-      !certificate || !bytesEqual(certificate, expected.certificate) ||
-      !sameAccounts ||
-      (lutSignature === undefined) !== (expected.lutSignature === undefined) ||
-      (lutSignature !== undefined && !bytesEqual(lutSignature, expected.lutSignature!)) ||
-      lutSignerKeyId !== expected.lutSignerKeyId) {
+  if (
+    !schemaPayload ||
+    !bytesEqual(schemaPayload, expected.schemaPayload) ||
+    !schemaSignature ||
+    !bytesEqual(schemaSignature, expected.schemaSignature) ||
+    schemaSignerKeyId !== expected.schemaSignerKeyId ||
+    !certificate ||
+    !bytesEqual(certificate, expected.certificate) ||
+    !sameAccounts ||
+    (lutSignature === undefined) !== (expected.lutSignature === undefined) ||
+    (lutSignature !== undefined && !bytesEqual(lutSignature, expected.lutSignature!)) ||
+    lutSignerKeyId !== expected.lutSignerKeyId
+  ) {
     throw new Error("serialized certified Solana ClearSign envelope does not match its source material");
   }
 }
@@ -1232,10 +1238,7 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
       if (lutSignature.length !== 64) {
         throw new Error(`lutProof.signature must be exactly 64 bytes, got ${lutSignature.length}`);
       }
-      extraFields.push(
-        encodeLengthDelimited(6, lutSignature),
-        encodeVarintField(7, msg.lutProof.signerKeyId)
-      );
+      extraFields.push(encodeLengthDelimited(6, lutSignature), encodeVarintField(7, msg.lutProof.signerKeyId));
       certifiedWire.lutSignature = lutSignature;
       certifiedWire.lutSignerKeyId = msg.lutProof.signerKeyId;
     }
@@ -1272,10 +1275,6 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
       extraFields.length > 0 ? withAppendedFields(signTx, concatBytes(...extraFields)) : signTx;
     if (certified) {
       assertCertifiedWireEnvelope(outbound.serializeBinary(), certifiedWire as CertifiedWireEnvelope);
-      console.log(
-        `[solana] certified ClearSign wire verified: schema=${certifiedWire.schemaPayload!.length}B ` +
-        `certificate=${certifiedWire.certificate!.length}B lut=${certifiedWire.lutAccounts.length}`
-      );
     }
 
     const resp = await transport.call(MESSAGETYPE_SOLANASIGNTX, outbound, {
