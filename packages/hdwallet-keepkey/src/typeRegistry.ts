@@ -17,30 +17,29 @@ import * as core from "@keepkey/hdwallet-core";
 import * as jspb from "google-protobuf";
 
 import * as Eip712 from "./eip712Wire";
-function omit(obj: Record<string, any>, ...keys: string[]): Record<string, any> {
-  const result = { ...obj };
-  for (const key of keys) delete result[key];
-  return result;
+function messageEntries(obj: Record<string, unknown>): Array<[string, core.Constructor<jspb.Message>]> {
+  return Object.entries(obj).filter(
+    (entry): entry is [string, core.Constructor<jspb.Message>] =>
+      typeof entry[1] === "function" && entry[1].prototype instanceof jspb.Message
+  );
 }
 
-// Conflict between typedef and actual js export
-
 const AllMessages = ([] as Array<[string, core.Constructor<jspb.Message>]>)
-  .concat(Object.entries(omit(Messages, "MessageType", "MessageTypeMap")))
-  .concat(Object.entries(BinanceMessages))
-  .concat(Object.entries(CosmosMessages))
-  .concat(Object.entries(EthereumMessages))
-  .concat(Object.entries(OsmosisMessages))
-  .concat(Object.entries(RippleMessages))
-  .concat(Object.entries(NanoMessages))
-  .concat(Object.entries(omit(EosMessages, "EosPublicKeyKind", "EosPublicKeyKindMap")))
-  .concat(Object.entries(SolanaMessages))
-  .concat(Object.entries(TendermintMessages))
-  .concat(Object.entries(ThorchainMessages))
-  .concat(Object.entries(TonMessages))
-  .concat(Object.entries(TronMessages))
-  .concat(Object.entries(MayachainMessages))
-  .concat(Object.entries(omit(ZcashMessages, "ZcashShieldedPool", "ZcashShieldedPoolMap")));
+  .concat(messageEntries(Messages))
+  .concat(messageEntries(BinanceMessages))
+  .concat(messageEntries(CosmosMessages))
+  .concat(messageEntries(EthereumMessages))
+  .concat(messageEntries(OsmosisMessages))
+  .concat(messageEntries(RippleMessages))
+  .concat(messageEntries(NanoMessages))
+  .concat(messageEntries(EosMessages))
+  .concat(messageEntries(SolanaMessages))
+  .concat(messageEntries(TendermintMessages))
+  .concat(messageEntries(ThorchainMessages))
+  .concat(messageEntries(TonMessages))
+  .concat(messageEntries(TronMessages))
+  .concat(messageEntries(MayachainMessages))
+  .concat(messageEntries(ZcashMessages));
 
 const upperCasedMessageClasses = AllMessages.reduce((registry, entry: [string, core.Constructor<jspb.Message>]) => {
   registry[entry[0].toUpperCase()] = entry[1];
