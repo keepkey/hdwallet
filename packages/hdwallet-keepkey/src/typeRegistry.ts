@@ -15,6 +15,7 @@ import * as TronMessages from "@keepkey/device-protocol/lib/messages-tron_pb";
 import * as ZcashMessages from "@keepkey/device-protocol/lib/messages-zcash_pb";
 import * as core from "@keepkey/hdwallet-core";
 import * as jspb from "google-protobuf";
+
 import * as Eip712 from "./eip712Wire";
 function messageEntries(obj: Record<string, unknown>): Array<[string, core.Constructor<jspb.Message>]> {
   return Object.entries(obj).filter(
