@@ -311,7 +311,7 @@ export namespace SolanaAddress {
 /**
  * SolanaSignTx: address_n(1), coin_name(2), raw_tx(3), token_info(4),
  * swap_metadata_payload(5), swap_metadata_signature(6),
- * swap_metadata_signer_key_id(7), allow_opaque(8)
+ * swap_metadata_signer_key_id(7). Field 8 is reserved, not a policy override.
  */
 export class SolanaSignTx extends jspb.Message {
   static repeatedFields_ = [1];
@@ -355,41 +355,10 @@ export class SolanaSignTx extends jspb.Message {
     jspb.Message.setField(this, 3, value);
   }
 
-  getSwapMetadataPayload(): Uint8Array | string {
-    return jspb.Message.getFieldWithDefault(this, 5, "") as Uint8Array | string;
-  }
-  getSwapMetadataPayload_asU8(): Uint8Array {
-    const val = this.getSwapMetadataPayload();
-    return val instanceof Uint8Array ? val : jspb.Message.bytesAsU8(val as string);
-  }
-  setSwapMetadataPayload(value: Uint8Array | string): void {
-    jspb.Message.setField(this, 5, value);
-  }
-
-  getSwapMetadataSignature(): Uint8Array | string {
-    return jspb.Message.getFieldWithDefault(this, 6, "") as Uint8Array | string;
-  }
-  getSwapMetadataSignature_asU8(): Uint8Array {
-    const val = this.getSwapMetadataSignature();
-    return val instanceof Uint8Array ? val : jspb.Message.bytesAsU8(val as string);
-  }
-  setSwapMetadataSignature(value: Uint8Array | string): void {
-    jspb.Message.setField(this, 6, value);
-  }
-
-  getSwapMetadataSignerKeyId(): number {
-    return jspb.Message.getFieldWithDefault(this, 7, 0) as number;
-  }
-  setSwapMetadataSignerKeyId(value: number): void {
-    jspb.Message.setField(this, 7, value);
-  }
-
-  getAllowOpaque(): boolean {
-    return jspb.Message.getFieldWithDefault(this, 8, false) as boolean;
-  }
-  setAllowOpaque(value: boolean): void {
-    jspb.Message.setField(this, 8, value);
-  }
+  // Fields 5 (lut_account, repeated), 6 (lut_signature), 7 (lut_signer_key_id),
+  // and 13 (clearsign_certificate) are carried via the wire-append shim below
+  // (see solanaSignTx), matching the schema/tokenRecipientOwner fields —
+  // field 5 is a repeated raw account list, not a single opaque blob.
 
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
@@ -402,10 +371,6 @@ export class SolanaSignTx extends jspb.Message {
       addressNList: this.getAddressNList(),
       coinName: this.getCoinName(),
       rawTx: this.getRawTx(),
-      swapMetadataPayload: this.getSwapMetadataPayload(),
-      swapMetadataSignature: this.getSwapMetadataSignature(),
-      swapMetadataSignerKeyId: this.getSwapMetadataSignerKeyId(),
-      allowOpaque: this.getAllowOpaque(),
     };
   }
 
@@ -435,18 +400,6 @@ export class SolanaSignTx extends jspb.Message {
         case 3:
           msg.setRawTx(reader.readBytes());
           break;
-        case 5:
-          msg.setSwapMetadataPayload(reader.readBytes());
-          break;
-        case 6:
-          msg.setSwapMetadataSignature(reader.readBytes());
-          break;
-        case 7:
-          msg.setSwapMetadataSignerKeyId(reader.readUint32());
-          break;
-        case 8:
-          msg.setAllowOpaque(reader.readBool());
-          break;
         default:
           reader.skipField();
           break;
@@ -468,22 +421,6 @@ export class SolanaSignTx extends jspb.Message {
     if (rawTx.length > 0) {
       writer.writeBytes(3, rawTx);
     }
-    const metadataPayload = message.getSwapMetadataPayload_asU8();
-    if (metadataPayload.length > 0) {
-      writer.writeBytes(5, metadataPayload);
-    }
-    const metadataSignature = message.getSwapMetadataSignature_asU8();
-    if (metadataSignature.length > 0) {
-      writer.writeBytes(6, metadataSignature);
-    }
-    const metadataSignerKeyId = jspb.Message.getField(message, 7) as number | null;
-    if (metadataSignerKeyId != null) {
-      writer.writeUint32(7, metadataSignerKeyId);
-    }
-    const allowOpaque = jspb.Message.getField(message, 8) as boolean | null;
-    if (allowOpaque != null) {
-      writer.writeBool(8, allowOpaque);
-    }
   }
 }
 
@@ -492,10 +429,6 @@ export namespace SolanaSignTx {
     addressNList: number[];
     coinName?: string;
     rawTx: Uint8Array | string;
-    swapMetadataPayload?: Uint8Array | string;
-    swapMetadataSignature?: Uint8Array | string;
-    swapMetadataSignerKeyId?: number;
-    allowOpaque?: boolean;
   };
 }
 
@@ -1158,22 +1091,6 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
       rawBytes = new Uint8Array(msg.rawTx as any);
     }
     signTx.setRawTx(rawBytes);
-    if (msg.swapMetadata) {
-      const payload =
-        msg.swapMetadata.payload instanceof Uint8Array
-          ? msg.swapMetadata.payload
-          : Uint8Array.from(Buffer.from(msg.swapMetadata.payload, "base64"));
-      const signature =
-        msg.swapMetadata.signature instanceof Uint8Array
-          ? msg.swapMetadata.signature
-          : Uint8Array.from(Buffer.from(msg.swapMetadata.signature, "base64"));
-      signTx.setSwapMetadataPayload(payload);
-      signTx.setSwapMetadataSignature(signature);
-      signTx.setSwapMetadataSignerKeyId(msg.swapMetadata.signerKeyId);
-    }
-    if (msg.allowBlindSigning === true) {
-      signTx.setAllowOpaque(true);
-    }
 
     /*
      * Additive SolanaSignTx fields are appended at the wire level because this
@@ -1184,6 +1101,18 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
     const extraFields: Uint8Array[] = [];
     for (const tokenInfo of msg.tokenInfo || []) {
       extraFields.push(encodeLengthDelimited(4, encodeSolanaTokenInfo(tokenInfo)));
+    }
+    if (msg.lutProof) {
+      if (msg.lutProof.accounts.length < 1 || msg.lutProof.accounts.length > 8) {
+        throw new Error("lutProof.accounts must contain 1-8 accounts");
+      }
+      for (const account of msg.lutProof.accounts) {
+        extraFields.push(encodeLengthDelimited(5, toSolanaPubkey(account, "lut account")));
+      }
+      extraFields.push(
+        encodeLengthDelimited(6, toBytes(msg.lutProof.signature)),
+        encodeVarintField(7, msg.lutProof.signerKeyId)
+      );
     }
     if (msg.schema) {
       const payload = toBytes(msg.schema.payload);
@@ -1196,6 +1125,13 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
     }
     for (const owner of msg.tokenRecipientOwners || []) {
       extraFields.push(encodeLengthDelimited(12, toSolanaPubkey(owner, "token recipient owner")));
+    }
+    if (msg.certificate) {
+      const certificate = toBytes(msg.certificate);
+      if (certificate.length !== 139) {
+        throw new Error(`certificate must be exactly 139 bytes, got ${certificate.length}`);
+      }
+      extraFields.push(encodeLengthDelimited(13, certificate));
     }
     const outbound: jspb.Message =
       extraFields.length > 0 ? withAppendedFields(signTx, concatBytes(...extraFields)) : signTx;

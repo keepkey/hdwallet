@@ -124,6 +124,13 @@ export interface ETHSignTypedData {
   typedData: TypedData;
 }
 
+/** KeepKey-only pre-hashed EIP-712 signing. Both hashes are shown on-device. */
+export interface ETHSignTypedHash {
+  addressNList: BIP32Path;
+  domainSeparatorHash: Uint8Array | string;
+  messageHash?: Uint8Array | string;
+}
+
 export interface ETHSignedTypedData {
   address: string;
   signature: string;
@@ -223,6 +230,7 @@ export interface ETHWallet extends ETHWalletInfo, HDWallet {
   ethSendTx?(msg: ETHSignTx): Promise<ETHTxHash | null>;
   ethSignMessage(msg: ETHSignMessage): Promise<ETHSignedMessage | null>;
   ethSignTypedData?(msg: ETHSignTypedData): Promise<ETHSignedTypedData | null>;
+  ethSignTypedHash?(msg: ETHSignTypedHash): Promise<ETHSignedTypedData | null>;
   ethVerifyMessage(msg: ETHVerifyMessage): Promise<boolean | null>;
 }
 

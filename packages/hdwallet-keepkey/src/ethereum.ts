@@ -1,4 +1,4 @@
-import Common from "@ethereumjs/common";
+import CommonModule from "@ethereumjs/common";
 import { FeeMarketEIP1559Transaction, Transaction } from "@ethereumjs/tx";
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as Ethereum from "@keepkey/device-protocol/lib/messages-ethereum_pb";
@@ -8,9 +8,13 @@ import { getStructHash } from "eip-712";
 import * as eip55 from "eip55";
 import * as jspb from "google-protobuf";
 
-import { Transport } from "./transport";
+import { Transport, TransportTimeoutError } from "./transport";
 import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 import { toUTF8Array } from "./utils";
+
+// Common v2 is a CommonJS package with a default-exported class. Native ESM
+// bundling can expose the CJS exports object instead of unwrapping that class.
+const Common = (CommonModule as unknown as { default?: typeof CommonModule }).default ?? CommonModule;
 
 // ── EVM Clear-Signing Message Types (firmware 7.14+) ─────────────────
 // Message type IDs from device-protocol-clear-signing/messages.proto
@@ -25,6 +29,22 @@ const _METADATA_OPAQUE = 0; // eslint-disable-line @typescript-eslint/no-unused-
 const METADATA_VERIFIED = 1;
 /** Blob structure is invalid or corrupted */
 const METADATA_MALFORMED = 2;
+/** Reserved key id for a KeepKey-certified v3 delegation envelope. */
+const METADATA_KEYID_DELEGATE = 0x80;
+
+export class CertifiedMetadataRejectedError extends Error {
+  readonly code = "EVM_METADATA_REJECTED";
+  constructor() {
+    super("KeepKey could not verify the certified ClearSign description. The transaction was not sent for blind signing.");
+    this.name = "CertifiedMetadataRejectedError";
+  }
+}
+
+export function requireVerifiedCertifiedMetadata(keyId: number | undefined, classification: number): void {
+  if (keyId === METADATA_KEYID_DELEGATE && classification !== METADATA_VERIFIED) {
+    throw new CertifiedMetadataRejectedError();
+  }
+}
 
 /**
  * EthereumTxMetadata: sent BEFORE EthereumSignTx to provide signed
@@ -367,7 +387,9 @@ function stripLeadingZeroes(buf: Uint8Array) {
 }
 
 export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Promise<core.ETHSignedTx> {
+  console.info(`[hdwallet] Ethereum signing queued (metadataKey=${msg.txMetadata?.keyId ?? 'none'})`);
   return transport.lockDuring(async () => {
+    console.info('[hdwallet] Ethereum signing acquired device transport');
     // ── EVM Clear-Signing: send metadata BEFORE EthereumSignTx ──────
     // If txMetadata is present, the firmware can verify the signed blob
     // and display decoded contract call info on the OLED instead of raw hex.
@@ -405,10 +427,23 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
           `[hdwallet] EthereumTxMetadata response: ${classLabel} (${classification})` +
             ` summary="${ack.getDisplaySummary()}"`
         );
+        requireVerifiedCertifiedMetadata(msg.txMetadata.keyId, classification);
         if (classification === METADATA_MALFORMED) {
           console.warn("[hdwallet] Metadata blob is MALFORMED — device will fall back to blind signing");
         }
       } catch (e) {
+        // A lost connection is not a metadata rejection or permission to retry
+        // signing. Preserve the transport's reconnect guidance for the UI.
+        if (e instanceof TransportTimeoutError || (core.isIndexable(e) && e.type === core.HDWalletErrorType.ActionCancelled)) throw e;
+        if (msg.txMetadata.keyId === METADATA_KEYID_DELEGATE) {
+          if (e instanceof CertifiedMetadataRejectedError) throw e;
+          // Older devices can reject message 115 instead of returning an ACK.
+          if (core.isIndexable(e) && e.message_enum === Messages.MessageType.MESSAGETYPE_FAILURE &&
+              core.isIndexable(e.message) && e.message.code === Types.FailureType.FAILURE_UNEXPECTEDMESSAGE) {
+            throw new CertifiedMetadataRejectedError();
+          }
+          throw e;
+        }
         // Metadata send failed — fall through to regular signing (blind mode)
         // This is non-fatal: older firmware versions don't support this message.
         console.warn("[hdwallet] EthereumTxMetadata not supported or failed, falling back to blind signing:", e);
@@ -758,6 +793,46 @@ export async function ethSignTypedData(
     console.error({ error });
     throw new Error("Failed to sign typed ETH message");
   }
+}
+
+/**
+ * Sign precomputed EIP-712 hashes using the stock KeepKey review flow.
+ *
+ * This is intentionally a transport primitive: callers that expose it must
+ * constrain the domain and message format for their protocol. The firmware
+ * displays both hashes and requires AdvancedMode approval before signing.
+ */
+export async function ethSignTypedHash(
+  transport: Transport,
+  msg: core.ETHSignTypedHash
+): Promise<core.ETHSignedTypedData> {
+  return transport.lockDuring(async () => {
+    const parseHash = (value: Uint8Array | string, label: string): Uint8Array => {
+      const bytes = value instanceof Uint8Array ? value : core.fromHexString(value.replace(/^0x/i, ""));
+      if (bytes.length !== 32) {
+        throw new Error(`ethereum: ${label} must be exactly 32 bytes, got ${bytes.length}`);
+      }
+      return bytes;
+    };
+
+    const request = new Ethereum.EthereumSignTypedHash();
+    request.setAddressNList(msg.addressNList);
+    request.setDomainSeparatorHash(parseHash(msg.domainSeparatorHash, "domain_separator_hash"));
+    if (msg.messageHash != null) {
+      request.setMessageHash(parseHash(msg.messageHash, "message_hash"));
+    }
+
+    const response = await transport.call(
+      Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH,
+      request,
+      { msgTimeout: core.LONG_TIMEOUT, omitLock: true }
+    );
+    const result = response.proto as Ethereum.EthereumTypedDataSignature;
+    return {
+      address: result.getAddress() || "",
+      signature: "0x" + core.toHexString(result.getSignature_asU8()),
+    };
+  });
 }
 
 export async function ethVerifyMessage(transport: Transport, msg: core.ETHVerifyMessage): Promise<boolean> {

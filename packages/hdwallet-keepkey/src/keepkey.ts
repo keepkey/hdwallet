@@ -1457,6 +1457,10 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     return Eth.ethSignTypedData(this.transport, msg);
   }
 
+  public async ethSignTypedHash(msg: core.ETHSignTypedHash): Promise<core.ETHSignedTypedData> {
+    return Eth.ethSignTypedHash(this.transport, msg);
+  }
+
   public async ethVerifyMessage(msg: core.ETHVerifyMessage): Promise<boolean> {
     return Eth.ethVerifyMessage(this.transport, msg);
   }

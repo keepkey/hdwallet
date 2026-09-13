@@ -19,10 +19,20 @@ export interface TransportDelegate {
   readChunk(debugLink?: boolean): Promise<Uint8Array>;
 }
 
+export class TransportTimeoutError extends Error {
+  constructor(operation: string, timeoutMs: number) {
+    super(`KeepKey device timed out during ${operation} after ${timeoutMs}ms. Unplug and reconnect your KeepKey before trying again.`);
+    this.name = "TransportTimeoutError";
+  }
+}
+
 export class Transport extends core.Transport {
   debugLink = false;
   userActionRequired = false;
   delegate: TransportDelegate;
+  // A timed-out read may still be alive inside a USB/HID delegate. Never reuse
+  // this transport: a fresh connection must own all subsequent device traffic.
+  private timeoutError?: TransportTimeoutError;
 
   /// One per transport, unlike on Trezor, since the contention is
   /// only per-device, not global.
@@ -44,6 +54,7 @@ export class Transport extends core.Transport {
   }
 
   public isOpened(): Promise<boolean> {
+    if (this.timeoutError) return Promise.resolve(false);
     return this.delegate.isOpened();
   }
   public getDeviceID(): Promise<string> {
@@ -51,6 +62,7 @@ export class Transport extends core.Transport {
   }
 
   public connect(): Promise<void> {
+    this.assertUsable();
     return this.delegate.connect();
   }
   public async tryConnectDebugLink(): Promise<boolean> {
@@ -61,6 +73,33 @@ export class Transport extends core.Transport {
   }
   public disconnect(): Promise<void> {
     return this.delegate.disconnect();
+  }
+
+  private assertUsable(): void {
+    if (this.timeoutError) throw this.timeoutError;
+  }
+
+  private async withDeadline<T>(action: () => Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+    this.assertUsable();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        action(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            const error = new TransportTimeoutError(operation, timeoutMs);
+            this.timeoutError = error;
+            this.userActionRequired = false;
+            reject(error);
+            // Quarantine first. Closing normally cancels the delegate's read,
+            // but the timeout must still settle if close itself gets stuck.
+            void Promise.resolve().then(() => this.delegate.disconnect()).catch(() => undefined);
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
   }
 
   private async write(buf: Uint8Array, debugLink: boolean): Promise<void> {
@@ -74,12 +113,16 @@ export class Transport extends core.Transport {
       fragments.push(padding);
       const fragmentBuffer = new Uint8Array(fragments.map((x) => x.length).reduce((a, x) => a + x, 0));
       fragments.reduce((a, x) => (fragmentBuffer.set(x, a), a + x.length), 0);
+      this.assertUsable();
       await this.delegate.writeChunk(fragmentBuffer, debugLink);
+      this.assertUsable();
     }
   }
 
   private async read(debugLink: boolean): Promise<Uint8Array> {
+    this.assertUsable();
     const first = await this.delegate.readChunk(debugLink);
+    this.assertUsable();
 
     // Check that buffer starts with: "?##" [ 0x3f, 0x23, 0x23 ]
     // "?" = USB reportId, "##" = KeepKey magic bytes
@@ -95,6 +138,7 @@ export class Transport extends core.Transport {
     for (let offset = first.length; offset < buffer.length; ) {
       // Drop USB "?" reportId in the first byte
       const next = (await this.delegate.readChunk(debugLink)).slice(1);
+      this.assertUsable();
       buffer.set(next.slice(0, Math.min(next.length, buffer.length - offset)), offset);
       offset += next.length;
     }
@@ -142,6 +186,7 @@ export class Transport extends core.Transport {
   public async lockDuring<T>(action: () => Promise<T>): Promise<T> {
     this.callInProgress.main = (async () => {
       await this.cancellable(this.callInProgress.main);
+      this.assertUsable();
       return action();
     })();
     return this.callInProgress.main;
@@ -151,10 +196,10 @@ export class Transport extends core.Transport {
     return this.readResponse(false);
   }
 
-  public async readResponse(debugLink: boolean): Promise<core.Event> {
+  public async readResponse(debugLink: boolean, timeoutMs = core.LONG_TIMEOUT): Promise<core.Event> {
     let buf;
     do {
-      buf = await this.read(debugLink);
+      buf = await this.withDeadline(() => this.read(debugLink), timeoutMs, "device response");
     } while (!buf);
     const [msgTypeEnum, msg] = this.fromMessageBuffer(buf);
     const event = core.makeEvent({
@@ -286,6 +331,10 @@ export class Transport extends core.Transport {
   ): Promise<core.Event | undefined> {
     options ??= {};
     options.msgTimeout ??= core.DEFAULT_TIMEOUT;
+    this.assertUsable();
+    if (!Number.isFinite(options.msgTimeout) || options.msgTimeout <= 0) {
+      throw new Error("KeepKey msgTimeout must be a positive number of milliseconds");
+    }
 
     this.emit(
       String(msgTypeEnum),
@@ -299,6 +348,7 @@ export class Transport extends core.Transport {
     );
 
     const makePromise = async () => {
+      this.assertUsable();
       if (
         (
           [
@@ -312,11 +362,20 @@ export class Transport extends core.Transport {
       ) {
         this.userActionRequired = true;
       }
-      await this.write(this.toMessageBuffer(msgTypeEnum, msg), !!options?.debugLink);
+      await this.withDeadline(
+        () => this.write(this.toMessageBuffer(msgTypeEnum, msg), !!options?.debugLink),
+        options.msgTimeout!,
+        `writing ${messageNameRegistry[msgTypeEnum] || msgTypeEnum}`
+      );
+      if (msgTypeEnum === 115 || msgTypeEnum === Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTX) {
+        console.info(`[hdwallet] device write complete: ${messageNameRegistry[msgTypeEnum] || msgTypeEnum}`);
+      }
 
       if (options?.noWait) return undefined;
 
-      const response = await this.readResponse(!!options?.debugLink);
+      // Bound a wire response, not the entire interaction. Button/PIN prompts
+      // switch to LONG_TIMEOUT in readResponse after the first reply arrives.
+      const response = await this.readResponse(!!options?.debugLink, options.msgTimeout);
       this.userActionRequired = false;
       if (
         response.message_enum === Messages.MessageType.MESSAGETYPE_FAILURE &&
