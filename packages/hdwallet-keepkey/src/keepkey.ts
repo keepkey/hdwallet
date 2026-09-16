@@ -1198,7 +1198,14 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
     const hash = await this.transport.getFirmwareHash(firmware);
     firmwareUpload.setPayload(firmware);
     firmwareUpload.setPayloadHash(hash);
-    await this.transport.call(Messages.MessageType.MESSAGETYPE_FIRMWAREUPLOAD, firmwareUpload);
+    // FirmwareUpload contains the complete firmware image and is fragmented
+    // into thousands of USB reports. The generic 5-second deadline is suitable
+    // for ordinary protobuf messages, but can expire while this payload is
+    // still being written, after FirmwareErase has already succeeded. Give the
+    // upload the same long-operation budget used for device confirmations.
+    await this.transport.call(Messages.MessageType.MESSAGETYPE_FIRMWAREUPLOAD, firmwareUpload, {
+      msgTimeout: core.LONG_TIMEOUT,
+    });
     this.cacheFeatures(undefined);
   }
 
