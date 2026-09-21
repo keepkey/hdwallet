@@ -26,7 +26,7 @@ const supportedCoins = [
 ];
 
 const segwitCoins = ["Bitcoin", "Testnet", "BitcoinGold", "Litecoin"];
-const taprootCoins = ["Bitcoin", "Testnet"];
+const taprootCoins = ["Bitcoin", "Testnet", "DigiByte"];
 
 function legacyAccount(coin: core.Coin, slip44: number, accountIdx: number): core.BTCAccountPath {
   return {
@@ -573,7 +573,7 @@ export function btcGetAccountPaths(msg: core.BTCGetAccountPaths): Array<core.BTC
         Bitcoin: [bip44, bip49, bip84, bip86],
         Litecoin: [bip44, bip49, bip84],
         Dash: [bip44],
-        DigiByte: [bip44, bip49, bip84],
+        DigiByte: [bip44, bip49, bip84, bip86],
         Dogecoin: [bip44],
         Testnet: [bip44, bip49, bip84, bip86],
         BitcoinCash: [bip44, btcLegacy],
