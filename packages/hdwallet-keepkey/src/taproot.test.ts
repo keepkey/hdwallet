@@ -8,6 +8,8 @@ import { translateInputScriptType, translateOutputScriptType } from "./utils";
 
 const BIP86_ACCOUNT = [0x80000000 + 86, 0x80000000, 0x80000000];
 const BIP86_ADDRESS = [0x80000000 + 86, 0x80000000, 0x80000000, 0, 0];
+const DGB_BIP86_ACCOUNT = [0x80000000 + 86, 0x80000000 + 20, 0x80000000];
+const DGB_BIP86_ADDRESS = [0x80000000 + 86, 0x80000000 + 20, 0x80000000, 0, 0];
 
 function makeMockTransport(callImpl: jest.Mock) {
   return {
@@ -37,6 +39,41 @@ describe("KeepKey Taproot host support", () => {
     ).toEqual([]);
     await expect(btcSupportsScriptType("Litecoin", core.BTCInputScriptType.SpendTaproot)).resolves.toBe(false);
     await expect(btcSupportsScriptType("Bitcoin", core.BTCInputScriptType.SpendTaproot)).resolves.toBe(true);
+  });
+
+  it("offers BIP-86 for DigiByte and recognizes it as the same account", async () => {
+    const paths = btcGetAccountPaths({ coin: "DigiByte", accountIdx: 0 });
+    expect(paths).toContainEqual({
+      coin: "DigiByte",
+      scriptType: core.BTCInputScriptType.SpendTaproot,
+      addressNList: DGB_BIP86_ACCOUNT,
+    });
+    expect(btcIsSameAccount(paths)).toBe(true);
+    await expect(btcSupportsScriptType("DigiByte", core.BTCInputScriptType.SpendTaproot)).resolves.toBe(true);
+  });
+
+  it("serializes a displayed DigiByte BIP-86 address request as SPENDTAPROOT", async () => {
+    const call = jest.fn().mockImplementation((messageType: number, msg: Messages.GetAddress) => {
+      expect(messageType).toBe(Messages.MessageType.MESSAGETYPE_GETADDRESS);
+      expect(msg.getAddressNList()).toEqual(DGB_BIP86_ADDRESS);
+      expect(msg.getCoinName()).toBe("DigiByte");
+      expect(msg.getShowDisplay()).toBe(true);
+      expect(msg.getScriptType()).toBe(Types.InputScriptType.SPENDTAPROOT);
+
+      const response = new Messages.Address();
+      response.setAddress("dgb1ptest");
+      return Promise.resolve({ proto: response });
+    });
+    const wallet = { btcSupportsCoin: jest.fn().mockResolvedValue(true) } as any;
+
+    await expect(
+      btcGetAddress(wallet, makeMockTransport(call), {
+        coin: "DigiByte",
+        addressNList: DGB_BIP86_ADDRESS,
+        showDisplay: true,
+        scriptType: core.BTCInputScriptType.SpendTaproot,
+      })
+    ).resolves.toBe("dgb1ptest");
   });
 
   it("serializes a displayed BIP-86 address request as SPENDTAPROOT", async () => {
@@ -88,6 +125,31 @@ describe("KeepKey Taproot host support", () => {
     ).resolves.toEqual([{ xpub: "xpub-bip86" }]);
   });
 
+  it("derives a DigiByte BIP-86 account xpub with the firmware-compatible SPENDADDRESS wire type", async () => {
+    const call = jest.fn().mockImplementation((messageType: number, msg: Messages.GetPublicKey) => {
+      expect(messageType).toBe(Messages.MessageType.MESSAGETYPE_GETPUBLICKEY);
+      expect(msg.getAddressNList()).toEqual(DGB_BIP86_ACCOUNT);
+      expect(msg.getCoinName()).toBe("DigiByte");
+      expect(msg.getScriptType()).toBe(Types.InputScriptType.SPENDADDRESS);
+
+      const response = new Messages.PublicKey();
+      response.setXpub("xpub-dgb-bip86");
+      return Promise.resolve({ proto: response });
+    });
+    const wallet = new KeepKeyHDWallet(makeMockTransport(call));
+
+    await expect(
+      wallet.getPublicKeys([
+        {
+          coin: "DigiByte",
+          addressNList: DGB_BIP86_ACCOUNT,
+          curve: "secp256k1",
+          scriptType: core.BTCInputScriptType.SpendTaproot,
+        },
+      ])
+    ).resolves.toEqual([{ xpub: "xpub-dgb-bip86" }]);
+  });
+
   it("requires the firmware-reported supports_taproot capability", async () => {
     const supported = new KeepKeyHDWallet(
       makeMockTransport(jest.fn().mockResolvedValue({ message: { supportsTaproot: true } }))
@@ -97,6 +159,10 @@ describe("KeepKey Taproot host support", () => {
     );
 
     await expect(supported.btcSupportsScriptType("Bitcoin", core.BTCInputScriptType.SpendTaproot)).resolves.toBe(true);
+    await expect(supported.btcSupportsScriptType("DigiByte", core.BTCInputScriptType.SpendTaproot)).resolves.toBe(true);
+    await expect(unsupported.btcSupportsScriptType("DigiByte", core.BTCInputScriptType.SpendTaproot)).resolves.toBe(
+      false
+    );
     await expect(unsupported.btcSupportsScriptType("Bitcoin", core.BTCInputScriptType.SpendTaproot)).resolves.toBe(
       false
     );
