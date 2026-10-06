@@ -72,8 +72,16 @@ export class EthereumTypedDataStructRequest extends jspb.Message {
     return writer.getResultBuffer();
   }
   static deserializeBinary(bytes: Uint8Array): EthereumTypedDataStructRequest {
-    const reader = new jspb.BinaryReader(bytes);
-    const msg = new EthereumTypedDataStructRequest();
+    return EthereumTypedDataStructRequest.deserializeBinaryFromReader(
+      new EthereumTypedDataStructRequest(),
+      new jspb.BinaryReader(bytes)
+    );
+  }
+  // The transport decodes every reply through this (transport.ts fromMessageBuffer).
+  static deserializeBinaryFromReader(
+    msg: EthereumTypedDataStructRequest,
+    reader: jspb.BinaryReader
+  ): EthereumTypedDataStructRequest {
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
       if (reader.getFieldNumber() === 1) jspb.Message.setField(msg, 1, reader.readString());
@@ -103,8 +111,16 @@ export class EthereumTypedDataValueRequest extends jspb.Message {
     return writer.getResultBuffer();
   }
   static deserializeBinary(bytes: Uint8Array): EthereumTypedDataValueRequest {
-    const reader = new jspb.BinaryReader(bytes);
-    const msg = new EthereumTypedDataValueRequest();
+    return EthereumTypedDataValueRequest.deserializeBinaryFromReader(
+      new EthereumTypedDataValueRequest(),
+      new jspb.BinaryReader(bytes)
+    );
+  }
+  // The transport decodes every reply through this (transport.ts fromMessageBuffer).
+  static deserializeBinaryFromReader(
+    msg: EthereumTypedDataValueRequest,
+    reader: jspb.BinaryReader
+  ): EthereumTypedDataValueRequest {
     const path: number[] = [];
     while (reader.nextField()) {
       if (reader.isEndGroup()) break;
