@@ -21,7 +21,9 @@ export interface TransportDelegate {
 
 export class TransportTimeoutError extends Error {
   constructor(operation: string, timeoutMs: number) {
-    super(`KeepKey device timed out during ${operation} after ${timeoutMs}ms. Unplug and reconnect your KeepKey before trying again.`);
+    super(
+      `KeepKey device timed out during ${operation} after ${timeoutMs}ms. Unplug and reconnect your KeepKey before trying again.`
+    );
     this.name = "TransportTimeoutError";
   }
 }
@@ -93,7 +95,9 @@ export class Transport extends core.Transport {
             reject(error);
             // Quarantine first. Closing normally cancels the delegate's read,
             // but the timeout must still settle if close itself gets stuck.
-            void Promise.resolve().then(() => this.delegate.disconnect()).catch(() => undefined);
+            void Promise.resolve()
+              .then(() => this.delegate.disconnect())
+              .catch(() => undefined);
           }, timeoutMs);
         }),
       ]);
