@@ -122,6 +122,8 @@ export interface ETHSignedMessage {
 export interface ETHSignTypedData {
   addressNList: BIP32Path;
   typedData: TypedData;
+  /** Signed clear-sign metadata sent before the document (see ETHSignTx). */
+  txMetadata?: ETHSignTx["txMetadata"];
 }
 
 export interface ETHSignedTypedData {

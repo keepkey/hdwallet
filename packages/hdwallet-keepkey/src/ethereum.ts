@@ -368,54 +368,61 @@ function stripLeadingZeroes(buf: Uint8Array) {
   return buf.slice(firstZeroIndex !== -1 ? firstZeroIndex : buf.length);
 }
 
+/** Send signed clear-sign metadata ahead of a signing request. Non-fatal: older
+ * firmware does not know the message and keeps its ordinary review. */
+async function sendTxMetadata(
+  transport: Transport,
+  txMetadata: NonNullable<core.ETHSignTx["txMetadata"]>
+): Promise<void> {
+  const meta = new EthereumTxMetadata();
+  const payload = txMetadata.signedPayload;
+  if (typeof payload === "string") {
+    // Hex string → bytes
+    meta.setSignedPayload(core.arrayify(payload.startsWith("0x") ? payload : "0x" + payload));
+  } else {
+    meta.setSignedPayload(payload);
+  }
+  if (txMetadata.keyId !== undefined) {
+    meta.setKeyId(txMetadata.keyId);
+  }
+  if (txMetadata.metadataVersion !== undefined) {
+    meta.setMetadataVersion(txMetadata.metadataVersion);
+  }
+
+  try {
+    const metaResponse = await transport.call(MESSAGETYPE_ETHEREUMTXMETADATA, meta, {
+      msgTimeout: core.DEFAULT_TIMEOUT,
+      omitLock: true,
+    });
+    const ack = metaResponse.proto as EthereumMetadataAck;
+    const classification = ack.getClassification();
+    const classLabel =
+      classification === METADATA_VERIFIED
+        ? "VERIFIED"
+        : classification === METADATA_MALFORMED
+        ? "MALFORMED"
+        : "OPAQUE";
+    // eslint-disable-next-line no-console -- intentional diagnostics for clear-sign debugging
+    console.warn(
+      `[hdwallet] EthereumTxMetadata response: ${classLabel} (${classification})` +
+        ` summary="${ack.getDisplaySummary()}"`
+    );
+    if (classification === METADATA_MALFORMED) {
+      console.warn("[hdwallet] Metadata blob is MALFORMED — device will fall back to blind signing");
+    }
+  } catch (e) {
+    // Metadata send failed — fall through to regular signing (blind mode)
+    // This is non-fatal: older firmware versions don't support this message.
+    console.warn("[hdwallet] EthereumTxMetadata not supported or failed, falling back to blind signing:", e);
+  }
+}
+
 export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Promise<core.ETHSignedTx> {
   return transport.lockDuring(async () => {
     // ── EVM Clear-Signing: send metadata BEFORE EthereumSignTx ──────
     // If txMetadata is present, the firmware can verify the signed blob
     // and display decoded contract call info on the OLED instead of raw hex.
-    if (msg.txMetadata?.signedPayload) {
-      const meta = new EthereumTxMetadata();
-      const payload = msg.txMetadata.signedPayload;
-      if (typeof payload === "string") {
-        // Hex string → bytes
-        meta.setSignedPayload(core.arrayify(payload.startsWith("0x") ? payload : "0x" + payload));
-      } else {
-        meta.setSignedPayload(payload);
-      }
-      if (msg.txMetadata.keyId !== undefined) {
-        meta.setKeyId(msg.txMetadata.keyId);
-      }
-      if (msg.txMetadata.metadataVersion !== undefined) {
-        meta.setMetadataVersion(msg.txMetadata.metadataVersion);
-      }
-
-      try {
-        const metaResponse = await transport.call(MESSAGETYPE_ETHEREUMTXMETADATA, meta, {
-          msgTimeout: core.DEFAULT_TIMEOUT,
-          omitLock: true,
-        });
-        const ack = metaResponse.proto as EthereumMetadataAck;
-        const classification = ack.getClassification();
-        const classLabel =
-          classification === METADATA_VERIFIED
-            ? "VERIFIED"
-            : classification === METADATA_MALFORMED
-            ? "MALFORMED"
-            : "OPAQUE";
-        // eslint-disable-next-line no-console -- intentional diagnostics for clear-sign debugging
-        console.warn(
-          `[hdwallet] EthereumTxMetadata response: ${classLabel} (${classification})` +
-            ` summary="${ack.getDisplaySummary()}"`
-        );
-        if (classification === METADATA_MALFORMED) {
-          console.warn("[hdwallet] Metadata blob is MALFORMED — device will fall back to blind signing");
-        }
-      } catch (e) {
-        // Metadata send failed — fall through to regular signing (blind mode)
-        // This is non-fatal: older firmware versions don't support this message.
-        console.warn("[hdwallet] EthereumTxMetadata not supported or failed, falling back to blind signing:", e);
-      }
-    }
+    if (msg.txMetadata?.signedPayload) await sendTxMetadata(transport, msg.txMetadata);
 
     const est: Ethereum.EthereumSignTx = new Ethereum.EthereumSignTx();
     est.setAddressNList(msg.addressNList);
@@ -828,6 +835,9 @@ export async function ethSignTypedData(
       const EIP_712_DOMAIN = "EIP712Domain";
       const typedData = withEip712DomainType(msg.typedData);
       const { primaryType, domain, message } = typedData;
+      // A certified name record (e.g. a Permit2 spender) rides ahead of the
+      // document; the device shows it only beside the address it names.
+      if (msg.txMetadata?.signedPayload) await sendTxMetadata(transport, msg.txMetadata);
 
       // Prefer the streaming path for EVERY document: the device parses and
       // displays the fields itself, instead of signing two opaque hashes.
