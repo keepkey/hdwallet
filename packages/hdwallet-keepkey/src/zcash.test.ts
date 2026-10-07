@@ -407,6 +407,56 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(result).toHaveLength(1);
     expect((result as any)._transparentSignatures).toBeUndefined();
   });
+
+  it("sends no host sighash and forwards the payee user_address", async () => {
+    // Record the setter call; the published device-protocol may not have it yet.
+    const proto = ZcashMessages.ZcashPCZTAction.prototype as any;
+    const original = proto.setUserAddress;
+    const userAddresses: Array<[number, string]> = [];
+    proto.setUserAddress = function (this: any, value: string) {
+      userAddresses.push([this.getIndex(), value]);
+    };
+    try {
+      const actions: any[] = [];
+      const call = jest.fn().mockImplementation((mtype: number, msg: any) => {
+        if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION) actions.push(msg);
+        if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION && actions.length === 2) {
+          const signed = new ZcashMessages.ZcashSignedPCZT();
+          signed.addSignatures(new Uint8Array(64).fill(0x42));
+          return Promise.resolve({
+            message_enum: Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT,
+            message_type: "ZcashSignedPCZT",
+            proto: signed,
+          });
+        }
+        const ack = new ZcashMessages.ZcashPCZTActionAck();
+        ack.setNextIndex(actions.length);
+        return Promise.resolve({
+          message_enum: Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK,
+          message_type: "ZcashPCZTActionAck",
+          proto: ack,
+        });
+      });
+
+      const request = {
+        ...SHIELD_REQUEST,
+        actions: SHIELD_REQUEST.actions.map((action, index) =>
+          index === 0 ? { ...action, user_address: "u1payee" } : { ...action, is_spend: true }
+        ),
+        transparent_inputs: [],
+        transparent_outputs: [],
+      };
+
+      await zcashSignPczt(makeMockTransport(call), request, SIGHASH);
+
+      expect(actions).toHaveLength(2);
+      for (const msg of actions) expect(msg.hasSighash()).toBe(false);
+      expect(userAddresses).toEqual([[0, "u1payee"]]);
+    } finally {
+      if (original) proto.setUserAddress = original;
+      else delete proto.setUserAddress;
+    }
+  });
 });
 
 // Deshield (Z→T): 1 transparent output, 0 transparent inputs, 2 Ironwood actions.

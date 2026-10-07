@@ -138,12 +138,14 @@ export async function zcashSignPczt(
       is_spend: boolean;
       recipient?: string;
       rseed?: string;
+      /** ZIP 374: the Unified Address the user typed (payee output only) */
+      user_address?: string;
     }>;
     display: { amount: string; fee: string; to?: string; action?: string };
     transparent_inputs?: TransparentInput[];
     transparent_outputs?: TransparentOutput[];
   },
-  sighash: string
+  _sighash: string // unused: 7.15 firmware refuses a host action sighash
 ): Promise<string[]> {
   const account = signingRequest.account ?? 0;
   const transparentInputs = signingRequest.transparent_inputs ?? [];
@@ -406,7 +408,6 @@ export async function zcashSignPczt(
       const actionMsg = new ZcashMessages.ZcashPCZTAction();
       actionMsg.setIndex(action.index);
       actionMsg.setAlpha(hexToBytes(action.alpha));
-      actionMsg.setSighash(hexToBytes(sighash));
       actionMsg.setCvNet(hexToBytes(action.cv_net));
       actionMsg.setValue(action.value);
       actionMsg.setIsSpend(action.is_spend);
@@ -422,6 +423,11 @@ export async function zcashSignPczt(
       // Clear-signing: firmware 7.15+ requires recipient + rseed for output actions
       if (action.recipient) actionMsg.setRecipient(hexToBytes(action.recipient));
       if (action.rseed) actionMsg.setRseed(hexToBytes(action.rseed));
+      // ZIP 374: needs a device-protocol build with ZcashPCZTAction.user_address
+      const withUserAddress = actionMsg as unknown as { setUserAddress?: (value: string) => void };
+      if (action.user_address && typeof withUserAddress.setUserAddress === "function") {
+        withUserAddress.setUserAddress(action.user_address);
+      }
 
       response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION, actionMsg, {
         msgTimeout: core.LONG_TIMEOUT,
