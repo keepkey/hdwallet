@@ -1,14 +1,18 @@
 import {
+  answerValueRequest,
+  checkLongValues,
   encodeArrayLength,
   encodeValue,
   EthereumDataType,
   FieldType,
+  MAX_VALUE_BYTES,
   parseSolidityType,
   Resolved,
   resolveMemberPath,
   runEip712Walk,
   structMembers,
   TypedDataDoc,
+  ValueAck,
 } from "./eip712Streaming";
 
 const hex = (b: Uint8Array) => Buffer.from(b).toString("hex");
@@ -300,6 +304,10 @@ describe("dynamic leaves are capped at the wire limit", () => {
 // domain first, then the message, walking into PermitDetails.
 
 describe("runEip712Walk", () => {
+  const sent: ValueAck[] = [];
+  beforeEach(() => {
+    sent.length = 0;
+  });
   const WIRE = {
     SIGN: 1704,
     STRUCT_REQUEST: 1705,
@@ -310,8 +318,14 @@ describe("runEip712Walk", () => {
     encodeSign: (n: number[], p: string) => new TextEncoder().encode(JSON.stringify({ n, p })),
     decodeStructRequest: (b: Uint8Array) => new TextDecoder().decode(b),
     encodeStructAck: (m: Array<{ name: string; type: FieldType }>) => new TextEncoder().encode(JSON.stringify(m)),
-    decodeValueRequest: (b: Uint8Array) => JSON.parse(new TextDecoder().decode(b)) as number[],
-    encodeValueAck: (v: Uint8Array) => v,
+    decodeValueRequest: (b: Uint8Array) => {
+      const r = JSON.parse(new TextDecoder().decode(b));
+      return Array.isArray(r) ? { path: r as number[] } : (r as { path: number[]; offset?: number });
+    },
+    encodeValueAck: (ack: ValueAck) => {
+      sent.push(ack);
+      return ack.value;
+    },
     decodeSignature: () => ({ address: "0xabc", signature: "0xsig" }),
   };
 
@@ -381,11 +395,194 @@ describe("runEip712Walk", () => {
     await expect(runEip712Walk(PERMIT2, [44], WIRE, call)).rejects.toThrow(/Unexpected message 9999/);
   });
 
+  const BLOB: TypedDataDoc = {
+    types: {
+      EIP712Domain: [{ name: "name", type: "string" }],
+      Blob: [{ name: "data", type: "bytes" }],
+    },
+    primaryType: "Blob",
+    domain: { name: "Blob" },
+    message: { data: "0x" + "ab".repeat(2500) },
+  };
+
+  it("sends a value over 1 KB in chunks to firmware that takes them", async () => {
+    const { call } = scriptedDevice([
+      { type: WIRE.VALUE_REQUEST, payload: "[1,0]" },
+      { type: WIRE.VALUE_REQUEST, payload: '{"path":[1,0],"offset":1024}' },
+      { type: WIRE.VALUE_REQUEST, payload: '{"path":[1,0],"offset":2048}' },
+    ]);
+    await runEip712Walk(BLOB, [44], WIRE, call, undefined, "chunk");
+    expect(sent.map((a) => [a.value.length, a.totalLength, a.offset])).toEqual([
+      [1024, 2500, undefined],
+      [1024, undefined, 1024],
+      [452, undefined, 2048],
+    ]);
+  });
+
+  it("refuses a value over 1 KB on 7.16 without the capability, sending no ack", async () => {
+    // That firmware skips the chunk fields and would hash the first chunk.
+    const { call } = scriptedDevice([{ type: WIRE.VALUE_REQUEST, payload: "[1,0]" }]);
+    await expect(runEip712Walk(BLOB, [44], WIRE, call, undefined, "refuse")).rejects.toThrow(/chunked values/);
+    expect(sent).toEqual([]);
+  });
+
+  it("below 7.16, fails a value over 1 KB as it always has and never reads an offset", async () => {
+    const { call } = scriptedDevice([{ type: WIRE.VALUE_REQUEST, payload: "[1,0]" }]);
+    await expect(runEip712Walk(BLOB, [44], WIRE, call)).rejects.toThrow(
+      "bytes value is 2500 bytes, over the 1024-byte wire limit"
+    );
+    expect(sent).toEqual([]);
+    const short = { ...BLOB, message: { data: "0xabcd" } };
+    const again = scriptedDevice([{ type: WIRE.VALUE_REQUEST, payload: '{"path":[1,0],"offset":1024}' }]);
+    await runEip712Walk(short, [44], WIRE, again.call);
+    expect(sent).toEqual([{ value: new Uint8Array([0xab, 0xcd]) }]);
+  });
+
+  /** A 7.16 device reading [1,0]: whole once, then, for a string, again from 0. */
+  function chunkReader(total: number, text: boolean) {
+    const requests: Array<{ path: number[]; offset?: number }> = [{ path: [1, 0] }];
+    for (let at = 1024; at < total; at += 1024) requests.push({ path: [1, 0], offset: at });
+    if (text) for (let at = 0; at < total; at += 1024) requests.push({ path: [1, 0], offset: at });
+    let i = 0;
+    return async () => {
+      const next = requests[i++];
+      if (!next) return { type: WIRE.SIGNATURE, payload: new Uint8Array() };
+      return { type: WIRE.VALUE_REQUEST, payload: new TextEncoder().encode(JSON.stringify(next)) };
+    };
+  }
+
+  it("finishes a 1 MiB string: its offset requests are not round trips", async () => {
+    const body = "z".repeat(MAX_VALUE_BYTES);
+    const types = { ...BLOB.types, Blob: [{ name: "data", type: "string" }] };
+    const doc = { ...BLOB, types, message: { data: body } };
+    // Keep only what each ack says: every chunk is a view of a 1 MiB buffer.
+    const acks: Array<[number, number | undefined, number | undefined]> = [];
+    const wire = {
+      ...WIRE,
+      encodeValueAck: (ack: ValueAck) => {
+        acks.push([ack.value.length, ack.totalLength, ack.offset]);
+        return new Uint8Array();
+      },
+    };
+    const out = await runEip712Walk(doc, [44], wire, chunkReader(MAX_VALUE_BYTES, true), undefined, "chunk");
+    expect(out.signature).toBe("0xsig");
+    // 1 + 1023 + 1024 acks, far past MAX_ROUND_TRIPS (512).
+    expect(acks.length).toBe(2048);
+    expect(acks[0]).toEqual([1024, MAX_VALUE_BYTES, undefined]);
+    expect(acks[1024]).toEqual([1024, undefined, 0]);
+    expect(acks.slice(1).every(([, total]) => total === undefined)).toBe(true);
+    expect(acks.slice(1024).reduce((n, [length]) => n + length, 0)).toBe(MAX_VALUE_BYTES);
+  }, 30000);
+
+  it("stops a device that keeps asking for the same value's chunks", async () => {
+    const call = async () => ({
+      type: WIRE.VALUE_REQUEST,
+      payload: new TextEncoder().encode(sent.length === 0 ? "[1,0]" : '{"path":[1,0],"offset":1024}'),
+    });
+    await expect(runEip712Walk(BLOB, [44], WIRE, call, undefined, "chunk")).rejects.toThrow(/too many times/);
+    // The first chunk, then at most two readings of each of its three chunks.
+    expect(sent.length).toBe(1 + 2 * 3);
+  });
+
+  it("refuses an offset for a value that is not being sent in chunks", async () => {
+    const doc = {
+      ...BLOB,
+      types: {
+        ...BLOB.types,
+        Blob: [
+          { name: "data", type: "bytes" },
+          { name: "more", type: "bytes" },
+        ],
+      },
+      message: { data: BLOB.message.data, more: BLOB.message.data },
+    };
+    const mismatched = scriptedDevice([
+      { type: WIRE.VALUE_REQUEST, payload: "[1,0]" },
+      { type: WIRE.VALUE_REQUEST, payload: '{"path":[1,1],"offset":1024}' },
+    ]);
+    await expect(runEip712Walk(doc, [44], WIRE, mismatched.call, undefined, "chunk")).rejects.toThrow(
+      /offset 1024 of 1.1, which is not being sent in chunks/
+    );
+    const unasked = scriptedDevice([{ type: WIRE.VALUE_REQUEST, payload: '{"path":[1,0],"offset":1024}' }]);
+    await expect(runEip712Walk(doc, [44], WIRE, unasked.call, undefined, "chunk")).rejects.toThrow(
+      /not being sent in chunks/
+    );
+  });
+
   it("gives up rather than looping forever on a device that never finishes", async () => {
     const call = async () => ({
       type: WIRE.STRUCT_REQUEST,
       payload: new TextEncoder().encode("PermitDetails"),
     });
     await expect(runEip712Walk(PERMIT2, [44], WIRE, call)).rejects.toThrow(/did not terminate/);
+  });
+});
+
+describe("answerValueRequest", () => {
+  const DOC: TypedDataDoc = {
+    types: {
+      EIP712Domain: [{ name: "name", type: "string" }],
+      Msg: [
+        { name: "data", type: "bytes" },
+        { name: "note", type: "string" },
+        { name: "list", type: "uint8[]" },
+      ],
+    },
+    primaryType: "Msg",
+    domain: { name: "x".repeat(1025) },
+    message: { data: "0x" + "ab".repeat(1025), note: "y".repeat(1024), list: [1] },
+  };
+
+  it("chunks only past 1 KB, and only on firmware that takes chunks", () => {
+    expect(() => answerValueRequest(DOC, [1, 0], undefined, "refuse")).toThrow(/chunked values/);
+    expect(() => answerValueRequest(DOC, [1, 0], undefined, "legacy")).toThrow(/over the 1024-byte wire limit/);
+    const first = answerValueRequest(DOC, [1, 0], undefined, "chunk");
+    expect([first.value.length, first.totalLength, first.offset]).toEqual([1024, 1025, undefined]);
+    const last = answerValueRequest(DOC, [1, 0], 1024, "chunk");
+    expect([hex(last.value), last.totalLength, last.offset]).toEqual(["ab", undefined, 1024]);
+    // A string is read a second time from 0, and the 0 is echoed.
+    const again = answerValueRequest(DOC, [1, 0], 0, "chunk");
+    expect([again.value.length, again.totalLength, again.offset]).toEqual([1024, undefined, 0]);
+    expect(() => answerValueRequest(DOC, [1, 0], 1025, "chunk")).toThrow(/offset 1025/);
+    for (const mode of ["legacy", "refuse", "chunk"] as const) {
+      const whole = answerValueRequest(DOC, [1, 1], undefined, mode);
+      expect(whole).toEqual({ value: new TextEncoder().encode("y".repeat(1024)) });
+    }
+    expect(() => answerValueRequest(DOC, [1, 1], 0, "chunk")).toThrow(/offset 0 of a 1024-byte value/);
+  });
+
+  it("never chunks a domain value, an array length, or past the device's cap", () => {
+    expect(() => answerValueRequest(DOC, [0, 0], undefined, "chunk")).toThrow(/domain/);
+    expect(() => answerValueRequest(DOC, [1, 2], 0, "chunk")).toThrow(/array length/);
+    const huge = { ...DOC, message: { ...DOC.message, data: "0x" + "00".repeat(MAX_VALUE_BYTES + 1) } };
+    expect(() => answerValueRequest(huge, [1, 0], undefined, "chunk")).toThrow(/wire limit/);
+  });
+});
+
+describe("checkLongValues", () => {
+  const doc = (domainName: string, notes: string[]): TypedDataDoc => ({
+    types: {
+      EIP712Domain: [{ name: "name", type: "string" }],
+      Outer: [{ name: "inner", type: "Inner[]" }],
+      Inner: [{ name: "note", type: "string" }],
+    },
+    primaryType: "Outer",
+    domain: { name: domainName },
+    message: { inner: notes.map((note) => ({ note })) },
+  });
+  const long = "x".repeat(1025);
+
+  it("finds a long value anywhere in the document", () => {
+    expect(() => checkLongValues(doc("d", ["a", long]), "refuse")).toThrow(/chunked values/);
+    expect(() => checkLongValues(doc("d", ["a", long]), "chunk")).not.toThrow();
+    expect(() => checkLongValues(doc(long, []), "chunk")).toThrow(/domain value/);
+    const huge = "x".repeat(MAX_VALUE_BYTES + 1);
+    expect(() => checkLongValues(doc("d", [huge]), "chunk")).toThrow(/at most 1048576/);
+  });
+
+  it("changes nothing below 7.16, and leaves malformed values to the walk", () => {
+    expect(() => checkLongValues(doc(long, [long]), "legacy")).not.toThrow();
+    const bad = { ...doc("d", []), message: { inner: [{ note: 42 }] } };
+    expect(() => checkLongValues(bad, "refuse")).not.toThrow();
   });
 });

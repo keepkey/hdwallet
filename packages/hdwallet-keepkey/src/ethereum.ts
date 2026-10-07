@@ -8,7 +8,16 @@ import { getStructHash } from "eip-712";
 import * as eip55 from "eip55";
 import * as jspb from "google-protobuf";
 
-import { Eip712Call, Eip712Wire as Eip712WireShape, FieldType, runEip712Walk, TypedDataDoc } from "./eip712Streaming";
+import {
+  checkLongValues,
+  Eip712Call,
+  Eip712Wire as Eip712WireShape,
+  FieldType,
+  LongValues,
+  runEip712Walk,
+  TypedDataDoc,
+  ValueAck,
+} from "./eip712Streaming";
 import * as Eip712Wire from "./eip712Wire";
 import * as Erc7730Proto from "./ethereum-erc7730-proto";
 import { Transport } from "./transport";
@@ -927,7 +936,9 @@ async function signTypedDataStreaming(
   transport: Transport,
   addressNList: number[],
   typedData: TypedDataDoc,
-  erc7730?: NonNullable<core.ETHSignTypedData["erc7730"]>
+  erc7730: NonNullable<core.ETHSignTypedData["erc7730"]> | undefined,
+  longValues: LongValues,
+  walk: { started: boolean }
 ): Promise<core.ETHSignedTypedData> {
   const wire: Eip712WireShape = {
     SIGN: Eip712Wire.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA,
@@ -949,11 +960,15 @@ async function signTypedDataStreaming(
     decodeStructRequest: (b: Uint8Array) => Eip712Wire.EthereumTypedDataStructRequest.deserializeBinary(b).getName(),
     encodeStructAck: (members: Array<{ name: string; type: FieldType }>) =>
       new Eip712Wire.EthereumTypedDataStructAck(members).serializeBinary(),
-    decodeValueRequest: (b: Uint8Array) =>
-      Eip712Wire.EthereumTypedDataValueRequest.deserializeBinary(b).getMemberPathList(),
-    encodeValueAck: (v: Uint8Array) => {
+    decodeValueRequest: (b: Uint8Array) => {
+      const r = Eip712Wire.EthereumTypedDataValueRequest.deserializeBinary(b);
+      return { path: r.getMemberPathList(), offset: r.getValueOffset() };
+    },
+    encodeValueAck: (ack: ValueAck) => {
       const m = new Eip712Wire.EthereumTypedDataValueAck();
-      m.setValue(v);
+      m.setValue(ack.value);
+      if (ack.totalLength !== undefined) m.setValueTotalLength(ack.totalLength);
+      if (ack.offset !== undefined) m.setValueOffset(ack.offset);
       return m.serializeBinary();
     },
     decodeSignature: (b: Uint8Array) => {
@@ -971,6 +986,8 @@ async function signTypedDataStreaming(
       msgTimeout: core.LONG_TIMEOUT,
       omitLock: true,
     });
+    // The device took the document: from here on a failure is its answer.
+    walk.started = true;
     // 7.16 asks for the preloaded definition once it has the primary type's
     // typeHash, and again during field passes. Answer it here: the walk only
     // knows struct and value requests, and the request class serializes empty.
@@ -991,7 +1008,14 @@ async function signTypedDataStreaming(
   };
 
   // Each ERC-7730 field pass walks the whole message again.
-  const out = await runEip712Walk(typedData, addressNList, wire, call, erc7730 ? ERC7730_MAX_ROUND_TRIPS : undefined);
+  const out = await runEip712Walk(
+    typedData,
+    addressNList,
+    wire,
+    call,
+    erc7730 ? ERC7730_MAX_ROUND_TRIPS : undefined,
+    longValues
+  );
   // A preload dropped before the document leaves 7.16 signing without it.
   // Never let that pass as a clear-sign.
   if (erc7730 && definitionRequests === 0) throw new Error("ERC-7730 definition was not used by the device");
@@ -1042,6 +1066,21 @@ async function signStructuredEip712(
 }
 
 /**
+ * What typed data does with a value over 1 KB on this device, from its cached
+ * Features. Fails closed: chunks only on 7.16.0 or later that reports
+ * CAPABILITY_EIP712_CHUNKED_VALUES; unknown or older firmware keeps the
+ * pre-chunking behaviour.
+ */
+export function typedDataLongValues(features: Messages.Features.AsObject | undefined): LongValues {
+  const major = features?.majorVersion;
+  const minor = features?.minorVersion;
+  if (typeof major !== "number" || typeof minor !== "number") return "legacy";
+  if (major < 7 || (major === 7 && minor < 16)) return "legacy";
+  const capabilities: number[] = features?.capabilitiesList ?? [];
+  return capabilities.includes(Messages.Features.Capability.CAPABILITY_EIP712_CHUNKED_VALUES) ? "chunk" : "refuse";
+}
+
+/**
  * Supports EIP-712 eth_signTypedData_v4.
  *
  * x402's EIP-3009 TransferWithAuthorization uses the firmware's structured
@@ -1051,9 +1090,14 @@ async function signStructuredEip712(
  */
 export async function ethSignTypedData(
   transport: Transport,
-  msg: core.ETHSignTypedData
+  msg: core.ETHSignTypedData,
+  longValues: LongValues = "legacy"
 ): Promise<core.ETHSignedTypedData> {
   try {
+    // On 7.16+, a value the device cannot take is refused before anything is sent.
+    if (longValues !== "legacy") {
+      checkLongValues(withEip712DomainType(msg.typedData) as unknown as TypedDataDoc, longValues);
+    }
     return await transport.lockDuring(async () => {
       const EIP_712_DOMAIN = "EIP712Domain";
       const typedData = withEip712DomainType(msg.typedData);
@@ -1066,12 +1110,15 @@ export async function ethSignTypedData(
 
       // Prefer the streaming path for EVERY document: the device parses and
       // displays the fields itself, instead of signing two opaque hashes.
+      const walk = { started: false };
       try {
         return await signTypedDataStreaming(
           transport,
           msg.addressNList,
           typedData as unknown as TypedDataDoc,
-          msg.erc7730
+          msg.erc7730,
+          longValues,
+          walk
         );
       } catch (e) {
         // Only "this firmware has no structured endpoint" degrades. Anything
@@ -1080,6 +1127,10 @@ export async function ethSignTypedData(
         // With a definition there is no fallback: the legacy paths cannot
         // use it, and signing without it would drop the description.
         if (msg.erc7730 || !structuredEip712Unavailable(e)) throw e;
+        // On 7.16+ only the reply to the document itself can say "no
+        // structured endpoint". Once the device has started the walk, a long
+        // value may already be on its screen; never re-sign it blind.
+        if (longValues !== "legacy" && walk.started) throw e;
       }
 
       if (isX402Eip3009(typedData)) {
