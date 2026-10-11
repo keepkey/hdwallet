@@ -12,7 +12,7 @@
 import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as ZcashMessages from "@keepkey/device-protocol/lib/messages-zcash_pb";
 
-import { zcashSignPczt } from "./zcash";
+import { isZcashTransparentPath, zcashSignPczt } from "./zcash";
 
 // Realistic signing request that mirrors what the Rust sidecar returns for a
 // NU6.3 shield transaction: 1 transparent input, 1 transparent output,
@@ -407,6 +407,56 @@ describe("zcashSignPczt — shield tx (1 output, 1 input, 2 actions)", () => {
     expect(result).toHaveLength(1);
     expect((result as any)._transparentSignatures).toBeUndefined();
   });
+
+  it("sends no host sighash and forwards the payee user_address", async () => {
+    // Record the setter call; the published device-protocol may not have it yet.
+    const proto = ZcashMessages.ZcashPCZTAction.prototype as any;
+    const original = proto.setUserAddress;
+    const userAddresses: Array<[number, string]> = [];
+    proto.setUserAddress = function (this: any, value: string) {
+      userAddresses.push([this.getIndex(), value]);
+    };
+    try {
+      const actions: any[] = [];
+      const call = jest.fn().mockImplementation((mtype: number, msg: any) => {
+        if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION) actions.push(msg);
+        if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION && actions.length === 2) {
+          const signed = new ZcashMessages.ZcashSignedPCZT();
+          signed.addSignatures(new Uint8Array(64).fill(0x42));
+          return Promise.resolve({
+            message_enum: Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT,
+            message_type: "ZcashSignedPCZT",
+            proto: signed,
+          });
+        }
+        const ack = new ZcashMessages.ZcashPCZTActionAck();
+        ack.setNextIndex(actions.length);
+        return Promise.resolve({
+          message_enum: Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTIONACK,
+          message_type: "ZcashPCZTActionAck",
+          proto: ack,
+        });
+      });
+
+      const request = {
+        ...SHIELD_REQUEST,
+        actions: SHIELD_REQUEST.actions.map((action, index) =>
+          index === 0 ? { ...action, user_address: "u1payee" } : { ...action, is_spend: true }
+        ),
+        transparent_inputs: [],
+        transparent_outputs: [],
+      };
+
+      await zcashSignPczt(makeMockTransport(call), request, SIGHASH);
+
+      expect(actions).toHaveLength(2);
+      for (const msg of actions) expect(msg.hasSighash()).toBe(false);
+      expect(userAddresses).toEqual([[0, "u1payee"]]);
+    } finally {
+      if (original) proto.setUserAddress = original;
+      else delete proto.setUserAddress;
+    }
+  });
 });
 
 // Deshield (Z→T): 1 transparent output, 0 transparent inputs, 2 Ironwood actions.
@@ -576,5 +626,173 @@ describe("zcashSignPczt — deshield tx (1 output, 0 inputs, 2 actions)", () => 
     // Deshield has a transparent phase (outputs) but no ECDSA sigs (no transparent inputs)
     expect(result).toHaveLength(1);
     expect((result as any)._transparentSignatures).toEqual([]);
+  });
+});
+
+// ZIP-320 TEX step 2: the wallet's one-time transparent output (change index 2)
+// pays the P2PKH hash of a tex1 address. No shielded actions at all.
+const TEX_STEP2_REQUEST = {
+  n_actions: 0,
+  account: 0,
+  branch_id: 0x37a5165b,
+  header_fields: { tx_version: 6, version_group_id: 0xd884b698, lock_time: 0, expiry_height: 0 },
+  digests: {
+    header: "59bc2475723880114749687687be420e7e3389ce82e0ad6b9ba62e0a28457d3d",
+    transparent: "f6424c87af931906154bc15c40fa50b9323fc99271e5c1a98c2d9cc214eb9f94",
+    orchard: "a8554ee3a53af330a6b6cf56112a203d3d028f2e421cb494a3f590161d27414a",
+    ironwood: "d3a4b955c966b1bb59ebb541584c5e8fb51b5d10d76308b63767db4fefc01e59",
+  },
+  display: { amount: "0.01000000 ZEC", fee: "0.00010000 ZEC", to: "tex1s2rt77ggv6q989lr49rkgzmh5slsksa9khdgte" },
+  transparent_outputs: [{ index: 0, value: 1000000, script_pubkey: "76a914" + "ab".repeat(20) + "88ac", is_tex: true }],
+  transparent_inputs: [
+    {
+      index: 0,
+      addressNList: [0x80000000 + 44, 0x80000000 + 133, 0x80000000, 2, 5],
+      amount: 1010000,
+      prevoutTxid: "11".repeat(32),
+      prevoutIndex: 0,
+      sequence: 0xffffffff,
+      scriptPubkey: "76a914" + "cd".repeat(20) + "88ac",
+    },
+  ],
+  actions: [],
+};
+
+/** Record calls to a setter the published device-protocol may not have yet. */
+function stubSetter(proto: any, name: string, record: Array<[number, unknown]>): () => void {
+  const original = proto[name];
+  proto[name] = function (this: any, value: unknown) {
+    record.push([this.getIndex(), value]);
+  };
+  return () => {
+    if (original) proto[name] = original;
+    else delete proto[name];
+  };
+}
+
+function transparentOnlyTransport(captured: { calls: number[]; msgs: any[] }) {
+  const transparentSigned = new ZcashMessages.ZcashTransparentSigned();
+  transparentSigned.addSignatures(new Uint8Array(71).fill(0x30));
+  const readResponse = jest.fn().mockResolvedValue({
+    message_enum: Messages.MessageType.MESSAGETYPE_ZCASHSIGNEDPCZT,
+    message_type: "ZcashSignedPCZT",
+    proto: new ZcashMessages.ZcashSignedPCZT(),
+  });
+  const call = jest.fn().mockImplementation((mtype: number, msg: any) => {
+    captured.calls.push(mtype);
+    captured.msgs.push(msg);
+    if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT) {
+      const ack = new ZcashMessages.ZcashTransparentAck();
+      ack.setNextOutputIndex(0);
+      return Promise.resolve({
+        message_enum: Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTACK,
+        message_type: "ZcashTransparentAck",
+        proto: ack,
+      });
+    }
+    if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTOUTPUT) {
+      const ack = new ZcashMessages.ZcashTransparentAck();
+      ack.setNextInputIndex(0);
+      return Promise.resolve({
+        message_enum: Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTACK,
+        message_type: "ZcashTransparentAck",
+        proto: ack,
+      });
+    }
+    if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT) {
+      return Promise.resolve({
+        message_enum: Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTSIGNED,
+        message_type: "ZcashTransparentSigned",
+        proto: transparentSigned,
+      });
+    }
+    throw new Error(`unexpected call: ${mtype}`);
+  });
+  return { transport: makeMockTransport(call, readResponse), readResponse };
+}
+
+describe("zcashSignPczt — transparent-only TEX step 2 (n_actions = 0)", () => {
+  it("signs the ephemeral input and marks the output as TEX", async () => {
+    const texFlags: Array<[number, unknown]> = [];
+    const restore = stubSetter(ZcashMessages.ZcashTransparentOutput.prototype, "setIsTex", texFlags);
+    try {
+      const captured = { calls: [] as number[], msgs: [] as any[] };
+      const { transport, readResponse } = transparentOnlyTransport(captured);
+      const result = (await zcashSignPczt(transport, TEX_STEP2_REQUEST, "")) as any;
+
+      expect(captured.calls).toEqual([
+        Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT,
+        Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTOUTPUT,
+        Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT,
+      ]);
+      expect(readResponse).toHaveBeenCalledTimes(1);
+
+      const signMsg = captured.msgs[0] as ZcashMessages.ZcashSignPCZT;
+      expect(signMsg.getNActions()).toBe(0);
+      expect(signMsg.getNTransparentInputs()).toBe(1);
+      expect(signMsg.getNTransparentOutputs()).toBe(1);
+      expect(signMsg.hasOrchardFlags()).toBe(false);
+
+      const inputMsg = captured.msgs[2] as ZcashMessages.ZcashTransparentInput;
+      expect(inputMsg.getAddressNList()).toEqual([0x80000000 + 44, 0x80000000 + 133, 0x80000000, 2, 5]);
+
+      expect(texFlags).toEqual([[0, true]]);
+      expect(result).toHaveLength(0);
+      expect(result._transparentSignatures).toHaveLength(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("forwards the one-time address path of a TEX step-1 output", async () => {
+    const paths: Array<[number, unknown]> = [];
+    const restore = stubSetter(ZcashMessages.ZcashTransparentOutput.prototype, "setAddressNList", paths);
+    try {
+      const ephemeral = [0x80000000 + 44, 0x80000000 + 133, 0x80000000, 2, 5];
+      const call = jest.fn().mockImplementation((mtype: number) => {
+        if (mtype === Messages.MessageType.MESSAGETYPE_ZCASHSIGNPCZT) {
+          const ack = new ZcashMessages.ZcashTransparentAck();
+          ack.setNextOutputIndex(0);
+          return Promise.resolve({
+            message_enum: Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTACK,
+            message_type: "ZcashTransparentAck",
+            proto: ack,
+          });
+        }
+        // Abort after the output: only the output message matters here.
+        return Promise.reject(new Error("TEST_ABORT"));
+      });
+      const request = {
+        ...DESHIELD_REQUEST,
+        transparent_outputs: [{ ...DESHIELD_REQUEST.transparent_outputs[0], address_n: ephemeral }],
+      };
+      await zcashSignPczt(makeMockTransport(call), request, SIGHASH).catch((e) => {
+        if (!String(e?.message).includes("TEST_ABORT")) throw e;
+      });
+      expect(paths).toEqual([[0, ephemeral]]);
+    } finally {
+      restore();
+    }
+  });
+
+  it("accepts change index 2 and refuses other change indexes", async () => {
+    const captured = { calls: [] as number[], msgs: [] as any[] };
+    const { transport } = transparentOnlyTransport(captured);
+    const bad = {
+      ...TEX_STEP2_REQUEST,
+      transparent_inputs: [
+        {
+          ...TEX_STEP2_REQUEST.transparent_inputs[0],
+          addressNList: [0x80000000 + 44, 0x80000000 + 133, 0x80000000, 3, 5],
+        },
+      ],
+    };
+    await expect(zcashSignPczt(transport, bad, "")).rejects.toThrow(/\{0,1,2\}/);
+    expect(captured.calls).not.toContain(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTINPUT);
+
+    expect(isZcashTransparentPath([0x80000000 + 44, 0x80000000 + 133, 0x80000000, 2, 0])).toBe(true);
+    expect(isZcashTransparentPath([0x80000000 + 44, 0x80000000 + 133, 0x80000000, 1, 9])).toBe(true);
+    expect(isZcashTransparentPath([0x80000000 + 44, 0x80000000 + 133, 0, 0, 0])).toBe(false);
+    expect(isZcashTransparentPath([0x80000000 + 44, 0x80000000 + 133, 0x80000000, 0, 0x80000000])).toBe(false);
   });
 });

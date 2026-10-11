@@ -97,6 +97,35 @@ export interface TransparentOutput {
   index: number;
   value: number; // zatoshis
   script_pubkey: string; // hex
+  /** The output pays this wallet's own key at this path (e.g. a ZIP-320
+   *  ephemeral address), so the device can show it as the user's own. */
+  address_n?: number[];
+  /** ZIP-320: the P2PKH hash came from a tex1 address; the device shows tex1. */
+  is_tex?: boolean;
+}
+
+const HARDENED = 0x80000000;
+
+/**
+ * Transparent Zcash paths are m/44'/133'/account'/change/index, where change
+ * is 0 (external), 1 (internal) or 2 (ZIP-320 ephemeral, for TEX payments).
+ */
+export function isZcashTransparentPath(path: number[]): boolean {
+  return (
+    path.length === 5 &&
+    path[0] === HARDENED + 44 &&
+    path[1] === HARDENED + 133 &&
+    path[2] >= HARDENED &&
+    [0, 1, 2].includes(path[3]) &&
+    path[4] >= 0 &&
+    path[4] < HARDENED
+  );
+}
+
+function assertZcashTransparentPath(path: number[], what: string): void {
+  if (!isZcashTransparentPath(path)) {
+    throw new Error(`zcash: ${what} path must be m/44'/133'/account'/{0,1,2}/index, got [${path.join(",")}]`);
+  }
 }
 
 /**
@@ -111,6 +140,10 @@ export interface TransparentOutput {
  * 3. [inputs]  ZcashTransparentInput  × N → ZcashTransparentAck per input;
  *    last input → ZcashTransparentSigned (batch sigs)
  * 4. ZcashPCZTAction × n_actions → ZcashSignedPCZT
+ *
+ * A transparent-only request (n_actions = 0, the ZIP-320 TEX second step)
+ * skips step 4: after the last input the device returns
+ * ZcashTransparentSigned, then ZcashSignedPCZT with no shielded signatures.
  */
 export async function zcashSignPczt(
   transport: Transport,
@@ -138,12 +171,14 @@ export async function zcashSignPczt(
       is_spend: boolean;
       recipient?: string;
       rseed?: string;
+      /** ZIP 374: the Unified Address the user typed (payee output only) */
+      user_address?: string;
     }>;
     display: { amount: string; fee: string; to?: string; action?: string };
     transparent_inputs?: TransparentInput[];
     transparent_outputs?: TransparentOutput[];
   },
-  sighash: string
+  _sighash: string // unused: 7.15 firmware refuses a host action sighash
 ): Promise<string[]> {
   const account = signingRequest.account ?? 0;
   const transparentInputs = signingRequest.transparent_inputs ?? [];
@@ -268,6 +303,17 @@ export async function zcashSignPczt(
           outputMsg.setIndex(output.index);
           outputMsg.setAmount(output.value);
           outputMsg.setScriptPubkey(hexToBytes(output.script_pubkey));
+          // Device-protocol builds without these fields drop them; callers that
+          // depend on them check the protocol before moving funds.
+          const withHints = outputMsg as unknown as {
+            setAddressNList?: (value: number[]) => void;
+            setIsTex?: (value: boolean) => void;
+          };
+          if (output.address_n) {
+            assertZcashTransparentPath(output.address_n, `transparent output ${output.index}`);
+            if (typeof withHints.setAddressNList === "function") withHints.setAddressNList(output.address_n);
+          }
+          if (output.is_tex && typeof withHints.setIsTex === "function") withHints.setIsTex(true);
 
           response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTOUTPUT, outputMsg, {
             msgTimeout: core.LONG_TIMEOUT,
@@ -331,6 +377,8 @@ export async function zcashSignPczt(
             );
           }
 
+          assertZcashTransparentPath(input.addressNList, `transparent input ${input.index}`);
+
           const inputMsg = new ZcashMessages.ZcashTransparentInput();
           inputMsg.setIndex(input.index);
           inputMsg.setAddressNList(input.addressNList);
@@ -354,13 +402,9 @@ export async function zcashSignPczt(
             break;
           }
 
-          // Older firmware path: ZcashTransparentSigned returned immediately after last input.
+          // ZcashTransparentSigned right after the last input: a transparent-only
+          // request (n_actions = 0), or older firmware. Step 4 collects the sigs.
           if (response.message_enum === Messages.MessageType.MESSAGETYPE_ZCASHTRANSPARENTSIGNED) {
-            const sigResp = response.proto as ZcashMessages.ZcashTransparentSigned;
-            for (const sig of sigResp.getSignaturesList_asU8()) {
-              transparentSignatures.push(bytesToHex(sig));
-            }
-            console.info(`[zcash-pczt]   ZcashTransparentSigned (legacy): ${transparentSignatures.length} sig(s)`);
             break;
           }
 
@@ -406,7 +450,6 @@ export async function zcashSignPczt(
       const actionMsg = new ZcashMessages.ZcashPCZTAction();
       actionMsg.setIndex(action.index);
       actionMsg.setAlpha(hexToBytes(action.alpha));
-      actionMsg.setSighash(hexToBytes(sighash));
       actionMsg.setCvNet(hexToBytes(action.cv_net));
       actionMsg.setValue(action.value);
       actionMsg.setIsSpend(action.is_spend);
@@ -422,6 +465,11 @@ export async function zcashSignPczt(
       // Clear-signing: firmware 7.15+ requires recipient + rseed for output actions
       if (action.recipient) actionMsg.setRecipient(hexToBytes(action.recipient));
       if (action.rseed) actionMsg.setRseed(hexToBytes(action.rseed));
+      // ZIP 374: needs a device-protocol build with ZcashPCZTAction.user_address
+      const withUserAddress = actionMsg as unknown as { setUserAddress?: (value: string) => void };
+      if (action.user_address && typeof withUserAddress.setUserAddress === "function") {
+        withUserAddress.setUserAddress(action.user_address);
+      }
 
       response = await transport.call(Messages.MessageType.MESSAGETYPE_ZCASHPCZTACTION, actionMsg, {
         msgTimeout: core.LONG_TIMEOUT,
