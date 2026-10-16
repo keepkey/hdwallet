@@ -154,6 +154,8 @@ export interface ETHSignTypedData {
   typedData: TypedData;
   /** Signed clear-sign metadata sent before the document (see ETHSignTx). */
   txMetadata?: ETHSignTx["txMetadata"];
+  /** Signed ERC-7730 EIP-712 definition, preloaded before the document (see ETHSignTx). */
+  erc7730?: ETHSignTx["erc7730"];
 }
 
 export interface ETHSignedTypedData {

@@ -640,3 +640,117 @@ describe("signing without erc7730 is unchanged from master (61384155)", () => {
     ]);
   });
 });
+
+// ── ERC-7730 typed data on firmware 7.16 ─────────────────────────────
+
+const TYPE_HASH = new Uint8Array(32).fill(0x5a);
+const TYPED_ENVELOPE = new Uint8Array(1500).map((_, i) => (i * 11 + 7) & 0xff);
+const TYPED_ID = sha256(TYPED_ENVELOPE);
+const VERIFYING_CONTRACT = new Uint8Array(20).fill(0x11);
+const typedDefinition: core.ETHErc7730Definition = {
+  definitionId: TYPED_ID,
+  envelope: TYPED_ENVELOPE,
+  kind: 2,
+  chainId: 1,
+  contractAddress: VERIFYING_CONTRACT,
+  selectorOrTypeHash: TYPE_HASH,
+};
+const TYPED_BY_ID: DefinitionQuery = {
+  kind: 2,
+  chainId: 1,
+  contract: VERIFYING_CONTRACT,
+  selectorOrTypeHash: TYPE_HASH,
+  definitionId: TYPED_ID,
+};
+
+function typedRequest(extra: Partial<core.ETHSignTypedData> = {}): core.ETHSignTypedData {
+  return {
+    addressNList: PATH,
+    typedData: TYPED_DOC,
+    erc7730: { primaryDefinitionId: TYPED_ID, definitions: [typedDefinition] },
+    ...extra,
+  };
+}
+
+/**
+ * 7.16 with a preloaded definition: domain walk, primary-type StructRequests,
+ * then 1711 once the typeHash is final, the message walk, and one more full
+ * walk per ERC-7730 field pass (eip712_stream.c begin_root on resume).
+ */
+function* typedReview(first: Frame, fieldPasses: number, reads: Frame[][]): Generator<Frame, void, Frame> {
+  yield* typedDomainAndPrimary(first);
+  reads.push(yield* fetchDefinition(TYPED_BY_ID));
+  expectFrame(yield structRequest("Order"), 1706);
+  yield* typedMessageWalk();
+  expectFrame(yield buttonRequest(), MT.MESSAGETYPE_BUTTONACK);
+  for (let pass = 0; pass < fieldPasses; pass++) {
+    reads.push(yield* fetchDefinition(TYPED_BY_ID));
+    expectFrame(yield structRequest("Order"), 1706);
+    yield* typedMessageWalk();
+  }
+  yield typedSignature();
+}
+
+function metadataAck(): Frame {
+  const writer = new jspb.BinaryWriter();
+  writer.writeUint32(1, 1);
+  writer.writeString(2, "Spender: Audit");
+  return { type: 116, body: writer.getResultBuffer() };
+}
+
+describe("ERC-7730 typed-data transport (firmware 7.16)", () => {
+  it("preloads before the document and answers 1711 inside the streaming walk", async () => {
+    const preloads: DefinitionFields[] = [];
+    const reads: Frame[][] = [];
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      const first = yield* acceptPreload(yield, preloads);
+      yield* typedReview(first, 1, reads);
+    });
+
+    const signed = await ethSignTypedData(device.transport, typedRequest());
+
+    expect(signed.signature).toBe("0x" + "33".repeat(65));
+    expect(device.types().slice(0, 3)).toEqual([1709, 1709, 1704]);
+    expect(preloads.every((chunk) => hexOf(chunk.definitionId) === hexOf(TYPED_ID))).toBe(true);
+    expect(reads).toHaveLength(2);
+    for (const read of reads) expect(hexOf(joinChunks(read))).toBe(hexOf(TYPED_ENVELOPE));
+  });
+
+  it("sends txMetadata, then the preload, then the document", async () => {
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      expectFrame(yield, 115);
+      const first = yield* acceptPreload(yield metadataAck(), []);
+      yield* typedReview(first, 0, []);
+    });
+    await ethSignTypedData(device.transport, typedRequest({ txMetadata: { signedPayload: "0xabcd" } }));
+    expect(device.types().slice(0, 4)).toEqual([115, 1709, 1709, 1704]);
+  });
+
+  it("never falls back to the legacy typed-data paths with a definition", async () => {
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      const first = yield* acceptPreload(yield, []);
+      expectFrame(first, 1704);
+      yield failure("Unexpected message", Types.FailureType.FAILURE_UNEXPECTEDMESSAGE);
+    });
+    await expect(ethSignTypedData(device.transport, typedRequest())).rejects.toThrow("Unexpected message");
+    expect(device.types()).toEqual([1709, 1709, 1704]);
+  });
+
+  it("allows the longer walk that repeated field passes need", async () => {
+    // 200 field passes x 4 requests is well past the plain walk's 512.
+    const withDefinition = new FakeKeepKey(function* (): DeviceScript {
+      const first = yield* acceptPreload(yield, []);
+      yield* typedReview(first, 200, []);
+    });
+    await expect(ethSignTypedData(withDefinition.transport, typedRequest())).resolves.toBeDefined();
+
+    const plain = new FakeKeepKey(function* (): DeviceScript {
+      const first = yield;
+      yield* typedDomainAndPrimary(first);
+      for (;;) yield* typedMessageWalk();
+    });
+    await expect(ethSignTypedData(plain.transport, typedRequest({ erc7730: undefined }))).rejects.toThrow(
+      "EIP-712 walk did not terminate"
+    );
+  });
+});

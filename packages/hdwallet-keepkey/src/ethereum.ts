@@ -27,6 +27,8 @@ const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK = 1712;
 const ERC7730_CHUNK_MAX = 1024;
 // Bounds the SignTx exchange so a looping device cannot hang the host.
 const ETH_SIGN_MAX_ROUND_TRIPS = 4096;
+// The EIP-712 walk's 512 is too small when every field pass re-walks the message.
+const ERC7730_EIP712_MAX_ROUND_TRIPS = 8192;
 // Firmware 7.16 nests one level only (erc7730_workflow.c refuses depth > 1).
 const ERC7730_RECURSION_MAX = 1;
 
@@ -921,7 +923,8 @@ function structuredEip712Unavailable(error: unknown): boolean {
 async function signTypedDataStreaming(
   transport: Transport,
   addressNList: number[],
-  typedData: TypedDataDoc
+  typedData: TypedDataDoc,
+  erc7730?: NonNullable<core.ETHSignTypedData["erc7730"]>
 ): Promise<core.ETHSignedTypedData> {
   const wire: Eip712WireShape = {
     SIGN: Eip712Wire.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA,
@@ -960,15 +963,36 @@ async function signTypedDataStreaming(
   };
 
   const call: Eip712Call = async (messageType: number, payload: Uint8Array) => {
-    const event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
+    let event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
       msgTimeout: core.LONG_TIMEOUT,
       omitLock: true,
     });
+    // 7.16 asks for the preloaded definition once it has the primary type's
+    // typeHash, and again during field passes. Answer it here: the walk only
+    // knows struct and value requests, and the request class serializes empty.
+    while (event.message_enum === MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
+      if (!erc7730) throw new Error("Device requested an ERC-7730 definition without a catalog");
+      const chunk = await makeErc7730DefinitionChunk(
+        erc7730,
+        event.proto as Erc7730Proto.EthereumClearSignDefinitionRequest
+      );
+      event = await transport.call(MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK, chunk, {
+        msgTimeout: core.LONG_TIMEOUT,
+        omitLock: true,
+      });
+    }
     const proto = event.proto as jspb.Message;
     return { type: event.message_enum as number, payload: proto.serializeBinary() };
   };
 
-  const out = await runEip712Walk(typedData, addressNList, wire, call);
+  // Each ERC-7730 field pass walks the whole message again.
+  const out = await runEip712Walk(
+    typedData,
+    addressNList,
+    wire,
+    call,
+    erc7730 ? ERC7730_EIP712_MAX_ROUND_TRIPS : undefined
+  );
   return { address: out.address, signature: out.signature };
 }
 
@@ -1035,16 +1059,25 @@ export async function ethSignTypedData(
       // A certified name record (e.g. a Permit2 spender) rides ahead of the
       // document; the device shows it only beside the address it names.
       if (msg.txMetadata?.signedPayload) await sendTxMetadata(transport, msg.txMetadata);
+      // After 115, which would clear it, and right before the document.
+      if (msg.erc7730) await preloadErc7730Definition(transport, msg.erc7730);
 
       // Prefer the streaming path for EVERY document: the device parses and
       // displays the fields itself, instead of signing two opaque hashes.
       try {
-        return await signTypedDataStreaming(transport, msg.addressNList, typedData as unknown as TypedDataDoc);
+        return await signTypedDataStreaming(
+          transport,
+          msg.addressNList,
+          typedData as unknown as TypedDataDoc,
+          msg.erc7730
+        );
       } catch (e) {
         // Only "this firmware has no structured endpoint" degrades. Anything
         // else -- a refused screen, a malformed document, an array this
         // firmware cannot walk -- is a real answer and must not be masked.
-        if (!structuredEip712Unavailable(e)) throw e;
+        // With a definition there is no fallback: the legacy paths cannot
+        // use it, and signing without it would drop the description.
+        if (msg.erc7730 || !structuredEip712Unavailable(e)) throw e;
       }
 
       if (isX402Eip3009(typedData)) {
