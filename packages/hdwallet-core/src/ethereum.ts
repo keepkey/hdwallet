@@ -72,6 +72,22 @@ export type ETHSignTx = {
     metadataVersion?: number;
   };
   /**
+   * Signed ERC-7730 v2 compiled definitions. The primary definition is
+   * preloaded before signing; firmware may request any catalog entry while it
+   * decodes nested calls, tokens, networks, or EIP-712 values.
+   */
+  erc7730?: {
+    primaryDefinitionId: Uint8Array | string;
+    definitions: Array<{
+      definitionId: Uint8Array | string;
+      envelope: Uint8Array | string;
+      kind: 1 | 2 | 3 | 4;
+      chainId: number;
+      contractAddress?: Uint8Array | string;
+      selectorOrTypeHash?: Uint8Array | string;
+    }>;
+  };
+  /**
    * Device must `ethSupportsNativeShapeShift()`
    */
 } & (

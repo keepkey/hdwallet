@@ -10,6 +10,7 @@ import * as jspb from "google-protobuf";
 
 import { Eip712Call, Eip712Wire as Eip712WireShape, FieldType, runEip712Walk, TypedDataDoc } from "./eip712Streaming";
 import * as Eip712Wire from "./eip712Wire";
+import * as Erc7730Proto from "./ethereum-erc7730-proto";
 import { Transport } from "./transport";
 import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 import { toUTF8Array } from "./utils";
@@ -19,6 +20,12 @@ import { toUTF8Array } from "./utils";
 const MESSAGETYPE_ETHEREUMTXMETADATA = 115;
 const MESSAGETYPE_ETHEREUMMETADATAACK = 116;
 const MESSAGETYPE_LOADCLEARSIGNSIGNER = 117;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION = 1709;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK = 1710;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST = 1711;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK = 1712;
+const ERC7730_CHUNK_MAX = 1024;
+const ERC7730_RECURSION_MAX = 4;
 
 // ── EVM Metadata Classification (from EthereumMetadataAck) ───────────
 /** Device could not verify the blob (unsigned or unknown key) */
@@ -27,6 +34,113 @@ const _METADATA_OPAQUE = 0; // eslint-disable-line @typescript-eslint/no-unused-
 const METADATA_VERIFIED = 1;
 /** Blob structure is invalid or corrupted */
 const METADATA_MALFORMED = 2;
+
+function erc7730Bytes(value: Uint8Array | string, label: string): Uint8Array {
+  const bytes = value instanceof Uint8Array ? value : core.arrayify(value.startsWith("0x") ? value : "0x" + value);
+  if (bytes.length === 0) throw new Error(`ERC-7730 ${label} must not be empty`);
+  return bytes;
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function optionalRequestBytes(
+  request: any,
+  field: "ContractAddress" | "SelectorOrTypeHash" | "DefinitionId"
+): Uint8Array | undefined {
+  const has = request[`has${field}`];
+  if (typeof has === "function" && !has.call(request)) return undefined;
+  const getter = request[`get${field}_asU8`];
+  if (typeof getter !== "function") return undefined;
+  const value = getter.call(request) as Uint8Array;
+  return value.length ? value : undefined;
+}
+
+/** Resolve and bound a firmware ERC-7730 request without trusting its lookup tuple. */
+export function makeErc7730DefinitionChunk(
+  catalog: NonNullable<core.ETHSignTx["erc7730"]>,
+  request: Erc7730Proto.EthereumClearSignDefinitionRequest
+): Erc7730Proto.EthereumClearSignDefinitionChunk {
+  const requestId = optionalRequestBytes(request, "DefinitionId");
+  const requestContract = optionalRequestBytes(request, "ContractAddress");
+  const requestSelector = optionalRequestBytes(request, "SelectorOrTypeHash");
+  const recursionDepth = request.hasRecursionDepth() ? request.getRecursionDepth() : 0;
+  if (recursionDepth > ERC7730_RECURSION_MAX) throw new Error("ERC-7730 recursion depth exceeds host limit");
+
+  const entry = catalog.definitions.find((candidate) => {
+    const id = erc7730Bytes(candidate.definitionId, "definition id");
+    if (requestId) return bytesEqual(id, requestId);
+    const contract = candidate.contractAddress
+      ? erc7730Bytes(candidate.contractAddress, "contract address")
+      : undefined;
+    const selector = candidate.selectorOrTypeHash
+      ? erc7730Bytes(candidate.selectorOrTypeHash, "selector or type hash")
+      : undefined;
+    return (
+      candidate.kind === request.getKind() &&
+      candidate.chainId === request.getChainId() &&
+      ((!requestContract && !contract) || (!!requestContract && !!contract && bytesEqual(requestContract, contract))) &&
+      ((!requestSelector && !selector) || (!!requestSelector && !!selector && bytesEqual(requestSelector, selector)))
+    );
+  });
+  if (!entry) throw new Error("Device requested an ERC-7730 definition that is not in the signed catalog");
+  if (entry.kind !== request.getKind() || entry.chainId !== request.getChainId()) {
+    throw new Error("ERC-7730 request identity does not match catalog entry");
+  }
+
+  const id = erc7730Bytes(entry.definitionId, "definition id");
+  const envelope = erc7730Bytes(entry.envelope, "signed envelope");
+  if (id.length !== 32) throw new Error("ERC-7730 definition id must be 32 bytes");
+  const offset = request.getOffset();
+  const length = request.getLength();
+  if (length < 1 || length > ERC7730_CHUNK_MAX || offset >= envelope.length) {
+    throw new Error("Invalid ERC-7730 chunk range requested by device");
+  }
+  const chunk = new Erc7730Proto.EthereumClearSignDefinitionChunk();
+  chunk.setDefinitionId(id);
+  chunk.setOffset(offset);
+  chunk.setTotalLength(envelope.length);
+  chunk.setData(envelope.slice(offset, Math.min(offset + length, envelope.length)));
+  return chunk;
+}
+
+async function preloadErc7730Definition(
+  transport: Transport,
+  catalog: NonNullable<core.ETHSignTx["erc7730"]>
+): Promise<void> {
+  const primaryId = erc7730Bytes(catalog.primaryDefinitionId, "primary definition id");
+  if (primaryId.length !== 32) throw new Error("ERC-7730 primary definition id must be 32 bytes");
+  const primary = catalog.definitions.find((entry) =>
+    bytesEqual(erc7730Bytes(entry.definitionId, "definition id"), primaryId)
+  );
+  if (!primary) throw new Error("ERC-7730 primary definition is missing from catalog");
+  const envelope = erc7730Bytes(primary.envelope, "signed envelope");
+  for (let offset = 0; offset < envelope.length; offset += ERC7730_CHUNK_MAX) {
+    const data = envelope.slice(offset, offset + ERC7730_CHUNK_MAX);
+    const preload = new Erc7730Proto.EthereumClearSignDefinition();
+    preload.setDefinitionId(primaryId);
+    preload.setOffset(offset);
+    preload.setTotalLength(envelope.length);
+    preload.setData(data);
+    const event = await transport.call(MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION, preload, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+    if (event.message_enum !== MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK) {
+      throw new Error("Unexpected response while preloading ERC-7730 definition");
+    }
+    const ack = event.proto as Erc7730Proto.EthereumClearSignDefinitionAck;
+    const expectedOffset = offset + data.length;
+    if (
+      !bytesEqual(ack.getDefinitionId_asU8(), primaryId) ||
+      ack.getNextOffset() !== expectedOffset ||
+      ack.getComplete() !== (expectedOffset === envelope.length)
+    ) {
+      throw new Error("Invalid ERC-7730 preload acknowledgement");
+    }
+  }
+}
 
 /**
  * EthereumTxMetadata: sent BEFORE EthereumSignTx to provide signed
@@ -315,6 +429,16 @@ function registerEthClearSignMessages() {
   messageTypeRegistry[MESSAGETYPE_ETHEREUMTXMETADATA] = EthereumTxMetadata as any;
   messageTypeRegistry[MESSAGETYPE_ETHEREUMMETADATAACK] = EthereumMetadataAck as any;
   messageTypeRegistry[MESSAGETYPE_LOADCLEARSIGNSIGNER] = LoadClearsignSigner as any;
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION] = "EthereumClearSignDefinition";
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK] = "EthereumClearSignDefinitionAck";
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST] = "EthereumClearSignDefinitionRequest";
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK] = "EthereumClearSignDefinitionChunk";
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION] = Erc7730Proto.EthereumClearSignDefinition as any;
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK] = Erc7730Proto.EthereumClearSignDefinitionAck as any;
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST] =
+    Erc7730Proto.EthereumClearSignDefinitionRequest as any;
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK] =
+    Erc7730Proto.EthereumClearSignDefinitionChunk as any;
 }
 registerEthClearSignMessages();
 
@@ -424,6 +548,8 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
     // and display decoded contract call info on the OLED instead of raw hex.
     if (msg.txMetadata?.signedPayload) await sendTxMetadata(transport, msg.txMetadata);
 
+    if (msg.erc7730) await preloadErc7730Definition(transport, msg.erc7730);
+
     const est: Ethereum.EthereumSignTx = new Ethereum.EthereumSignTx();
     est.setAddressNList(msg.addressNList);
     est.setNonce(stripLeadingZeroes(core.arrayify(msg.nonce)));
@@ -477,17 +603,35 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
     response = nextResponse.proto as Ethereum.EthereumTxRequest;
     try {
       const esa: Ethereum.EthereumTxAck = new Ethereum.EthereumTxAck();
-      while (response.hasDataLength()) {
-        const dataLength = response.getDataLength();
-        dataRemaining = core.mustBeDefined(dataRemaining);
-        dataChunk = dataRemaining.slice(0, dataLength);
-        dataRemaining = dataRemaining.slice(dataLength, dataRemaining.length);
-
-        esa.setDataChunk(dataChunk);
-        nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMTXACK, esa, {
-          msgTimeout: core.LONG_TIMEOUT,
-          omitLock: true,
-        });
+      while (
+        !(nextResponse.message_enum === Messages.MessageType.MESSAGETYPE_ETHEREUMTXREQUEST && response.hasSignatureV())
+      ) {
+        if (nextResponse.message_enum === MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
+          if (!msg.erc7730) throw new Error("Device requested an ERC-7730 definition without a catalog");
+          const chunk = makeErc7730DefinitionChunk(
+            msg.erc7730,
+            nextResponse.proto as Erc7730Proto.EthereumClearSignDefinitionRequest
+          );
+          nextResponse = await transport.call(MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK, chunk, {
+            msgTimeout: core.LONG_TIMEOUT,
+            omitLock: true,
+          });
+        } else if (
+          nextResponse.message_enum === Messages.MessageType.MESSAGETYPE_ETHEREUMTXREQUEST &&
+          response.hasDataLength()
+        ) {
+          const dataLength = response.getDataLength();
+          dataRemaining = core.mustBeDefined(dataRemaining);
+          dataChunk = dataRemaining.slice(0, dataLength);
+          dataRemaining = dataRemaining.slice(dataLength, dataRemaining.length);
+          esa.setDataChunk(dataChunk);
+          nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMTXACK, esa, {
+            msgTimeout: core.LONG_TIMEOUT,
+            omitLock: true,
+          });
+        } else {
+          throw new Error(`Unexpected Ethereum signing response ${nextResponse.message_enum}`);
+        }
         response = nextResponse.proto as Ethereum.EthereumTxRequest;
       }
     } catch (error) {
