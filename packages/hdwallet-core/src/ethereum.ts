@@ -41,6 +41,16 @@ export interface ETHGetAddress {
   showDisplay?: boolean;
 }
 
+/** One signed ERC-7730 envelope and the lookup facts used to find it. */
+export type ETHErc7730Definition = {
+  definitionId: Uint8Array | string;
+  envelope: Uint8Array | string;
+  kind: 1 | 2 | 3 | 4;
+  chainId: number;
+  contractAddress?: Uint8Array | string;
+  selectorOrTypeHash?: Uint8Array | string;
+};
+
 export type ETHSignTx = {
   /** bip32 path to sign the transaction from */
   addressNList: BIP32Path;
@@ -78,14 +88,18 @@ export type ETHSignTx = {
    */
   erc7730?: {
     primaryDefinitionId: Uint8Array | string;
-    definitions: Array<{
-      definitionId: Uint8Array | string;
-      envelope: Uint8Array | string;
-      kind: 1 | 2 | 3 | 4;
-      chainId: number;
-      contractAddress?: Uint8Array | string;
-      selectorOrTypeHash?: Uint8Array | string;
-    }>;
+    definitions: Array<ETHErc7730Definition>;
+    /**
+     * Called when the device asks for an embedded call's definition (by
+     * chain, callee and selector, all read from the calldata) that is not in
+     * `definitions`. Hex arguments are lowercase with a 0x prefix. Returning
+     * undefined answers "none", which firmware 7.16 refuses.
+     */
+    resolveInner?: (
+      chainId: number,
+      contractAddress: string,
+      selector: string
+    ) => Promise<ETHErc7730Definition | undefined>;
   };
   /**
    * Device must `ethSupportsNativeShapeShift()`
