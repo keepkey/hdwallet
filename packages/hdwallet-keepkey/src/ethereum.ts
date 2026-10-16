@@ -25,10 +25,11 @@ const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK = 1710;
 const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST = 1711;
 const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK = 1712;
 const ERC7730_CHUNK_MAX = 1024;
-// Bounds the SignTx exchange so a looping device cannot hang the host.
-const ETH_SIGN_MAX_ROUND_TRIPS = 4096;
-// The EIP-712 walk's 512 is too small when every field pass re-walks the message.
-const ERC7730_EIP712_MAX_ROUND_TRIPS = 8192;
+// Only stops a device that never finishes; each read has its own deadline.
+// Firmware 7.16 has no overall bound: it replays the whole envelope (up to 17
+// chunks) for every selection, up to 9 per field, for 64 fields and 64 array
+// elements -- about 627k -- and re-walks calldata or the typed message per value.
+const ERC7730_MAX_ROUND_TRIPS = 1 << 20;
 // Firmware 7.16 nests one level only (erc7730_workflow.c refuses depth > 1).
 const ERC7730_RECURSION_MAX = 1;
 
@@ -598,7 +599,6 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
 
     // A per-call copy: inner definitions resolved while signing are added to it.
     const erc7730 = msg.erc7730 && { ...msg.erc7730, definitions: [...msg.erc7730.definitions] };
-    if (erc7730) await preloadErc7730Definition(transport, erc7730);
 
     const est: Ethereum.EthereumSignTx = new Ethereum.EthereumSignTx();
     est.setAddressNList(msg.addressNList);
@@ -649,17 +649,18 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
     }
 
     let response: Ethereum.EthereumTxRequest;
-    let nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTX, est, {
-      msgTimeout: core.LONG_TIMEOUT,
-      omitLock: true,
-    });
-    // Any message between the preload and SignTx drops the definition, and
-    // the device then reviews blind. Never let that pass as a clear-sign.
-    if (erc7730 && nextResponse.message_enum !== MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
-      throw new Error("ERC-7730 definition was not used by the device");
-    }
-    response = nextResponse.proto as Ethereum.EthereumTxRequest;
     try {
+      if (erc7730) await preloadErc7730Definition(transport, erc7730);
+      let nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTX, est, {
+        msgTimeout: core.LONG_TIMEOUT,
+        omitLock: true,
+      });
+      // Any message between the preload and SignTx drops the definition, and
+      // the device then reviews blind. Never let that pass as a clear-sign.
+      if (erc7730 && nextResponse.message_enum !== MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
+        throw new Error("ERC-7730 definition was not used by the device");
+      }
+      response = nextResponse.proto as Ethereum.EthereumTxRequest;
       const esa: Ethereum.EthereumTxAck = new Ethereum.EthereumTxAck();
       for (let round = 0; ; round++) {
         if (
@@ -667,7 +668,7 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
           response.hasSignatureV()
         )
           break;
-        if (round >= ETH_SIGN_MAX_ROUND_TRIPS) throw new Error("Ethereum signing did not terminate");
+        if (round >= ERC7730_MAX_ROUND_TRIPS) throw new Error("Ethereum signing did not terminate");
         if (nextResponse.message_enum === MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
           if (!erc7730) throw new Error("Device requested an ERC-7730 definition without a catalog");
           const chunk = await makeErc7730DefinitionChunk(
@@ -706,6 +707,8 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
       // the only text a user can act on.
       const detail = firmwareFailureText(error);
       if (detail) throw new Error(detail);
+      // ActionCancelled, and the host's own reason for giving up.
+      if (error instanceof Error) throw error;
       throw new Error("Failed to sign ETH transaction");
     }
 
@@ -962,6 +965,7 @@ async function signTypedDataStreaming(
     },
   };
 
+  let definitionRequests = 0;
   const call: Eip712Call = async (messageType: number, payload: Uint8Array) => {
     let event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
       msgTimeout: core.LONG_TIMEOUT,
@@ -972,6 +976,7 @@ async function signTypedDataStreaming(
     // knows struct and value requests, and the request class serializes empty.
     while (event.message_enum === MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
       if (!erc7730) throw new Error("Device requested an ERC-7730 definition without a catalog");
+      if (++definitionRequests > ERC7730_MAX_ROUND_TRIPS) throw new Error("EIP-712 walk did not terminate");
       const chunk = await makeErc7730DefinitionChunk(
         erc7730,
         event.proto as Erc7730Proto.EthereumClearSignDefinitionRequest
@@ -986,13 +991,10 @@ async function signTypedDataStreaming(
   };
 
   // Each ERC-7730 field pass walks the whole message again.
-  const out = await runEip712Walk(
-    typedData,
-    addressNList,
-    wire,
-    call,
-    erc7730 ? ERC7730_EIP712_MAX_ROUND_TRIPS : undefined
-  );
+  const out = await runEip712Walk(typedData, addressNList, wire, call, erc7730 ? ERC7730_MAX_ROUND_TRIPS : undefined);
+  // A preload dropped before the document leaves 7.16 signing without it.
+  // Never let that pass as a clear-sign.
+  if (erc7730 && definitionRequests === 0) throw new Error("ERC-7730 definition was not used by the device");
   return { address: out.address, signature: out.signature };
 }
 

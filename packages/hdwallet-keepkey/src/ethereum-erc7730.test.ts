@@ -754,3 +754,126 @@ describe("ERC-7730 typed-data transport (firmware 7.16)", () => {
     );
   });
 });
+
+// ── Errors and limits ────────────────────────────────────────────────
+
+/** What a caller (Vault) gets back: the error class and its message text. */
+async function rejection(promise: Promise<unknown>): Promise<{ error: unknown; text: string }> {
+  try {
+    await promise;
+  } catch (error) {
+    return { error, text: String((error as { message?: unknown })?.message ?? error) };
+  }
+  throw new Error("expected a rejection");
+}
+
+describe("ERC-7730 errors reach the caller", () => {
+  it("turns a SignTx refusal into an Error with the device's text", async () => {
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      const host = yield* acceptPreload(yield, []);
+      expectFrame(host, MT.MESSAGETYPE_ETHEREUMSIGNTX);
+      yield failure("ERC-7730 definition does not match transaction");
+    });
+    const { error, text } = await rejection(ethSignTx(device.transport, erc7730Tx()));
+    expect(error).toBeInstanceOf(Error);
+    expect(text).toBe("ERC-7730 definition does not match transaction");
+  });
+
+  it("turns a preload refusal into an Error with the device's text", async () => {
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      expectFrame(yield, 1709);
+      yield failure("Invalid certified ERC-7730 definition");
+    });
+    const { error, text } = await rejection(ethSignTx(device.transport, erc7730Tx()));
+    expect(error).toBeInstanceOf(Error);
+    expect(text).toBe("Invalid certified ERC-7730 definition");
+  });
+
+  it("reports Cancel on a review screen as ActionCancelled", async () => {
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      const host = yield* acceptPreload(yield, []);
+      expectFrame(host, MT.MESSAGETYPE_ETHEREUMSIGNTX);
+      yield* fetchDefinition(OUTER_BY_ID);
+      yield* argumentPass(ARGS.length);
+      expectFrame(yield buttonRequest(), MT.MESSAGETYPE_BUTTONACK);
+      yield failure("Signing cancelled by user", Types.FailureType.FAILURE_ACTIONCANCELLED);
+    });
+    const { error } = await rejection(ethSignTx(device.transport, erc7730Tx()));
+    expect(error).toBeInstanceOf(core.ActionCancelled);
+  });
+
+  it("keeps the host's own reason when it cannot answer the device", async () => {
+    const unknown = new FakeKeepKey(function* (): DeviceScript {
+      const host = yield* acceptPreload(yield, []);
+      expectFrame(host, MT.MESSAGETYPE_ETHEREUMSIGNTX);
+      yield definitionRequest({ kind: 1, chainId: 1, definitionId: new Uint8Array(32).fill(0x99) }, 0, 1024);
+    });
+    expect((await rejection(ethSignTx(unknown.transport, erc7730Tx()))).text).toBe(
+      "Device requested an ERC-7730 definition that is not in the signed catalog"
+    );
+
+    const offline = new FakeKeepKey(function* (): DeviceScript {
+      const host = yield* acceptPreload(yield, []);
+      expectFrame(host, MT.MESSAGETYPE_ETHEREUMSIGNTX);
+      yield* fetchDefinition(OUTER_BY_ID);
+      yield definitionRequest(
+        { kind: 1, chainId: 1, contract: CALLEE, selectorOrTypeHash: INNER_SELECTOR, depth: 1 },
+        0,
+        1024
+      );
+    });
+    const msg = erc7730Tx({
+      resolveInner: async () => {
+        throw new Error("registry offline");
+      },
+    });
+    expect((await rejection(ethSignTx(offline.transport, msg))).text).toBe("registry offline");
+  });
+
+  it("refuses a typed-data signature made without the preloaded definition", async () => {
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      const first = yield* acceptPreload(yield, []);
+      yield* typedDomainAndPrimary(first);
+      yield* typedMessageWalk();
+      expectFrame(yield buttonRequest(), MT.MESSAGETYPE_BUTTONACK);
+      yield typedSignature();
+    });
+    await expect(ethSignTypedData(device.transport, typedRequest())).rejects.toThrow(
+      "ERC-7730 definition was not used by the device"
+    );
+  });
+});
+
+describe("ERC-7730 round-trip limits", () => {
+  it("finishes a calldata review longer than 4096 round trips", async () => {
+    // Firmware 7.16 replays the whole envelope for every selection, per array
+    // element: 64 elements x 3 fields, each field 9 selections (display, label,
+    // formatter, path, 5 arguments) of 2 chunks and 2 argument passes.
+    let trips = 0;
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      const host = yield* acceptPreload(yield, []);
+      expectFrame(host, MT.MESSAGETYPE_ETHEREUMSIGNTX);
+      for (let field = 0; field < 64 * 3; field++) {
+        for (let selection = 0; selection < 9; selection++) trips += (yield* fetchDefinition(OUTER_BY_ID)).length;
+        for (let pass = 0; pass < 2; pass++) {
+          yield* argumentPass(ARGS.length);
+          trips += 2;
+        }
+      }
+      yield txSignature();
+    });
+    await expect(ethSignTx(device.transport, erc7730Tx())).resolves.toBeDefined();
+    expect(trips).toBeGreaterThan(4096);
+  });
+
+  it("finishes a typed-data review longer than 8192 round trips", async () => {
+    // Each field pass re-walks the whole message: 4 walk steps and 2 definition
+    // chunks per pass here.
+    const device = new FakeKeepKey(function* (): DeviceScript {
+      const first = yield* acceptPreload(yield, []);
+      yield* typedReview(first, 2100, []);
+    });
+    await expect(ethSignTypedData(device.transport, typedRequest())).resolves.toBeDefined();
+    expect(device.types().filter((type) => type === 1706 || type === 1708).length).toBeGreaterThan(8192);
+  });
+});
