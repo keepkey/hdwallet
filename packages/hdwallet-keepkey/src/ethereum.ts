@@ -10,6 +10,7 @@ import * as jspb from "google-protobuf";
 
 import { Eip712Call, Eip712Wire as Eip712WireShape, FieldType, runEip712Walk, TypedDataDoc } from "./eip712Streaming";
 import * as Eip712Wire from "./eip712Wire";
+import * as Erc7730Proto from "./ethereum-erc7730-proto";
 import { Transport } from "./transport";
 import { messageNameRegistry, messageTypeRegistry } from "./typeRegistry";
 import { toUTF8Array } from "./utils";
@@ -19,6 +20,18 @@ import { toUTF8Array } from "./utils";
 const MESSAGETYPE_ETHEREUMTXMETADATA = 115;
 const MESSAGETYPE_ETHEREUMMETADATAACK = 116;
 const MESSAGETYPE_LOADCLEARSIGNSIGNER = 117;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION = 1709;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK = 1710;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST = 1711;
+const MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK = 1712;
+const ERC7730_CHUNK_MAX = 1024;
+// Only stops a device that never finishes; each read has its own deadline.
+// Firmware 7.16 has no overall bound: it replays the whole envelope (up to 17
+// chunks) for every selection, up to 9 per field, for 64 fields and 64 array
+// elements -- about 627k -- and re-walks calldata or the typed message per value.
+const ERC7730_MAX_ROUND_TRIPS = 1 << 20;
+// Firmware 7.16 nests one level only (erc7730_workflow.c refuses depth > 1).
+const ERC7730_RECURSION_MAX = 1;
 
 // ── EVM Metadata Classification (from EthereumMetadataAck) ───────────
 /** Device could not verify the blob (unsigned or unknown key) */
@@ -27,6 +40,141 @@ const _METADATA_OPAQUE = 0; // eslint-disable-line @typescript-eslint/no-unused-
 const METADATA_VERIFIED = 1;
 /** Blob structure is invalid or corrupted */
 const METADATA_MALFORMED = 2;
+
+function erc7730Bytes(value: Uint8Array | string, label: string): Uint8Array {
+  const bytes = value instanceof Uint8Array ? value : core.arrayify(value.startsWith("0x") ? value : "0x" + value);
+  if (bytes.length === 0) throw new Error(`ERC-7730 ${label} must not be empty`);
+  return bytes;
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function optionalRequestBytes(
+  request: any,
+  field: "ContractAddress" | "SelectorOrTypeHash" | "DefinitionId"
+): Uint8Array | undefined {
+  const has = request[`has${field}`];
+  if (typeof has === "function" && !has.call(request)) return undefined;
+  const getter = request[`get${field}_asU8`];
+  if (typeof getter !== "function") return undefined;
+  const value = getter.call(request) as Uint8Array;
+  return value.length ? value : undefined;
+}
+
+/**
+ * Resolve and bound a firmware ERC-7730 request without trusting its lookup tuple.
+ *
+ * An embedded call's definition (recursion depth 1, looked up by chain, callee
+ * and selector) that the catalog lacks is asked of `catalog.resolveInner`, and
+ * kept in the catalog because the device asks for it again by id. If that
+ * misses too, the answer is the empty "none" chunk, as python-keepkey sends;
+ * firmware 7.16 then fails with "Inner call cannot be clear-signed".
+ */
+export async function makeErc7730DefinitionChunk(
+  catalog: NonNullable<core.ETHSignTx["erc7730"]>,
+  request: Erc7730Proto.EthereumClearSignDefinitionRequest
+): Promise<Erc7730Proto.EthereumClearSignDefinitionChunk> {
+  const requestId = optionalRequestBytes(request, "DefinitionId");
+  const requestContract = optionalRequestBytes(request, "ContractAddress");
+  const requestSelector = optionalRequestBytes(request, "SelectorOrTypeHash");
+  const recursionDepth = request.hasRecursionDepth() ? request.getRecursionDepth() : 0;
+  if (recursionDepth > ERC7730_RECURSION_MAX) throw new Error("ERC-7730 recursion depth exceeds host limit");
+
+  const matchesRequest = (candidate: core.ETHErc7730Definition) => {
+    const contract = candidate.contractAddress
+      ? erc7730Bytes(candidate.contractAddress, "contract address")
+      : undefined;
+    const selector = candidate.selectorOrTypeHash
+      ? erc7730Bytes(candidate.selectorOrTypeHash, "selector or type hash")
+      : undefined;
+    return (
+      candidate.kind === request.getKind() &&
+      candidate.chainId === request.getChainId() &&
+      ((!requestContract && !contract) || (!!requestContract && !!contract && bytesEqual(requestContract, contract))) &&
+      ((!requestSelector && !selector) || (!!requestSelector && !!selector && bytesEqual(requestSelector, selector)))
+    );
+  };
+  let entry = catalog.definitions.find((candidate) =>
+    requestId ? bytesEqual(erc7730Bytes(candidate.definitionId, "definition id"), requestId) : matchesRequest(candidate)
+  );
+  if (!entry && !requestId && recursionDepth === 1) {
+    const resolved = await catalog.resolveInner?.(
+      request.getChainId(),
+      "0x" + core.toHexString(requestContract ?? new Uint8Array()),
+      "0x" + core.toHexString(requestSelector ?? new Uint8Array())
+    );
+    if (resolved) {
+      if (!matchesRequest(resolved)) throw new Error("Resolved ERC-7730 inner definition does not match request");
+      catalog.definitions.push(resolved);
+      entry = resolved;
+    } else {
+      const none = new Erc7730Proto.EthereumClearSignDefinitionChunk();
+      none.setDefinitionId(new Uint8Array(32));
+      none.setOffset(0);
+      none.setTotalLength(0);
+      none.setData(new Uint8Array());
+      return none;
+    }
+  }
+  if (!entry) throw new Error("Device requested an ERC-7730 definition that is not in the signed catalog");
+  if (entry.kind !== request.getKind() || entry.chainId !== request.getChainId()) {
+    throw new Error("ERC-7730 request identity does not match catalog entry");
+  }
+
+  const id = erc7730Bytes(entry.definitionId, "definition id");
+  const envelope = erc7730Bytes(entry.envelope, "signed envelope");
+  if (id.length !== 32) throw new Error("ERC-7730 definition id must be 32 bytes");
+  const offset = request.getOffset();
+  const length = request.getLength();
+  if (length < 1 || length > ERC7730_CHUNK_MAX || offset >= envelope.length) {
+    throw new Error("Invalid ERC-7730 chunk range requested by device");
+  }
+  const chunk = new Erc7730Proto.EthereumClearSignDefinitionChunk();
+  chunk.setDefinitionId(id);
+  chunk.setOffset(offset);
+  chunk.setTotalLength(envelope.length);
+  chunk.setData(envelope.slice(offset, Math.min(offset + length, envelope.length)));
+  return chunk;
+}
+
+async function preloadErc7730Definition(
+  transport: Transport,
+  catalog: NonNullable<core.ETHSignTx["erc7730"]>
+): Promise<void> {
+  const primaryId = erc7730Bytes(catalog.primaryDefinitionId, "primary definition id");
+  if (primaryId.length !== 32) throw new Error("ERC-7730 primary definition id must be 32 bytes");
+  const primary = catalog.definitions.find((entry) =>
+    bytesEqual(erc7730Bytes(entry.definitionId, "definition id"), primaryId)
+  );
+  if (!primary) throw new Error("ERC-7730 primary definition is missing from catalog");
+  const envelope = erc7730Bytes(primary.envelope, "signed envelope");
+  for (let offset = 0; offset < envelope.length; offset += ERC7730_CHUNK_MAX) {
+    const data = envelope.slice(offset, offset + ERC7730_CHUNK_MAX);
+    const preload = new Erc7730Proto.EthereumClearSignDefinition();
+    preload.setDefinitionId(primaryId);
+    preload.setOffset(offset);
+    preload.setTotalLength(envelope.length);
+    preload.setData(data);
+    const event = await transport.call(MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION, preload, {
+      msgTimeout: core.LONG_TIMEOUT,
+      omitLock: true,
+    });
+    if (event.message_enum !== MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK) {
+      throw new Error("Unexpected response while preloading ERC-7730 definition");
+    }
+    const ack = event.proto as Erc7730Proto.EthereumClearSignDefinitionAck;
+    const expectedOffset = offset + data.length;
+    if (
+      !bytesEqual(ack.getDefinitionId_asU8(), primaryId) ||
+      ack.getNextOffset() !== expectedOffset ||
+      ack.getComplete() !== (expectedOffset === envelope.length)
+    ) {
+      throw new Error("Invalid ERC-7730 preload acknowledgement");
+    }
+  }
+}
 
 /**
  * EthereumTxMetadata: sent BEFORE EthereumSignTx to provide signed
@@ -315,6 +463,16 @@ function registerEthClearSignMessages() {
   messageTypeRegistry[MESSAGETYPE_ETHEREUMTXMETADATA] = EthereumTxMetadata as any;
   messageTypeRegistry[MESSAGETYPE_ETHEREUMMETADATAACK] = EthereumMetadataAck as any;
   messageTypeRegistry[MESSAGETYPE_LOADCLEARSIGNSIGNER] = LoadClearsignSigner as any;
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION] = "EthereumClearSignDefinition";
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK] = "EthereumClearSignDefinitionAck";
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST] = "EthereumClearSignDefinitionRequest";
+  messageNameRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK] = "EthereumClearSignDefinitionChunk";
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITION] = Erc7730Proto.EthereumClearSignDefinition as any;
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONACK] = Erc7730Proto.EthereumClearSignDefinitionAck as any;
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST] =
+    Erc7730Proto.EthereumClearSignDefinitionRequest as any;
+  messageTypeRegistry[MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK] =
+    Erc7730Proto.EthereumClearSignDefinitionChunk as any;
 }
 registerEthClearSignMessages();
 
@@ -417,12 +575,30 @@ async function sendTxMetadata(
   }
 }
 
+/** The firmware's own words when it refused.
+ *
+ * transport.call throws the raw failure event -- `{ message_enum:
+ * MESSAGETYPE_FAILURE, message: Failure.toObject() }` -- so the device's text
+ * is at `.message.message`. Every caller that flattens this to a generic string
+ * throws away the only explanation the user can act on.
+ */
+function firmwareFailureText(error: unknown): string | undefined {
+  if (!core.isIndexable(error)) return undefined;
+  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return undefined;
+  const failure = error.message as { message?: string } | undefined;
+  const text = failure?.message;
+  return typeof text === "string" && text.length > 0 ? text : undefined;
+}
+
 export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Promise<core.ETHSignedTx> {
   return transport.lockDuring(async () => {
     // ── EVM Clear-Signing: send metadata BEFORE EthereumSignTx ──────
     // If txMetadata is present, the firmware can verify the signed blob
     // and display decoded contract call info on the OLED instead of raw hex.
     if (msg.txMetadata?.signedPayload) await sendTxMetadata(transport, msg.txMetadata);
+
+    // A per-call copy: inner definitions resolved while signing are added to it.
+    const erc7730 = msg.erc7730 && { ...msg.erc7730, definitions: [...msg.erc7730.definitions] };
 
     const est: Ethereum.EthereumSignTx = new Ethereum.EthereumSignTx();
     est.setAddressNList(msg.addressNList);
@@ -454,14 +630,17 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
       est.setTo(core.arrayify(msg.to));
     }
 
-    let dataChunk: Uint8Array | null | undefined = null;
-    let dataRemaining: Uint8Array | null | undefined = undefined;
+    // Argument bytes after the initial chunk. ERC-7730 review on 7.16 reads
+    // them in several passes, each from offset 0, then once more to sign.
+    let args: Uint8Array | undefined = undefined;
+    let cursor = 0;
 
     if (msg.data) {
-      dataRemaining = core.arrayify(msg.data);
-      est.setDataLength(dataRemaining.length);
-      dataChunk = dataRemaining.slice(0, 1024);
-      dataRemaining = dataRemaining.slice(dataChunk.length);
+      const data = core.arrayify(msg.data);
+      est.setDataLength(data.length);
+      // With a preloaded definition the firmware requires exactly the selector.
+      const dataChunk = data.slice(0, erc7730 ? 4 : 1024);
+      args = data.slice(dataChunk.length);
       est.setDataInitialChunk(dataChunk);
     }
 
@@ -470,28 +649,66 @@ export async function ethSignTx(transport: Transport, msg: core.ETHSignTx): Prom
     }
 
     let response: Ethereum.EthereumTxRequest;
-    let nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTX, est, {
-      msgTimeout: core.LONG_TIMEOUT,
-      omitLock: true,
-    });
-    response = nextResponse.proto as Ethereum.EthereumTxRequest;
     try {
+      if (erc7730) await preloadErc7730Definition(transport, erc7730);
+      let nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTX, est, {
+        msgTimeout: core.LONG_TIMEOUT,
+        omitLock: true,
+      });
+      // Any message between the preload and SignTx drops the definition, and
+      // the device then reviews blind. Never let that pass as a clear-sign.
+      if (erc7730 && nextResponse.message_enum !== MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
+        throw new Error("ERC-7730 definition was not used by the device");
+      }
+      response = nextResponse.proto as Ethereum.EthereumTxRequest;
       const esa: Ethereum.EthereumTxAck = new Ethereum.EthereumTxAck();
-      while (response.hasDataLength()) {
-        const dataLength = response.getDataLength();
-        dataRemaining = core.mustBeDefined(dataRemaining);
-        dataChunk = dataRemaining.slice(0, dataLength);
-        dataRemaining = dataRemaining.slice(dataLength, dataRemaining.length);
-
-        esa.setDataChunk(dataChunk);
-        nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMTXACK, esa, {
-          msgTimeout: core.LONG_TIMEOUT,
-          omitLock: true,
-        });
+      for (let round = 0; ; round++) {
+        if (
+          nextResponse.message_enum === Messages.MessageType.MESSAGETYPE_ETHEREUMTXREQUEST &&
+          response.hasSignatureV()
+        )
+          break;
+        if (round >= ERC7730_MAX_ROUND_TRIPS) throw new Error("Ethereum signing did not terminate");
+        if (nextResponse.message_enum === MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
+          if (!erc7730) throw new Error("Device requested an ERC-7730 definition without a catalog");
+          const chunk = await makeErc7730DefinitionChunk(
+            erc7730,
+            nextResponse.proto as Erc7730Proto.EthereumClearSignDefinitionRequest
+          );
+          nextResponse = await transport.call(MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK, chunk, {
+            msgTimeout: core.LONG_TIMEOUT,
+            omitLock: true,
+          });
+        } else if (
+          nextResponse.message_enum === Messages.MessageType.MESSAGETYPE_ETHEREUMTXREQUEST &&
+          response.hasDataLength()
+        ) {
+          const dataLength = core.mustBeDefined(response.getDataLength());
+          args = core.mustBeDefined(args);
+          if (cursor === args.length) {
+            if (!erc7730) throw new Error("Device requested more calldata than the transaction has");
+            cursor = 0;
+          }
+          const dataChunk = args.slice(cursor, cursor + dataLength);
+          cursor += dataChunk.length;
+          esa.setDataChunk(dataChunk);
+          nextResponse = await transport.call(Messages.MessageType.MESSAGETYPE_ETHEREUMTXACK, esa, {
+            msgTimeout: core.LONG_TIMEOUT,
+            omitLock: true,
+          });
+        } else {
+          throw new Error(`Unexpected Ethereum signing response ${nextResponse.message_enum}`);
+        }
         response = nextResponse.proto as Ethereum.EthereumTxRequest;
       }
     } catch (error) {
       console.error({ error });
+      // The device's own refusal ("Inner call cannot be clear-signed", ...) is
+      // the only text a user can act on.
+      const detail = firmwareFailureText(error);
+      if (detail) throw new Error(detail);
+      // ActionCancelled, and the host's own reason for giving up.
+      if (error instanceof Error) throw error;
       throw new Error("Failed to sign ETH transaction");
     }
 
@@ -666,21 +883,6 @@ function isX402Eip3009(typedData: any): boolean {
   );
 }
 
-/** The firmware's own words when it refused.
- *
- * transport.call throws the raw failure event -- `{ message_enum:
- * MESSAGETYPE_FAILURE, message: Failure.toObject() }` -- so the device's text
- * is at `.message.message`. Every caller that flattens this to a generic string
- * throws away the only explanation the user can act on.
- */
-function firmwareFailureText(error: unknown): string | undefined {
-  if (!core.isIndexable(error)) return undefined;
-  if (error.message_enum !== Messages.MessageType.MESSAGETYPE_FAILURE) return undefined;
-  const failure = error.message as { message?: string } | undefined;
-  const text = failure?.message;
-  return typeof text === "string" && text.length > 0 ? text : undefined;
-}
-
 /** Did the device refuse because it has no structured EIP-712 endpoint?
  *
  * Firmware 7.14.2 withdrew the structured path -- its JSON parser could not
@@ -724,7 +926,8 @@ function structuredEip712Unavailable(error: unknown): boolean {
 async function signTypedDataStreaming(
   transport: Transport,
   addressNList: number[],
-  typedData: TypedDataDoc
+  typedData: TypedDataDoc,
+  erc7730?: NonNullable<core.ETHSignTypedData["erc7730"]>
 ): Promise<core.ETHSignedTypedData> {
   const wire: Eip712WireShape = {
     SIGN: Eip712Wire.MESSAGETYPE_ETHEREUMSIGNTYPEDDATA,
@@ -762,16 +965,36 @@ async function signTypedDataStreaming(
     },
   };
 
+  let definitionRequests = 0;
   const call: Eip712Call = async (messageType: number, payload: Uint8Array) => {
-    const event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
+    let event = await transport.call(messageType, new Eip712Wire.RawPayload(payload), {
       msgTimeout: core.LONG_TIMEOUT,
       omitLock: true,
     });
+    // 7.16 asks for the preloaded definition once it has the primary type's
+    // typeHash, and again during field passes. Answer it here: the walk only
+    // knows struct and value requests, and the request class serializes empty.
+    while (event.message_enum === MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONREQUEST) {
+      if (!erc7730) throw new Error("Device requested an ERC-7730 definition without a catalog");
+      if (++definitionRequests > ERC7730_MAX_ROUND_TRIPS) throw new Error("EIP-712 walk did not terminate");
+      const chunk = await makeErc7730DefinitionChunk(
+        erc7730,
+        event.proto as Erc7730Proto.EthereumClearSignDefinitionRequest
+      );
+      event = await transport.call(MESSAGETYPE_ETHEREUMCLEARSIGNDEFINITIONCHUNK, chunk, {
+        msgTimeout: core.LONG_TIMEOUT,
+        omitLock: true,
+      });
+    }
     const proto = event.proto as jspb.Message;
     return { type: event.message_enum as number, payload: proto.serializeBinary() };
   };
 
-  const out = await runEip712Walk(typedData, addressNList, wire, call);
+  // Each ERC-7730 field pass walks the whole message again.
+  const out = await runEip712Walk(typedData, addressNList, wire, call, erc7730 ? ERC7730_MAX_ROUND_TRIPS : undefined);
+  // A preload dropped before the document leaves 7.16 signing without it.
+  // Never let that pass as a clear-sign.
+  if (erc7730 && definitionRequests === 0) throw new Error("ERC-7730 definition was not used by the device");
   return { address: out.address, signature: out.signature };
 }
 
@@ -838,16 +1061,25 @@ export async function ethSignTypedData(
       // A certified name record (e.g. a Permit2 spender) rides ahead of the
       // document; the device shows it only beside the address it names.
       if (msg.txMetadata?.signedPayload) await sendTxMetadata(transport, msg.txMetadata);
+      // After 115, which would clear it, and right before the document.
+      if (msg.erc7730) await preloadErc7730Definition(transport, msg.erc7730);
 
       // Prefer the streaming path for EVERY document: the device parses and
       // displays the fields itself, instead of signing two opaque hashes.
       try {
-        return await signTypedDataStreaming(transport, msg.addressNList, typedData as unknown as TypedDataDoc);
+        return await signTypedDataStreaming(
+          transport,
+          msg.addressNList,
+          typedData as unknown as TypedDataDoc,
+          msg.erc7730
+        );
       } catch (e) {
         // Only "this firmware has no structured endpoint" degrades. Anything
         // else -- a refused screen, a malformed document, an array this
         // firmware cannot walk -- is a real answer and must not be masked.
-        if (!structuredEip712Unavailable(e)) throw e;
+        // With a definition there is no fallback: the legacy paths cannot
+        // use it, and signing without it would drop the description.
+        if (msg.erc7730 || !structuredEip712Unavailable(e)) throw e;
       }
 
       if (isX402Eip3009(typedData)) {

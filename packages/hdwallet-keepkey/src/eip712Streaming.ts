@@ -372,11 +372,12 @@ export async function runEip712Walk(
   doc: TypedDataDoc,
   addressNList: number[],
   wire: Eip712Wire,
-  call: Eip712Call
+  call: Eip712Call,
+  maxRoundTrips = MAX_ROUND_TRIPS
 ): Promise<{ address: string; signature: string }> {
   let reply = await call(wire.SIGN, wire.encodeSign(addressNList, doc.primaryType));
 
-  for (let i = 0; i < MAX_ROUND_TRIPS; i++) {
+  for (let i = 0; i < maxRoundTrips; i++) {
     if (reply.type === wire.SIGNATURE) {
       return wire.decodeSignature(reply.payload);
     }
