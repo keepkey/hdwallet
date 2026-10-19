@@ -98,14 +98,22 @@ export function xpubToHDNode(xpub: string): any {
  * ordering. See the note on core.BTCMultisig.
  */
 export function toProtoMultisig(ms: core.BTCMultisig): any {
-  assert(ms && Array.isArray(ms.pubkeys) && ms.pubkeys.length >= 2 && ms.pubkeys.length <= 15, "multisig requires 2–15 public keys");
+  assert(
+    ms && Array.isArray(ms.pubkeys) && ms.pubkeys.length >= 2 && ms.pubkeys.length <= 15,
+    "multisig requires 2–15 public keys"
+  );
   assert(Number.isInteger(ms.m) && ms.m >= 1 && ms.m <= ms.pubkeys.length, "invalid multisig threshold");
   assert(!ms.signatures || ms.signatures.length <= ms.pubkeys.length, "too many multisig signature slots");
   const out = new Types.MultisigRedeemScriptType();
   out.setM(ms.m);
   out.setPubkeysList(
     ms.pubkeys.map((p) => {
-      assert(Array.isArray(p.addressNList) && p.addressNList.length <= 8 && p.addressNList.every(n => Number.isInteger(n) && n >= 0 && n < 0x80000000), "multisig xpub suffix must be unhardened");
+      assert(
+        Array.isArray(p.addressNList) &&
+          p.addressNList.length <= 8 &&
+          p.addressNList.every((n) => Number.isInteger(n) && n >= 0 && n < 0x80000000),
+        "multisig xpub suffix must be unhardened"
+      );
       const path = new Types.HDNodePathType();
       path.setNode(xpubToHDNode(p.xpub));
       path.setAddressNList(p.addressNList);
@@ -115,13 +123,22 @@ export function toProtoMultisig(ms: core.BTCMultisig): any {
   // Positional against pubkeys; empty entries are the slots still to be filled.
   // The device skips zero-length signatures when it serializes the script.
   const sigs = ms.signatures ?? [];
-  out.setSignaturesList(ms.pubkeys.map((_, i) => {
-    const hex = sigs[i] ?? "";
-    assert(/^(?:[0-9a-fA-F]{2})*$/.test(hex), "invalid multisig signature hex");
-    const signature = core.fromHexString(hex);
-    assert(!signature.length || (signature.length >= 8 && signature.length <= 72 && signature[0] === 0x30 && signature[1] + 2 === signature.length), "multisig signatures must be bare DER without a sighash byte");
-    return signature;
-  }));
+  out.setSignaturesList(
+    ms.pubkeys.map((_, i) => {
+      const hex = sigs[i] ?? "";
+      assert(/^(?:[0-9a-fA-F]{2})*$/.test(hex), "invalid multisig signature hex");
+      const signature = core.fromHexString(hex);
+      assert(
+        !signature.length ||
+          (signature.length >= 8 &&
+            signature.length <= 72 &&
+            signature[0] === 0x30 &&
+            signature[1] + 2 === signature.length),
+        "multisig signatures must be bare DER without a sighash byte"
+      );
+      return signature;
+    })
+  );
   return out;
 }
 

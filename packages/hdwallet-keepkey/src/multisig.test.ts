@@ -13,7 +13,8 @@ import { toProtoMultisig, xpubToHDNode } from "./bitcoin";
 
 // BIP-32 test vector 1, chain m/0'/1 — the published serialization plus the
 // field values it encodes.
-const XPUB = "xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ";
+const XPUB =
+  "xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ";
 const EXPECTED = {
   depth: 2,
   fingerprint: 0x5c1bd648,
@@ -94,24 +95,41 @@ describe("multisig wire restrictions", () => {
     const { KeepKeyHDWallet } = await import("./keepkey");
     const Types = await import("@keepkey/device-protocol/lib/types_pb");
     let request: any;
-    const wallet = { transport: { call: async (_kind: any, msg: any) => {
-      request = msg;
-      return { proto: { getXpub: () => XPUB } };
-    } } };
-    const keys = await KeepKeyHDWallet.prototype.getPublicKeys.call(wallet as any, [{
-      coin: "Bitcoin", curve: "secp256k1", addressNList: [0x80000030, 0x80000000, 0x80000000], scriptType: core.BTCInputScriptType.SpendMultisig,
-    }]);
+    const wallet = {
+      transport: {
+        call: async (_kind: any, msg: any) => {
+          request = msg;
+          return { proto: { getXpub: () => XPUB } };
+        },
+      },
+    };
+    const keys = await KeepKeyHDWallet.prototype.getPublicKeys.call(wallet as any, [
+      {
+        coin: "Bitcoin",
+        curve: "secp256k1",
+        addressNList: [0x80000030, 0x80000000, 0x80000000],
+        scriptType: core.BTCInputScriptType.SpendMultisig,
+      },
+    ]);
     expect(request.getScriptType()).toBe(Types.InputScriptType.SPENDADDRESS);
     expect(keys[0]?.xpub).toBe(XPUB);
     const { translateInputScriptType } = await import("./utils");
     expect(translateInputScriptType(core.BTCInputScriptType.SpendMultisig)).toBe(Types.InputScriptType.SPENDMULTISIG);
   });
   it("refuses malformed threshold, suffixes and DER signature slots", () => {
-    const ms: core.BTCMultisig = {m:2,pubkeys:[{xpub:XPUB,addressNList:[0,0]},{xpub:XPUB,addressNList:[1,0]}]};
-    expect(()=>toProtoMultisig({...ms,m:3})).toThrow();
-    expect(()=>toProtoMultisig({...ms,m:1.5})).toThrow();
-    expect(()=>toProtoMultisig({...ms,pubkeys:[{xpub:XPUB,addressNList:[0x80000000]},ms.pubkeys[1]]})).toThrow();
-    expect(()=>toProtoMultisig({...ms,signatures:["300602010102010101"]})).toThrow();
-    expect(()=>toProtoMultisig({...ms,signatures:["zz"]})).toThrow();
+    const ms: core.BTCMultisig = {
+      m: 2,
+      pubkeys: [
+        { xpub: XPUB, addressNList: [0, 0] },
+        { xpub: XPUB, addressNList: [1, 0] },
+      ],
+    };
+    expect(() => toProtoMultisig({ ...ms, m: 3 })).toThrow();
+    expect(() => toProtoMultisig({ ...ms, m: 1.5 })).toThrow();
+    expect(() =>
+      toProtoMultisig({ ...ms, pubkeys: [{ xpub: XPUB, addressNList: [0x80000000] }, ms.pubkeys[1]] })
+    ).toThrow();
+    expect(() => toProtoMultisig({ ...ms, signatures: ["300602010102010101"] })).toThrow();
+    expect(() => toProtoMultisig({ ...ms, signatures: ["zz"] })).toThrow();
   });
 });
