@@ -3,6 +3,7 @@ import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
 import * as bitcoinjs from "@shapeshiftoss/bitcoinjs-lib";
 import assert from "assert";
+import bs58check from "bs58check";
 import { thaw } from "icepick";
 
 import { Transport } from "./transport";
@@ -67,6 +68,80 @@ function packVarint(n: number): string {
   else return "FF" + n.toString(16).padStart(16, "0");
 }
 
+/**
+ * Serialized extended key -> the device's HDNodeType.
+ *
+ * Layout is BIP-32's 78 bytes: version(4) depth(1) parentFingerprint(4)
+ * childNum(4) chainCode(32) key(33). The SLIP-132 version bytes are ignored
+ * on purpose — ypub/zpub/Ypub/Zpub all describe the same node, and the device
+ * only needs the node.
+ */
+export function xpubToHDNode(xpub: string): any {
+  const raw = Buffer.from(bs58check.decode(xpub));
+  assert(raw.length === 78, `bad extended key length ${raw.length}, want 78`);
+  assert(raw[45] === 2 || raw[45] === 3, "multisig requires a compressed public key, never a private key");
+  bitcoinjs.ECPair.fromPublicKey(raw.subarray(45, 78));
+  const node = new Types.HDNodeType();
+  node.setDepth(raw.readUInt8(4));
+  node.setFingerprint(raw.readUInt32BE(5));
+  node.setChildNum(raw.readUInt32BE(9));
+  node.setChainCode(raw.subarray(13, 45));
+  node.setPublicKey(raw.subarray(45, 78));
+  return node;
+}
+
+/**
+ * core.BTCMultisig -> MultisigRedeemScriptType, preserving pubkey order.
+ *
+ * The device compiles the script from this list in order and does NOT sort it
+ * (firmware transaction.c compile_script_multisig), so the caller owns BIP-67
+ * ordering. See the note on core.BTCMultisig.
+ */
+export function toProtoMultisig(ms: core.BTCMultisig): any {
+  assert(
+    ms && Array.isArray(ms.pubkeys) && ms.pubkeys.length >= 2 && ms.pubkeys.length <= 15,
+    "multisig requires 2–15 public keys"
+  );
+  assert(Number.isInteger(ms.m) && ms.m >= 1 && ms.m <= ms.pubkeys.length, "invalid multisig threshold");
+  assert(!ms.signatures || ms.signatures.length <= ms.pubkeys.length, "too many multisig signature slots");
+  const out = new Types.MultisigRedeemScriptType();
+  out.setM(ms.m);
+  out.setPubkeysList(
+    ms.pubkeys.map((p) => {
+      assert(
+        Array.isArray(p.addressNList) &&
+          p.addressNList.length <= 8 &&
+          p.addressNList.every((n) => Number.isInteger(n) && n >= 0 && n < 0x80000000),
+        "multisig xpub suffix must be unhardened"
+      );
+      const path = new Types.HDNodePathType();
+      path.setNode(xpubToHDNode(p.xpub));
+      path.setAddressNList(p.addressNList);
+      return path;
+    })
+  );
+  // Positional against pubkeys; empty entries are the slots still to be filled.
+  // The device skips zero-length signatures when it serializes the script.
+  const sigs = ms.signatures ?? [];
+  out.setSignaturesList(
+    ms.pubkeys.map((_, i) => {
+      const hex = sigs[i] ?? "";
+      assert(/^(?:[0-9a-fA-F]{2})*$/.test(hex), "invalid multisig signature hex");
+      const signature = core.fromHexString(hex);
+      assert(
+        !signature.length ||
+          (signature.length >= 8 &&
+            signature.length <= 72 &&
+            signature[0] === 0x30 &&
+            signature[1] + 2 === signature.length),
+        "multisig signatures must be bare DER without a sighash byte"
+      );
+      return signature;
+    })
+  );
+  return out;
+}
+
 function prepareSignTx(
   coin: core.Coin,
   inputs: Array<core.BTCSignTxInputKK>,
@@ -84,6 +159,7 @@ function prepareSignTx(
     utxo.setScriptType(translateInputScriptType(input.scriptType));
     utxo.setAddressNList(input.addressNList);
     utxo.setAmount(Number(input.amount));
+    if (input.multisig) utxo.setMultisig(toProtoMultisig(input.multisig));
     unsignedTx.addInputs(utxo, i);
   });
 
@@ -102,6 +178,9 @@ function prepareSignTx(
       newOutput.setScriptType(translateOutputScriptType(output.scriptType));
       newOutput.setAddressNList(output.addressNList);
       newOutput.setAddressType(output.isChange ? Types.OutputAddressType.CHANGE : Types.OutputAddressType.TRANSFER);
+      // Multisig change: without this the device can't match the output against
+      // the inputs' multisig fingerprint, so it prompts for the user's own change.
+      if (output.multisig) newOutput.setMultisig(toProtoMultisig(output.multisig));
     } else if (output.opReturnData !== undefined && output.opReturnData !== null) {
       // BTCSignTxOutputMemo
       newOutput.setScriptType(Types.OutputScriptType.PAYTOOPRETURN);
@@ -274,6 +353,9 @@ export async function btcGetAddress(
   addr.setCoinName(msg.coin);
   addr.setShowDisplay(msg.showDisplay || false);
   addr.setScriptType(translateInputScriptType(msg.scriptType || core.BTCInputScriptType.SpendAddress));
+  // On-device multisig address verification — the whole point of holding a key
+  // in a multisig. Without it the user is trusting the coordinator's screen.
+  if (msg.multisig) addr.setMultisig(toProtoMultisig(msg.multisig));
 
   const response = await transport.call(Messages.MessageType.MESSAGETYPE_GETADDRESS, addr, {
     msgTimeout: core.LONG_TIMEOUT,

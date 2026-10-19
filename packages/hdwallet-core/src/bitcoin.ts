@@ -15,11 +15,46 @@ type OnlyNecessaryProps<T, U> = T & Omit<FalsyValuesOfUnion<U>, keyof T>;
 type GuardedUnionInner<T, U> = T extends any ? OnlyNecessaryProps<T, U> : never;
 type GuardedUnion<T> = GuardedUnionInner<T, T>;
 
+/**
+ * One cosigner's contribution to a multisig script: an account-level xpub plus
+ * the suffix to derive from it (normally [change, addressIndex]).
+ */
+export type BTCMultisigPubkey = {
+  /** Account xpub. Any SLIP-132 flavour decodes to the same node, but prefer standard xpub. */
+  xpub: string;
+  /** Derivation suffix below `xpub`, non-hardened only (public derivation). */
+  addressNList: BIP32Path;
+};
+
+/**
+ * Multisig redeem/witness script description.
+ *
+ * ORDER IS SIGNIFICANT AND IS THE CALLER'S RESPONSIBILITY. The device builds the
+ * script from `pubkeys` in exactly the order given — it does not sort. Electrum
+ * and Sparrow use `sortedmulti`, i.e. BIP-67 ordering of the *derived* keys,
+ * recomputed at every address index. Pass them already in that order or you will
+ * produce a valid-looking script for a wallet nobody else can find.
+ */
+export type BTCMultisig = {
+  /** Signatures required (the "m" of m-of-n). */
+  m: number;
+  pubkeys: BTCMultisigPubkey[];
+  /**
+   * Existing bare DER signatures as hex, WITHOUT a sighash byte, positional against
+   * `pubkeys` — index i holds the signature made by pubkeys[i], "" if absent.
+   * OP_CHECKMULTISIG requires signatures in the same relative order as the keys.
+   */
+  signatures?: string[];
+};
+
 export type BTCGetAddress = {
   coin: Coin;
   addressNList: BIP32Path;
   scriptType?: BTCInputScriptType; // Defaults to BTCInputScriptType.SpendAddress
   showDisplay?: boolean;
+  /** Set to verify a multisig address on-device. With this, `scriptType` selects the
+   *  wrapper: SpendWitness => P2WSH, SpendP2SHWitness => P2SH-P2WSH, SpendMultisig => P2SH. */
+  multisig?: BTCMultisig;
 };
 
 export interface BitcoinScriptSig {
@@ -69,6 +104,8 @@ type BTCSignTxInputBase = {
   vout: number;
   addressNList: BIP32Path;
   amount?: string;
+  /** Present when this input spends a multisig script. See BTCMultisig on ordering. */
+  multisig?: BTCMultisig;
 };
 
 type BTCSignTxInputNativeBase = BTCSignTxInputBase & {
@@ -188,6 +225,13 @@ export type BTCSignTxOutputChange = {
   addressNList: BIP32Path;
   scriptType: BTCOutputScriptType;
   isChange: true;
+  /**
+   * Required for change back into a multisig wallet. The device only skips the
+   * confirmation prompt when this output's multisig fingerprint matches the
+   * inputs' — omit it and the user is asked to confirm their own change address
+   * as if it were a payment to a stranger.
+   */
+  multisig?: BTCMultisig;
 };
 
 export type BTCSignTxOutputMemo = {

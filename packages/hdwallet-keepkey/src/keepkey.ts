@@ -895,10 +895,10 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
       GPK.setEcdsaCurveName(curve || "secp256k1");
       // A BIP-86 account xpub uses the same serialization as a legacy account
       // xpub. Current KeepKey firmware derives it from the BIP-86 path, but its
-      // GetPublicKey handler rejects SPENDTAPROOT. Keep P2TR on address/signing
-      // requests and use SPENDADDRESS only for this xpub-derivation message.
+      // GetPublicKey rejects SPENDTAPROOT and SPENDMULTISIG. Preserve those
+      // types for address/signing requests; use SPENDADDRESS for account xpubs.
       const publicKeyScriptType =
-        scriptType === core.BTCInputScriptType.SpendTaproot
+        scriptType === core.BTCInputScriptType.SpendTaproot || scriptType === core.BTCInputScriptType.SpendMultisig
           ? core.BTCInputScriptType.SpendAddress
           : scriptType || core.BTCInputScriptType.SpendAddress;
       GPK.setScriptType(translateInputScriptType(publicKeyScriptType));
