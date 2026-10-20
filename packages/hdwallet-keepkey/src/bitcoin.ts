@@ -413,19 +413,17 @@ export async function btcSignTx(
     }
     if ((msg as any).expiry !== undefined) tx.setExpiry((msg as any).expiry);
 
-    let responseType: number | undefined;
-    let response: any;
-    const { message_enum, proto } = await transport.call(Messages.MessageType.MESSAGETYPE_SIGNTX, tx, {
-      msgTimeout: core.LONG_TIMEOUT,
-      omitLock: true,
-    }); // 5 Minute timeout
-    responseType = message_enum;
-    response = proto;
     // Prepare structure for signatures
     const signatures: (string | null)[] = new Array(msg.inputs.length).fill(null);
     let serializedTx = "";
 
     try {
+      const { message_enum, proto } = await transport.call(Messages.MessageType.MESSAGETYPE_SIGNTX, tx, {
+        msgTimeout: core.LONG_TIMEOUT,
+        omitLock: true,
+      }); // 5 Minute timeout
+      let responseType = message_enum;
+      let response: any = proto;
       // Begin callback loop
       // eslint-disable-next-line no-constant-condition
       while (true) {
@@ -564,6 +562,15 @@ export async function btcSignTx(
       }
     } catch (error) {
       console.error({ error });
+      // Keep transport errors (including ActionCancelled) and the device's
+      // refusal text. A generic error hid failures before any OLED prompt.
+      if (error instanceof Error) throw error;
+      if (core.isIndexable(error) && error.message_enum === Messages.MessageType.MESSAGETYPE_FAILURE) {
+        const failure = error.message as { message?: string } | undefined;
+        if (typeof failure?.message === "string" && failure.message.length > 0) {
+          throw new Error(`Failed to sign BTC transaction: ${failure.message}`);
+        }
+      }
       throw new Error("Failed to sign BTC transaction");
     }
 

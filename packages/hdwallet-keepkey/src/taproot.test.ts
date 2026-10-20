@@ -221,3 +221,34 @@ describe("KeepKey Taproot host support", () => {
     expect(result.signatures).toEqual(["42".repeat(64)]);
   });
 });
+
+
+describe("BTC signing error propagation", () => {
+  const msg = {
+    coin: "Bitcoin",
+    inputs: [{ txid: "11".repeat(32), vout: 0, addressNList: BIP86_ADDRESS, amount: "100000", scriptType: core.BTCInputScriptType.SpendTaproot }],
+    outputs: [{ address: "1BitcoinEaterAddressDontSendf59kuE", amount: "90000" }],
+  } as core.BTCSignTx;
+
+  it.each(["initial request", "input acknowledgement"])("keeps the device refusal during %s", async (stage) => {
+    const call = jest.fn().mockImplementation((messageType: number) => {
+      if (stage === "input acknowledgement" && messageType === Messages.MessageType.MESSAGETYPE_SIGNTX) {
+        const details = new Types.TxRequestDetailsType();
+        details.setRequestIndex(0);
+        const request = new Messages.TxRequest();
+        request.setRequestType(Types.RequestType.TXINPUT);
+        request.setDetails(details);
+        return Promise.resolve({ message_enum: Messages.MessageType.MESSAGETYPE_TXREQUEST, proto: request });
+      }
+      return Promise.reject({ message_enum: Messages.MessageType.MESSAGETYPE_FAILURE, message: { code: 9, message: "Transaction input amount mismatch" } });
+    });
+    const wallet = { btcSupportsCoin: jest.fn().mockResolvedValue(true) } as any;
+    await expect(btcSignTx(wallet, makeMockTransport(call), msg)).rejects.toThrow("Transaction input amount mismatch");
+  });
+
+  it.each([new Error("USB device disconnected"), new core.ActionCancelled()])("preserves transport error identity (%s)", async (error) => {
+    const call = jest.fn().mockRejectedValue(error);
+    const wallet = { btcSupportsCoin: jest.fn().mockResolvedValue(true) } as any;
+    await expect(btcSignTx(wallet, makeMockTransport(call), msg)).rejects.toBe(error);
+  });
+});

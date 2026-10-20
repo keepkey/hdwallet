@@ -1,4 +1,6 @@
 import * as Ethereum from "@keepkey/device-protocol/lib/messages-ethereum_pb";
+import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
+import * as core from "@keepkey/hdwallet-core";
 
 import { ethSignTypedData } from "./ethereum";
 
@@ -136,5 +138,44 @@ describe("x402 EVM structured signing", () => {
     ]);
     expect(result.address).toBe("0x73d0385F4d8E00C5e6504C6030F47BF6212736A8");
     expect(result.signature).toBe("0x" + "42".repeat(65));
+  });
+});
+
+
+describe("Hyperliquid ApproveAgent on legacy firmware (#507)", () => {
+  // Shape from hyperliquid-dex/hyperliquid-python-sdk utils/signing.py.
+  // Hash fixtures independently computed with ethers TypedDataEncoder.
+  const typedData = {
+    domain: { name: "HyperliquidSignTransaction", version: "1", chainId: 42161, verifyingContract: "0x0000000000000000000000000000000000000000" },
+    types: {
+      EIP712Domain: [{ name: "name", type: "string" }, { name: "version", type: "string" }, { name: "chainId", type: "uint256" }, { name: "verifyingContract", type: "address" }],
+      "HyperliquidTransaction:ApproveAgent": [{ name: "hyperliquidChain", type: "string" }, { name: "agentAddress", type: "address" }, { name: "agentName", type: "string" }, { name: "nonce", type: "uint64" }],
+    },
+    primaryType: "HyperliquidTransaction:ApproveAgent",
+    message: { hyperliquidChain: "Mainnet", agentAddress: "0x1111111111111111111111111111111111111111", agentName: "QA agent", nonce: 1700000000000 },
+  };
+
+  it("uses the legacy hash endpoint after a 7.14.1 unknown-message response", async () => {
+    const call = jest.fn().mockImplementation((messageType: number, msg: Ethereum.EthereumSignTypedHash) => {
+      if (STREAMING.has(messageType)) rejectUnknownMessage();
+      expect(messageType).toBe(Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH);
+      expect(msg.getAddressNList()).toEqual(PATH);
+      expect(Buffer.from(msg.getDomainSeparatorHash_asU8()).toString("hex")).toBe("2f54e643b38c9c2b65cb731aaf11c54f01705ee0cdf45aea16e2ac0a5ce7531a");
+      expect(Buffer.from(msg.getMessageHash_asU8()).toString("hex")).toBe("c5b56400c8cd0456343cf6b965eafd00b7cf3be1359e57586ba528da1c9a31de");
+      const result = new Ethereum.EthereumTypedDataSignature();
+      result.setAddress("0x1111111111111111111111111111111111111111");
+      result.setSignature(new Uint8Array(65).fill(0x42));
+      return Promise.resolve({ proto: result });
+    });
+    const result = await ethSignTypedData(makeMockTransport(call), { addressNList: PATH, typedData });
+    expect(call.mock.calls.map(([kind]) => kind)).toEqual([1704, Messages.MessageType.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH]);
+    expect(result.signature).toBe("0x" + "42".repeat(65));
+  });
+
+  it("never downgrades a cancelled structured signing request", async () => {
+    const error = new core.ActionCancelled();
+    const call = jest.fn().mockRejectedValue(error);
+    await expect(ethSignTypedData(makeMockTransport(call), { addressNList: PATH, typedData })).rejects.toBe(error);
+    expect(call).toHaveBeenCalledTimes(1);
   });
 });
