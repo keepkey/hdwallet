@@ -52,10 +52,15 @@ const EIGHT = BigInt(8);
 const BYTE_MASK = BigInt(0xff);
 
 /** EthereumTypedDataValueAck.value max_size in messages-ethereum.options, and
- *  EIP712_MAX_LEAF on the device. Encoding past it produces a value that
- *  cannot be put on the wire, so catch it here where the error can name the
- *  field rather than at the transport layer where it cannot. */
+ *  EIP712_MAX_LEAF on the device: one ValueAck, and one chunk of a longer
+ *  value. Encoding past it produces a value that cannot go in one ValueAck,
+ *  so catch it here where the error can name the field rather than at the
+ *  transport layer where it cannot. */
 export const MAX_LEAF_BYTES = 1024;
+
+/** EIP712_MAX_VALUE on the device: the longest `bytes` or `string` value it
+ *  takes in MAX_LEAF_BYTES chunks (Safe MultiSend data, Snapshot bodies). */
+export const MAX_VALUE_BYTES = 1024 * 1024;
 
 /**
  * "uint256", "bytes32", "Person[3]", "int16[2][][4]" -> FieldType.
@@ -185,15 +190,17 @@ function toBigInt(value: unknown, what: string): bigint {
   throw new Error(`${what} is not an integer: ${String(value)}`);
 }
 
-function capLeaf(b: Uint8Array, what: string): Uint8Array {
-  if (b.length > MAX_LEAF_BYTES) {
-    throw new Error(`${what} value is ${b.length} bytes, over the ${MAX_LEAF_BYTES}-byte wire limit`);
+function capLeaf(b: Uint8Array, what: string, maxBytes: number): Uint8Array {
+  if (b.length > maxBytes) {
+    throw new Error(`${what} value is ${b.length} bytes, over the ${maxBytes}-byte wire limit`);
   }
   return b;
 }
 
-/** One leaf, as the exact bytes the device will hash and display. */
-export function encodeValue(field: FieldType, value: unknown): Uint8Array {
+/** One leaf, as the exact bytes the device will hash and display. A dynamic
+ *  value may be up to `maxBytes` long; past MAX_LEAF_BYTES only
+ *  answerValueRequest() can put it on the wire. */
+export function encodeValue(field: FieldType, value: unknown, maxBytes = MAX_LEAF_BYTES): Uint8Array {
   switch (field.dataType) {
     case EthereumDataType.UINT:
     case EthereumDataType.INT: {
@@ -218,11 +225,11 @@ export function encodeValue(field: FieldType, value: unknown): Uint8Array {
       if (field.size !== undefined && b.length !== field.size) {
         throw new Error(`bytes${field.size} must be ${field.size} bytes, got ${b.length}`);
       }
-      return field.size === undefined ? capLeaf(b, "bytes") : b;
+      return field.size === undefined ? capLeaf(b, "bytes", maxBytes) : b;
     }
     case EthereumDataType.STRING: {
       if (typeof value !== "string") throw new Error("string field must be a string");
-      return capLeaf(new TextEncoder().encode(value), "string");
+      return capLeaf(new TextEncoder().encode(value), "string", maxBytes);
     }
     default:
       throw new Error(`Cannot encode a ${EthereumDataType[field.dataType]} as a leaf value`);
@@ -334,6 +341,134 @@ export function structMembers(doc: TypedDataDoc, name: string): Array<{ name: st
   return members.map((m) => ({ name: m.name, type: parseSolidityType(m.type) }));
 }
 
+/** One EthereumTypedDataValueAck: the value, or one chunk of a long one. */
+export interface ValueAck {
+  value: Uint8Array;
+  /** First chunk of a value over MAX_LEAF_BYTES: the whole value's length. */
+  totalLength?: number;
+  /** A later chunk: echoes the offset the device asked for. */
+  offset?: number;
+}
+
+/**
+ * What the firmware does with a `bytes` or `string` value over MAX_LEAF_BYTES.
+ *
+ * - "legacy": before 7.16.0. Exactly the host that predates chunking: such a
+ *   value fails to encode when the device asks for it, and value_offset is
+ *   not read (that firmware never sends it).
+ * - "refuse": 7.16.0 or later without CAPABILITY_EIP712_CHUNKED_VALUES. It
+ *   skips the chunk fields and would hash the first chunk alone, so the value
+ *   is refused before the document is sent.
+ * - "chunk": 7.16.0 or later with the capability.
+ */
+export type LongValues = "legacy" | "refuse" | "chunk";
+
+/** Why a value of `length` bytes under `root` (0 = domain, 1 = message) cannot
+ *  be sent, or undefined if it can. Only for "refuse" and "chunk". */
+function longValueRefusal(root: number, length: number, longValues: LongValues): string | undefined {
+  if (length <= MAX_LEAF_BYTES) return undefined;
+  if (root !== 1) {
+    return `A domain value of ${length} bytes cannot be signed; the device takes at most ${MAX_LEAF_BYTES}`;
+  }
+  if (length > MAX_VALUE_BYTES) {
+    return `A ${length}-byte value cannot be signed; the device takes at most ${MAX_VALUE_BYTES}`;
+  }
+  if (longValues !== "chunk") {
+    return `A ${length}-byte value needs firmware that takes chunked values; this one takes at most ${MAX_LEAF_BYTES} bytes`;
+  }
+  return undefined;
+}
+
+/**
+ * Refuse, before anything is sent, a document with a value the device cannot
+ * take: a domain value over MAX_LEAF_BYTES, a message value over
+ * MAX_VALUE_BYTES, or any value over MAX_LEAF_BYTES for "refuse". Does nothing
+ * for "legacy". Values that do not encode are left for the walk to report.
+ */
+export function checkLongValues(doc: TypedDataDoc, longValues: LongValues): void {
+  if (longValues === "legacy") return;
+  const visit = (root: number, field: FieldType, levels: number, value: unknown): void => {
+    if (levels < field.arrayLevels.length) {
+      if (Array.isArray(value)) for (const v of value) visit(root, field, levels + 1, v);
+      return;
+    }
+    if (field.dataType === EthereumDataType.STRUCT) {
+      const members = doc.types[field.structName!];
+      if (!members || typeof value !== "object" || value === null) return;
+      for (const m of members) {
+        let type: FieldType;
+        try {
+          type = parseSolidityType(m.type);
+        } catch {
+          continue;
+        }
+        visit(root, type, 0, (value as Record<string, unknown>)[m.name]);
+      }
+      return;
+    }
+    const dynamic =
+      field.dataType === EthereumDataType.STRING || (field.dataType === EthereumDataType.BYTES && !field.size);
+    if (!dynamic) return;
+    let length: number;
+    try {
+      length = encodeValue(field, value, Number.MAX_SAFE_INTEGER).length;
+    } catch {
+      return;
+    }
+    const refusal = longValueRefusal(root, length, longValues);
+    if (refusal) throw new Error(refusal);
+  };
+  const struct = (name: string): FieldType => ({
+    dataType: EthereumDataType.STRUCT,
+    structName: name,
+    arrayLevels: [],
+  });
+  visit(0, struct("EIP712Domain"), 0, doc.domain);
+  visit(1, struct(doc.primaryType), 0, doc.message);
+}
+
+/**
+ * The answer to an EthereumTypedDataValueRequest for `path`, and `offset`
+ * when the device names one.
+ *
+ * Up to MAX_LEAF_BYTES a value goes whole. For "chunk", a longer `bytes` or
+ * `string` in the message goes in MAX_LEAF_BYTES chunks: the first carries
+ * totalLength, each later request names an offset that its answer echoes.
+ * The device reads a string twice from offset 0 (it counts and checks it
+ * before showing it), so every chunk is served by its offset alone.
+ */
+export function answerValueRequest(
+  doc: TypedDataDoc,
+  path: number[],
+  offset: number | undefined,
+  longValues: LongValues
+): ValueAck {
+  const resolved = resolveMemberPath(doc, path);
+  if (longValues === "legacy") {
+    return {
+      value:
+        resolved.kind === "arrayLength"
+          ? encodeArrayLength(resolved.length)
+          : encodeValue(resolved.field, resolved.value),
+    };
+  }
+  if (resolved.kind === "arrayLength") {
+    if (offset !== undefined) throw new Error("Device asked for an array length in chunks");
+    return { value: encodeArrayLength(resolved.length) };
+  }
+  const value = encodeValue(resolved.field, resolved.value, MAX_VALUE_BYTES);
+  const refusal = longValueRefusal(path[0], value.length, longValues);
+  if (refusal) throw new Error(refusal);
+  if (offset !== undefined) {
+    if (value.length <= MAX_LEAF_BYTES || offset >= value.length) {
+      throw new Error(`Device asked for offset ${offset} of a ${value.length}-byte value`);
+    }
+    return { value: value.subarray(offset, offset + MAX_LEAF_BYTES), offset };
+  }
+  if (value.length <= MAX_LEAF_BYTES) return { value };
+  return { value: value.subarray(0, MAX_LEAF_BYTES), totalLength: value.length };
+}
+
 /**
  * Drive a full structured EIP-712 signature.
  *
@@ -360,8 +495,8 @@ export interface Eip712Wire {
   encodeSign(addressNList: number[], primaryType: string): Uint8Array;
   decodeStructRequest(payload: Uint8Array): string;
   encodeStructAck(members: Array<{ name: string; type: FieldType }>): Uint8Array;
-  decodeValueRequest(payload: Uint8Array): number[];
-  encodeValueAck(value: Uint8Array): Uint8Array;
+  decodeValueRequest(payload: Uint8Array): { path: number[]; offset?: number };
+  encodeValueAck(ack: ValueAck): Uint8Array;
   decodeSignature(payload: Uint8Array): { address: string; signature: string };
 }
 
@@ -373,11 +508,16 @@ export async function runEip712Walk(
   addressNList: number[],
   wire: Eip712Wire,
   call: Eip712Call,
-  maxRoundTrips = MAX_ROUND_TRIPS
+  maxRoundTrips = MAX_ROUND_TRIPS,
+  longValues: LongValues = "legacy"
 ): Promise<{ address: string; signature: string }> {
   let reply = await call(wire.SIGN, wire.encodeSign(addressNList, doc.primaryType));
 
-  for (let i = 0; i < maxRoundTrips; i++) {
+  // The long value being read in chunks. Its offset requests are not round
+  // trips, but a reading may have at most two per chunk (a string is read
+  // twice), so a device that asks forever is still stopped.
+  let reading: { path: string; offsetsLeft: number } | undefined;
+  for (let i = 0; i < maxRoundTrips; ) {
     if (reply.type === wire.SIGNATURE) {
       return wire.decodeSignature(reply.payload);
     }
@@ -387,18 +527,29 @@ export async function runEip712Walk(
       // structMembers throws on an unknown struct rather than sending an empty
       // member list, which the device would hash as a valid empty struct.
       const members = structMembers(doc, name);
+      i++;
       reply = await call(wire.STRUCT_ACK, wire.encodeStructAck(members));
       continue;
     }
 
     if (reply.type === wire.VALUE_REQUEST) {
-      const path = wire.decodeValueRequest(reply.payload);
-      const resolved = resolveMemberPath(doc, path);
-      const bytes =
-        resolved.kind === "arrayLength"
-          ? encodeArrayLength(resolved.length)
-          : encodeValue(resolved.field, resolved.value);
-      reply = await call(wire.VALUE_ACK, wire.encodeValueAck(bytes));
+      const request = wire.decodeValueRequest(reply.payload);
+      const { path } = request;
+      const key = path.join(".");
+      const offset = longValues === "legacy" ? undefined : request.offset;
+      if (offset === undefined) {
+        i++;
+        const ack = answerValueRequest(doc, path, undefined, longValues);
+        const total = ack.totalLength;
+        reading = total === undefined ? undefined : { path: key, offsetsLeft: 2 * Math.ceil(total / MAX_LEAF_BYTES) };
+        reply = await call(wire.VALUE_ACK, wire.encodeValueAck(ack));
+        continue;
+      }
+      if (!reading || reading.path !== key) {
+        throw new Error(`Device asked for offset ${offset} of ${key}, which is not being sent in chunks`);
+      }
+      if (reading.offsetsLeft-- <= 0) throw new Error("Device asked for one value's chunks too many times");
+      reply = await call(wire.VALUE_ACK, wire.encodeValueAck(answerValueRequest(doc, path, offset, longValues)));
       continue;
     }
 

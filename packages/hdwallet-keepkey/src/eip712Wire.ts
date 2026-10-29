@@ -91,7 +91,7 @@ export class EthereumTypedDataStructRequest extends jspb.Message {
   }
 }
 
-/** message EthereumTypedDataValueRequest { repeated uint32 member_path = 1; } */
+/** message EthereumTypedDataValueRequest { repeated uint32 member_path = 1; optional uint32 value_offset = 2; } */
 export class EthereumTypedDataValueRequest extends jspb.Message {
   constructor(opt_data?: any) {
     super();
@@ -99,6 +99,11 @@ export class EthereumTypedDataValueRequest extends jspb.Message {
   }
   getMemberPathList(): number[] {
     return (jspb.Message.getField(this, 1) as number[]) || [];
+  }
+  /** Set only while a chunked value is read: the offset wanted next. */
+  getValueOffset(): number | undefined {
+    const offset = jspb.Message.getField(this, 2);
+    return offset === null || offset === undefined ? undefined : (offset as number);
   }
   toObject(): Record<string, never> {
     // Required by jspb.Message. Nothing on this path introspects these
@@ -108,6 +113,9 @@ export class EthereumTypedDataValueRequest extends jspb.Message {
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
     writer.writeRepeatedUint32(1, this.getMemberPathList());
+    // The walk reads the request back from these bytes, so the offset must survive.
+    const offset = this.getValueOffset();
+    if (offset !== undefined) writer.writeUint32(2, offset);
     return writer.getResultBuffer();
   }
   static deserializeBinary(bytes: Uint8Array): EthereumTypedDataValueRequest {
@@ -129,14 +137,21 @@ export class EthereumTypedDataValueRequest extends jspb.Message {
         // than assuming, because the device's encoder is not ours to pin.
         if (reader.isDelimited()) path.push(...reader.readPackedUint32());
         else path.push(reader.readUint32());
-      } else reader.skipField();
+      } else if (reader.getFieldNumber() === 2) jspb.Message.setField(msg, 2, reader.readUint32());
+      else reader.skipField();
     }
     jspb.Message.setField(msg, 1, path);
     return msg;
   }
 }
 
-/** message EthereumTypedDataValueAck { required bytes value = 1; } */
+/**
+ * message EthereumTypedDataValueAck {
+ *   required bytes value = 1;
+ *   optional uint32 value_total_length = 2;  // first chunk of a long value
+ *   optional uint32 value_offset = 3;        // later chunks: echoes the request
+ * }
+ */
 export class EthereumTypedDataValueAck extends jspb.Message {
   constructor(opt_data?: any) {
     super();
@@ -144,6 +159,12 @@ export class EthereumTypedDataValueAck extends jspb.Message {
   }
   setValue(value: Uint8Array): void {
     jspb.Message.setField(this, 1, value);
+  }
+  setValueTotalLength(length: number): void {
+    jspb.Message.setField(this, 2, length);
+  }
+  setValueOffset(offset: number): void {
+    jspb.Message.setField(this, 3, offset);
   }
   toObject(): Record<string, never> {
     // Required by jspb.Message. Nothing on this path introspects these
@@ -153,6 +174,10 @@ export class EthereumTypedDataValueAck extends jspb.Message {
   serializeBinary(): Uint8Array {
     const writer = new jspb.BinaryWriter();
     writer.writeBytes(1, jspb.Message.getFieldWithDefault(this, 1, new Uint8Array()) as Uint8Array);
+    const total = jspb.Message.getField(this, 2);
+    if (total !== null && total !== undefined) writer.writeUint32(2, total as number);
+    const offset = jspb.Message.getField(this, 3);
+    if (offset !== null && offset !== undefined) writer.writeUint32(3, offset as number);
     return writer.getResultBuffer();
   }
   static deserializeBinary(bytes: Uint8Array): EthereumTypedDataValueAck {
