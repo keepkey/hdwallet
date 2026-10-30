@@ -2,8 +2,11 @@ import * as Messages from "@keepkey/device-protocol/lib/messages_pb";
 import * as Ethereum from "@keepkey/device-protocol/lib/messages-ethereum_pb";
 import * as Types from "@keepkey/device-protocol/lib/types_pb";
 import * as core from "@keepkey/hdwallet-core";
+import * as fs from "fs";
+import { join } from "path";
 
 import { ethSignTypedData, typedDataLongValues } from "./ethereum";
+import { KeepKeyHDWallet } from "./keepkey";
 import { Transport, TransportDelegate } from "./transport";
 
 // EIP-712 values over 1 KB, through the real Transport against a scripted
@@ -294,5 +297,65 @@ describe("EIP-712 values over 1 KB (firmware 7.16)", () => {
     });
     await sign(device, noteDoc("hello"));
     expect(device.types()).toEqual([1704, 1708, MT.MESSAGETYPE_ETHEREUMSIGNTYPEDHASH]);
+  });
+});
+
+describe("features the cache no longer holds are read again (firmware 7.16)", () => {
+  const CHUNKED = Messages.Features.Capability.CAPABILITY_EIP712_CHUNKED_VALUES;
+  // The real 4900-byte Safe{Wallet} batch that aborted on the 7.16.0 emulator
+  // after ClearSession ("over the 1024-byte wire limit").
+  const doc = JSON.parse(fs.readFileSync(join(__dirname, "fixtures/safe-multisend-4900.json"), "utf8")).typedData;
+  const data = Buffer.from(doc.message.data.slice(2), "hex");
+
+  function features716(): Frame {
+    const f = new Messages.Features();
+    f.setVendor("keepkey.com");
+    f.setMajorVersion(7);
+    f.setMinorVersion(16);
+    f.setPatchVersion(0);
+    f.setCapabilitiesList([CHUNKED]);
+    return { type: MT.MESSAGETYPE_FEATURES, body: f.serializeBinary() };
+  }
+  const success = (): Frame => ({ type: MT.MESSAGETYPE_SUCCESS, body: new Messages.Success().serializeBinary() });
+
+  /** A 7.16.0 device: Features, Success for ClearSession, then SafeTx.data in 1 KB chunks. */
+  function device716() {
+    let offset = 0;
+    return new FakeKeepKey((host) => {
+      if (host.type === MT.MESSAGETYPE_GETFEATURES) return features716();
+      if (host.type === MT.MESSAGETYPE_CLEARSESSION) return success();
+      if (host.type === 1704) return valueRequest([1, 2]);
+      offset += 1024;
+      return offset < data.length ? valueRequest([1, 2], offset) : typedSignature();
+    });
+  }
+
+  it("after ClearSession, a SafeTx over 1 KB is chunked, not refused", async () => {
+    const device = device716();
+    const wallet = new KeepKeyHDWallet(device.transport);
+    await wallet.getFeatures();
+    await wallet.clearSession();
+    expect(wallet.featuresCache).toBeUndefined();
+
+    const signed = await wallet.ethSignTypedData({ addressNList: PATH, typedData: doc });
+
+    expect(signed.signature).toBe("0x" + "33".repeat(65));
+    const chunks = Math.ceil(data.length / 1024) - 1;
+    expect(device.types()).toEqual([
+      MT.MESSAGETYPE_GETFEATURES,
+      MT.MESSAGETYPE_CLEARSESSION,
+      MT.MESSAGETYPE_GETFEATURES,
+      1704,
+      ...Array(chunks + 1).fill(1708),
+    ]);
+    expect(device.ack(0).getValueTotalLength()).toBe(4900);
+  });
+
+  it("uses the cache when it holds Features, without asking again", async () => {
+    const device = device716();
+    const wallet = new KeepKeyHDWallet(device.transport);
+    await wallet.getFeatures();
+    await wallet.ethSignTypedData({ addressNList: PATH, typedData: doc });
+    expect(device.types().filter((t) => t === MT.MESSAGETYPE_GETFEATURES)).toHaveLength(1);
   });
 });

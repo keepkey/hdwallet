@@ -1461,9 +1461,11 @@ export class KeepKeyHDWallet implements core.HDWallet, core.BTCWallet, core.ETHW
   }
 
   public async ethSignTypedData(msg: core.ETHSignTypedData): Promise<core.ETHSignedTypedData> {
-    // From the cached Features, never the device: this must not run inside
-    // the transport lock ethSignTypedData takes.
-    return Eth.ethSignTypedData(this.transport, msg, Eth.typedDataLongValues(this.featuresCache));
+    // Read here, before the transport lock ethSignTypedData takes. ClearSession,
+    // ApplyPolicy, ApplySettings, LoadDevice and others empty the cache: read
+    // the device again rather than assume pre-7.16 firmware.
+    const features = this.featuresCache ?? (await this.getFeatures());
+    return Eth.ethSignTypedData(this.transport, msg, Eth.typedDataLongValues(features));
   }
 
   public async ethVerifyMessage(msg: core.ETHVerifyMessage): Promise<boolean> {
