@@ -39,8 +39,9 @@ const ERC7730_CHUNK_MAX = 1024;
 // chunks) for every selection, up to 9 per field, for 64 fields and 64 array
 // elements -- about 627k -- and re-walks calldata or the typed message per value.
 const ERC7730_MAX_ROUND_TRIPS = 1 << 20;
-// Firmware 7.16 nests one level only (erc7730_workflow.c refuses depth > 1).
-const ERC7730_RECURSION_MAX = 1;
+// Firmware 7.16 nests one level; 7.17 nests two (ERC7730_EMBED_MAX_DEPTH in
+// erc7730_workflow.h), e.g. a Safe executing a multicall whose steps are calls.
+const ERC7730_RECURSION_MAX = 2;
 
 // ── EVM Metadata Classification (from EthereumMetadataAck) ───────────
 /** Device could not verify the blob (unsigned or unknown key) */
@@ -75,8 +76,8 @@ function optionalRequestBytes(
 /**
  * Resolve and bound a firmware ERC-7730 request without trusting its lookup tuple.
  *
- * An embedded call's definition (recursion depth 1, looked up by chain, callee
- * and selector) that the catalog lacks is asked of `catalog.resolveInner`, and
+ * An embedded call's definition (recursion depth 1 or 2, looked up by chain,
+ * callee and selector) that the catalog lacks is asked of `catalog.resolveInner`, and
  * kept in the catalog because the device asks for it again by id. If that
  * misses too, the answer is the empty "none" chunk, as python-keepkey sends;
  * firmware 7.16 then fails with "Inner call cannot be clear-signed".
@@ -108,7 +109,7 @@ export async function makeErc7730DefinitionChunk(
   let entry = catalog.definitions.find((candidate) =>
     requestId ? bytesEqual(erc7730Bytes(candidate.definitionId, "definition id"), requestId) : matchesRequest(candidate)
   );
-  if (!entry && !requestId && recursionDepth === 1) {
+  if (!entry && !requestId && recursionDepth >= 1) {
     const resolved = await catalog.resolveInner?.(
       request.getChainId(),
       "0x" + core.toHexString(requestContract ?? new Uint8Array()),

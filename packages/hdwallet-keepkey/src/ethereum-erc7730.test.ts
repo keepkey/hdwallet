@@ -58,9 +58,9 @@ describe("ERC-7730 signed definition catalog", () => {
     unknown.setSelectorOrTypeHash(new Uint8Array([0xde, 0xad, 0xbe, 0xef]));
     await expect(makeErc7730DefinitionChunk(catalog, unknown)).rejects.toThrow("not in the signed catalog");
     await expect(makeErc7730DefinitionChunk(catalog, request(0, 1025))).rejects.toThrow("Invalid ERC-7730 chunk range");
-    // Firmware 7.16 nests one level; anything deeper is not a device request.
+    // Firmware 7.17 nests two levels; anything deeper is not a device request.
     const tooDeep = request();
-    tooDeep.setRecursionDepth(2);
+    tooDeep.setRecursionDepth(3);
     await expect(makeErc7730DefinitionChunk(catalog, tooDeep)).rejects.toThrow("recursion depth exceeds host limit");
   });
 
@@ -80,6 +80,40 @@ describe("ERC-7730 signed definition catalog", () => {
     expect(none.getOffset()).toBe(0);
     expect(none.getTotalLength()).toBe(0);
     expect(none.getData_asU8()).toEqual(new Uint8Array());
+  });
+
+  it("resolves a second-level embedded call (firmware 7.17) and keeps it for the replay by id", async () => {
+    const innerId = new Uint8Array(32).fill(0x33);
+    const innerEnvelope = new Uint8Array(40).fill(0x5a);
+    const innerSelector = new Uint8Array([0xde, 0xad, 0xbe, 0xef]);
+    const asked: unknown[][] = [];
+    const resolving = {
+      ...catalog,
+      definitions: [...catalog.definitions],
+      resolveInner: async (chainId: number, contractAddress: string, sel: string) => {
+        asked.push([chainId, contractAddress, sel]);
+        return {
+          definitionId: innerId,
+          envelope: innerEnvelope,
+          kind: 1 as const,
+          chainId: 1,
+          contractAddress: contract,
+          selectorOrTypeHash: innerSelector,
+        };
+      },
+    };
+    const inner = request(0, 1024);
+    inner.setSelectorOrTypeHash(innerSelector);
+    inner.setRecursionDepth(2);
+    const chunk = await makeErc7730DefinitionChunk(resolving, inner);
+    expect(asked).toEqual([[1, "0x" + "22".repeat(20), "0xdeadbeef"]]);
+    expect(chunk.getDefinitionId_asU8()).toEqual(innerId);
+    expect(chunk.getData_asU8()).toEqual(innerEnvelope);
+    const byId = request(8, 8);
+    byId.setSelectorOrTypeHash(innerSelector);
+    byId.setDefinitionId(innerId);
+    expect((await makeErc7730DefinitionChunk(resolving, byId)).getData_asU8()).toEqual(innerEnvelope.slice(8, 16));
+    expect(asked.length).toBe(1);
   });
 
   it("refuses a resolved inner definition for a different call", async () => {

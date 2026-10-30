@@ -1242,6 +1242,19 @@ export async function solanaSignTx(transport: Transport, msg: core.SolanaSignTx)
       certifiedWire.lutSignature = lutSignature;
       certifiedWire.lutSignerKeyId = msg.lutProof.signerKeyId;
     }
+    if (msg.lutAccounts) {
+      // Unsigned host resolution (7.17+): field 5 alone. Firmware refuses it
+      // next to a LUT proof, a schema or a certificate.
+      if (msg.lutProof || msg.schema || certified) {
+        throw new Error("lutAccounts cannot be combined with lutProof, schema or certificate");
+      }
+      if (msg.lutAccounts.length < 1 || msg.lutAccounts.length > 64) {
+        throw new Error("lutAccounts must contain 1-64 accounts");
+      }
+      for (const account of msg.lutAccounts) {
+        extraFields.push(encodeLengthDelimited(5, toSolanaPubkey(account, "lut account")));
+      }
+    }
     if (msg.schema) {
       const payload = toBytes(msg.schema.payload);
       const signature = toBytes(msg.schema.signature);
