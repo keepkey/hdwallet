@@ -49,6 +49,17 @@ export interface SolanaSignTx {
     signerKeyId: number;
   };
   /**
+   * Firmware 7.17+: the host's own resolution of the lookup-table accounts
+   * this v0 message loads, with no signature. Same order as
+   * `lutProof.accounts` (all writable lookup keys, then all readonly), one
+   * key per lookup index, max 64. The device decodes the instructions with
+   * these keys, marks each one "from lookup table, not verified by KeepKey",
+   * and still treats the transaction as a blind sign. Older firmware does not
+   * accept it, so callers gate on the firmware version. Cannot be combined
+   * with `lutProof`, `schema` or `certificate`.
+   */
+  lutAccounts?: Array<Uint8Array | string>;
+  /**
    * Signer-attested KKSOLSC1 instruction schema. Unlike lutProof this is
    * NOT bound to one transaction: it describes how to read a program's
    * instruction, so a single signature is reused for every transaction to
