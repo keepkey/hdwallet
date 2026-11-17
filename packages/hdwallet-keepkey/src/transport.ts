@@ -35,6 +35,9 @@ export class Transport extends core.Transport {
   // A timed-out read may still be alive inside a USB/HID delegate. Never reuse
   // this transport: a fresh connection must own all subsequent device traffic.
   private timeoutError?: TransportTimeoutError;
+  // A PIN matrix can sit unattended indefinitely. Start its response deadline
+  // only when the host submits a PIN or cancels the prompt.
+  private pinSubmitted?: () => void;
 
   /// One per transport, unlike on Trezor, since the contention is
   /// only per-device, not global.
@@ -81,27 +84,39 @@ export class Transport extends core.Transport {
     if (this.timeoutError) throw this.timeoutError;
   }
 
-  private async withDeadline<T>(action: () => Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  private async withDeadline<T>(
+    action: () => Promise<T>,
+    timeoutMs: number,
+    operation: string,
+    startDeadline?: Promise<void>
+  ): Promise<T> {
     this.assertUsable();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
     try {
       return await Promise.race([
         action(),
         new Promise<never>((_, reject) => {
-          timer = setTimeout(() => {
-            const error = new TransportTimeoutError(operation, timeoutMs);
-            this.timeoutError = error;
-            this.userActionRequired = false;
-            reject(error);
-            // Quarantine first. Closing normally cancels the delegate's read,
-            // but the timeout must still settle if close itself gets stuck.
-            void Promise.resolve()
-              .then(() => this.delegate.disconnect())
-              .catch(() => undefined);
-          }, timeoutMs);
+          const start = () => {
+            if (settled) return;
+            timer = setTimeout(() => {
+              const error = new TransportTimeoutError(operation, timeoutMs);
+              this.timeoutError = error;
+              this.userActionRequired = false;
+              reject(error);
+              // Quarantine first. Closing normally cancels the delegate's read,
+              // but the timeout must still settle if close itself gets stuck.
+              void Promise.resolve()
+                .then(() => this.delegate.disconnect())
+                .catch(() => undefined);
+            }, timeoutMs);
+          };
+          if (startDeadline) void startDeadline.then(start);
+          else start();
         }),
       ]);
     } finally {
+      settled = true;
       if (timer !== undefined) clearTimeout(timer);
     }
   }
@@ -200,10 +215,14 @@ export class Transport extends core.Transport {
     return this.readResponse(false);
   }
 
-  public async readResponse(debugLink: boolean, timeoutMs = core.LONG_TIMEOUT): Promise<core.Event> {
+  public async readResponse(
+    debugLink: boolean,
+    timeoutMs = core.LONG_TIMEOUT,
+    startDeadline?: Promise<void>
+  ): Promise<core.Event> {
     let buf;
     do {
-      buf = await this.withDeadline(() => this.read(debugLink), timeoutMs, "device response");
+      buf = await this.withDeadline(() => this.read(debugLink), timeoutMs, "device response", startDeadline);
     } while (!buf);
     const [msgTypeEnum, msg] = this.fromMessageBuffer(buf);
     const event = core.makeEvent({
@@ -213,6 +232,11 @@ export class Transport extends core.Transport {
       proto: msg,
       from_wallet: true,
     });
+    // Install the submission signal before either PIN event: a listener may
+    // immediately send a PIN or cancel, including during ChangePin's next step.
+    if (!debugLink && msgTypeEnum === Messages.MessageType.MESSAGETYPE_PINMATRIXREQUEST) {
+      return this.handlePinRequest(event);
+    }
     this.emit(String(msgTypeEnum), event);
 
     if (debugLink) return event;
@@ -252,18 +276,6 @@ export class Transport extends core.Transport {
       });
     }
 
-    if (msgTypeEnum === Messages.MessageType.MESSAGETYPE_PINMATRIXREQUEST) {
-      this.emit(
-        core.Events.PIN_REQUEST,
-        core.makeEvent({
-          message_type: core.Events.PIN_REQUEST,
-          from_wallet: true,
-        })
-      );
-      this.userActionRequired = true;
-      return this.handleCancellableResponse();
-    }
-
     if (msgTypeEnum === Messages.MessageType.MESSAGETYPE_PASSPHRASEREQUEST) {
       this.emit(
         core.Events.PASSPHRASE_REQUEST,
@@ -301,6 +313,24 @@ export class Transport extends core.Transport {
     }
 
     return event;
+  }
+
+  private async handlePinRequest(event: core.Event): Promise<core.Event> {
+    let submitted!: () => void;
+    const startDeadline = new Promise<void>((resolve) => {
+      submitted = resolve;
+    });
+    this.pinSubmitted = submitted;
+    this.userActionRequired = true;
+    try {
+      this.emit(String(Messages.MessageType.MESSAGETYPE_PINMATRIXREQUEST), event);
+      this.emit(core.Events.PIN_REQUEST, core.makeEvent({ message_type: core.Events.PIN_REQUEST, from_wallet: true }));
+      // Keep the original reader so a disconnect or device-side cancellation
+      // still settles the call while the user is away.
+      return await this.readResponse(false, core.LONG_TIMEOUT, startDeadline);
+    } finally {
+      if (this.pinSubmitted === submitted) this.pinSubmitted = undefined;
+    }
   }
 
   public async call(
@@ -354,6 +384,13 @@ export class Transport extends core.Transport {
     const makePromise = async () => {
       this.assertUsable();
       if (
+        !options?.debugLink &&
+        (msgTypeEnum === Messages.MessageType.MESSAGETYPE_PINMATRIXACK ||
+          msgTypeEnum === Messages.MessageType.MESSAGETYPE_CANCEL)
+      ) {
+        this.pinSubmitted?.();
+      }
+      if (
         (
           [
             Messages.MessageType.MESSAGETYPE_BUTTONACK,
@@ -378,7 +415,7 @@ export class Transport extends core.Transport {
       if (options?.noWait) return undefined;
 
       // Bound a wire response, not the entire interaction. Button/PIN prompts
-      // switch to LONG_TIMEOUT in readResponse after the first reply arrives.
+      // switch to their interaction handling after the first reply arrives.
       const response = await this.readResponse(!!options?.debugLink, options.msgTimeout);
       this.userActionRequired = false;
       if (
